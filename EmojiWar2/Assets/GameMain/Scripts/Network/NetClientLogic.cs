@@ -13,11 +13,21 @@ namespace EmojiWar.GameMain.Network
 {
     /// <summary>
     /// 客户端同步：输入上行 + 状态应用 + 重连。
+    /// 实体位置使用插值平滑（减少网络抖动）。
     /// </summary>
     public class NetClientLogic : MonoBehaviour
     {
-        // 本地实体映射（entityId → 本地对象）
-        private readonly Dictionary<int, Transform> m_LocalEntities = new Dictionary<int, Transform>();
+        // 本地实体表现
+        private sealed class LocalEntity
+        {
+            public Transform Transform;
+            public Vector3 TargetPosition;
+        }
+
+        private readonly Dictionary<int, LocalEntity> m_LocalEntities = new Dictionary<int, LocalEntity>();
+
+        [SerializeField]
+        private float m_InterpolationSpeed = 12f;   // 插值速度（越高越快跟随）
 
         private NetworkService m_Service = null;
         private bool m_Joined = false;
@@ -29,6 +39,9 @@ namespace EmojiWar.GameMain.Network
         private bool m_Reconnecting = false;
         private float m_ReconnectDelay = 1f;
         private float m_ReconnectTimer = 0f;
+
+        /// <summary>重连状态变化事件（参数：是否重连中）。</summary>
+        public event System.Action<bool> OnReconnectStateChanged;
 
         private void Awake()
         {
@@ -108,6 +121,9 @@ namespace EmojiWar.GameMain.Network
                 UpdateReconnect();
             }
 
+            // 插值平滑所有实体（每帧向目标位置移动）
+            UpdateInterpolation();
+
             if (!m_Joined || m_Service == null || m_Service.Mode != NetMode.Client)
             {
                 return;
@@ -147,6 +163,7 @@ namespace EmojiWar.GameMain.Network
             m_Reconnecting = true;
             m_ReconnectTimer = m_ReconnectDelay;
             ClearLocalEntities();
+            OnReconnectStateChanged?.Invoke(true);
             Debug.Log("[NetClientLogic] 2 秒后自动重连 " + m_ServerIp + ":" + m_ServerPort);
         }
 
@@ -183,6 +200,7 @@ namespace EmojiWar.GameMain.Network
                 Debug.Log("[NetClientLogic] 重连成功，重新加入房间");
                 m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName });
                 m_Reconnecting = false;
+                OnReconnectStateChanged?.Invoke(false);
             }
         }
 
@@ -193,9 +211,9 @@ namespace EmojiWar.GameMain.Network
         {
             foreach (var kv in m_LocalEntities)
             {
-                if (kv.Value != null)
+                if (kv.Value.Transform != null)
                 {
-                    Destroy(kv.Value.gameObject);
+                    Destroy(kv.Value.Transform.gameObject);
                 }
             }
             m_LocalEntities.Clear();
@@ -280,7 +298,8 @@ namespace EmojiWar.GameMain.Network
             // 生成本地表现对象（占位方块）
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = "NetEntity_" + spawn.EntityId;
-            go.transform.position = new Vector3(spawn.X, spawn.Y, 0f);
+            Vector3 spawnPos = new Vector3(spawn.X, spawn.Y, 0f);
+            go.transform.position = spawnPos;
             go.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
             var renderer = go.GetComponent<Renderer>();
             if (renderer != null)
@@ -288,19 +307,20 @@ namespace EmojiWar.GameMain.Network
                 // 玩家绿色，敌人红色
                 renderer.material.color = spawn.Type == 0 ? Color.green : new Color(0.9f, 0.2f, 0.2f);
             }
-            m_LocalEntities[spawn.EntityId] = go.transform;
+            m_LocalEntities[spawn.EntityId] = new LocalEntity { Transform = go.transform, TargetPosition = spawnPos };
 
             Debug.Log(string.Format("[NetClientLogic] 生成实体 {0} type={1} 于 ({2:F1},{3:F1})", spawn.EntityId, spawn.Type, spawn.X, spawn.Y));
         }
 
         private void HandleEntityState(S2CEntityState state)
         {
-            if (state == null || !m_LocalEntities.TryGetValue(state.EntityId, out var tf))
+            if (state == null || !m_LocalEntities.TryGetValue(state.EntityId, out var entity))
             {
                 return;
             }
 
-            tf.position = new Vector3(state.X, state.Y, 0f);
+            // 更新目标位置（由 UpdateInterpolation 平滑跟随）
+            entity.TargetPosition = new Vector3(state.X, state.Y, 0f);
         }
 
         private void HandleRemoveEntity(S2CRemoveEntity remove)
@@ -310,14 +330,32 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
-            if (m_LocalEntities.TryGetValue(remove.EntityId, out var tf))
+            if (m_LocalEntities.TryGetValue(remove.EntityId, out var entity))
             {
-                if (tf != null)
+                if (entity.Transform != null)
                 {
-                    Destroy(tf.gameObject);
+                    Destroy(entity.Transform.gameObject);
                 }
                 m_LocalEntities.Remove(remove.EntityId);
                 Debug.Log("[NetClientLogic] 实体 " + remove.EntityId + " 移除");
+            }
+        }
+
+        /// <summary>
+        /// 插值平滑所有实体位置。
+        /// </summary>
+        private void UpdateInterpolation()
+        {
+            float t = m_InterpolationSpeed * Time.deltaTime;
+            foreach (var kv in m_LocalEntities)
+            {
+                var entity = kv.Value;
+                if (entity == null || entity.Transform == null)
+                {
+                    continue;
+                }
+
+                entity.Transform.position = Vector3.Lerp(entity.Transform.position, entity.TargetPosition, t);
             }
         }
 
