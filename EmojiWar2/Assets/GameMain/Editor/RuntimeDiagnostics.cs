@@ -15,6 +15,21 @@ namespace EmojiWar.GameMain.Editor
 {
     public static class RuntimeDiagnostics
     {
+        [MenuItem("EmojiWar/Diagnostics/Simulate Start Button")]
+        public static void SimulateStartButton()
+        {
+            // 找到运行时的 MenuForm 实例，触发开始游戏事件
+            var forms = UnityEngine.Object.FindObjectsOfType<EmojiWar.GameMain.UI.MenuForm>(true);
+            if (forms == null || forms.Length == 0)
+            {
+                Debug.Log("[Diagnostics] MenuForm not found (is play mode active?)");
+                return;
+            }
+
+            Debug.Log("[Diagnostics] Simulating start button click on " + forms[0].name);
+            EmojiWar.GameMain.UI.MenuForm.TriggerStartGame();
+        }
+
         [MenuItem("EmojiWar/Diagnostics/Log Runtime State")]
         public static void LogRuntimeState()
         {
@@ -68,6 +83,27 @@ namespace EmojiWar.GameMain.Editor
                 sb.AppendLine("GameEntry.Procedure static: " + (GameEntry.Procedure != null ? GameEntry.Procedure.GetType().Name : "NULL"));
                 sb.AppendLine("GameEntry.UI static: " + (GameEntry.UI != null ? "SET" : "NULL"));
                 sb.AppendLine("GameEntry.DataTable static: " + (GameEntry.DataTable != null ? "SET" : "NULL"));
+                sb.AppendLine("GameEntry.Data static: " + (GameEntry.Data != null ? "SET" : "NULL"));
+
+                // DataTable 数据验证
+                if (GameEntry.DataTable != null)
+                {
+                    var charTable = GameEntry.DataTable.GetDataTable<EmojiWar.GameMain.Data.DRCharacter>("Character");
+                    sb.AppendLine("CharacterTable: " + (charTable != null ? "FOUND count=" + charTable.Count : "NULL"));
+                    if (charTable != null && charTable.Count > 0)
+                    {
+                        var first = charTable.GetDataRow(1);
+                        sb.AppendLine("  Row1: id=" + first.Id + " name=" + first.CharacterName + " hp=" + first.MaxHealth + " speed=" + first.MoveSpeed);
+                    }
+
+                    var weaponTable = GameEntry.DataTable.GetDataTable<EmojiWar.GameMain.Data.DRWeapon>("Weapon");
+                    sb.AppendLine("WeaponTable: " + (weaponTable != null ? "FOUND count=" + weaponTable.Count : "NULL"));
+                    if (weaponTable != null && weaponTable.Count > 0)
+                    {
+                        var firstW = weaponTable.GetDataRow(1);
+                        sb.AppendLine("  Row1: id=" + firstW.Id + " name=" + firstW.WeaponName + " dmg=" + firstW.Damage);
+                    }
+                }
             }
             catch (Exception e) { sb.AppendLine("GameEntry ERROR: " + e.Message); }
 

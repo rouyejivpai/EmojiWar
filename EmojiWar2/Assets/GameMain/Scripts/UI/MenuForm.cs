@@ -2,6 +2,7 @@
 // EmojiWar GameMain - 主菜单界面
 //------------------------------------------------------------
 
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -12,6 +13,9 @@ namespace EmojiWar.GameMain.UI
     /// </summary>
     public class MenuForm : UGuiForm
     {
+        /// <summary>点击"开始游戏"事件（由 Procedure 订阅处理流程切换）。</summary>
+        public static event Action OnStartGameRequested;
+
         [SerializeField]
         private Button m_StartButton = null;
 
@@ -43,7 +47,7 @@ namespace EmojiWar.GameMain.UI
 
             if (m_VersionText != null)
             {
-                m_VersionText.text = "v0.1.0 - 架构重构版";
+                m_VersionText.text = "v0.2.0 - 单机战斗原型";
             }
         }
 
@@ -59,13 +63,16 @@ namespace EmojiWar.GameMain.UI
 
         private void OnStartButtonClick()
         {
-            // TODO(Phase 2): 进入角色选择/匹配流程
-            Log("开始游戏（占位）");
+            Debug.Log("[MenuForm] 开始游戏");
+            TriggerStartGame();
         }
 
-        private static void Log(string message)
+        /// <summary>
+        /// 触发开始游戏事件（公开：供测试/流程驱动调用）。
+        /// </summary>
+        public static void TriggerStartGame()
         {
-            Debug.Log($"[MenuForm] {message}");
+            OnStartGameRequested?.Invoke();
         }
     }
 }

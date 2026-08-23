@@ -36,6 +36,7 @@ namespace EmojiWar.GameMain.Editor
         {
             "EmojiWar.GameMain.Procedure.ProcedureLaunch",
             "EmojiWar.GameMain.Procedure.ProcedureMenu",
+            "EmojiWar.GameMain.Procedure.ProcedureBattle",
         };
         private const string EntranceProcedureTypeName = "EmojiWar.GameMain.Procedure.ProcedureLaunch";
 
