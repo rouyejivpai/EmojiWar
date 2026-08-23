@@ -24,11 +24,18 @@ namespace EmojiWar.GameMain.Procedure
         // 通过 userData 传入的角色 ID（Phase 2 固定为 1，后续接选角）
         private int m_CharacterId = 1;
 
+        /// <summary>当前战斗管理器实例（重开时销毁，避免重复波次）。</summary>
+        private Battle.BattleManager m_BattleManager = null;
+
+        /// <summary>当前流程实例（供网络层触发本地重开）。</summary>
+        public static ProcedureBattle Current { get; private set; }
+
         protected override void OnEnter(IFsm<IProcedureManager> procedureOwner)
         {
             base.OnEnter(procedureOwner);
             Log.Info("===== EmojiWar Battle =====");
 
+            Current = this;
             CurrentFsm = procedureOwner;
 
             // 订阅场景加载成功事件
@@ -40,12 +47,20 @@ namespace EmojiWar.GameMain.Procedure
             // 订阅玩家死亡事件
             Entity.PlayerEntity.OnPlayerDied += OnPlayerDied;
 
-            if (SceneManager.GetActiveScene().name != "Battle")
+            // 战斗场景：叠加加载架构下场景常驻 —— 已加载则复用并激活，避免重复加载
+            var battleScene = SceneManager.GetSceneByName("Battle");
+            if (!battleScene.isLoaded)
             {
                 GameEntry.Scene.LoadScene(BattleSceneAssetName, this);
             }
             else
             {
+                if (SceneManager.GetActiveScene().name != "Battle")
+                {
+                    SceneManager.SetActiveScene(battleScene);
+                }
+                // 场景已在战斗（重开/远端重开）：先清理旧实体与旧管理器，再重新开局
+                CleanupBattleScene();
                 StartBattle();
             }
         }
@@ -106,6 +121,7 @@ namespace EmojiWar.GameMain.Procedure
 
             GameObject managerGo = Object.Instantiate(managerPrefab);
             var manager = managerGo.GetComponent<Battle.BattleManager>();
+            m_BattleManager = manager;
             if (manager != null)
             {
                 manager.StartBattle(m_CharacterId);
@@ -121,6 +137,101 @@ namespace EmojiWar.GameMain.Procedure
                     GameEntry.UI.OpenUIForm(Constant.UIFormAssetPath.BattleHudForm, Constant.UIGroup.Default, this);
                 }
             }
+        }
+
+        /// <summary>
+        /// 重启本地战斗（房主重开广播触发）：清理旧实体后重新开局。
+        /// 不重载场景 —— 框架场景为叠加加载，重载会销毁框架对象。
+        /// </summary>
+        public void RestartRunLocally()
+        {
+            Log.Info("[ProcedureBattle] 重开本局（房主广播）");
+
+            CloseBattleForms();
+            CleanupBattleScene();
+            StartBattle();
+        }
+
+        /// <summary>
+        /// 清理本局残留：旧 BattleManager（停止旧波次）、残留敌人/子弹/玩家。
+        /// </summary>
+        private void CleanupBattleScene()
+        {
+            if (m_BattleManager != null)
+            {
+                Object.Destroy(m_BattleManager.gameObject);
+                m_BattleManager = null;
+            }
+
+            foreach (var enemy in Object.FindObjectsOfType<Entity.EnemyEntity>())
+            {
+                if (enemy != null)
+                {
+                    Object.Destroy(enemy.gameObject);
+                }
+            }
+            foreach (var projectile in Object.FindObjectsOfType<Weapon.Projectile>())
+            {
+                if (projectile != null)
+                {
+                    Object.Destroy(projectile.gameObject);
+                }
+            }
+            foreach (var player in Object.FindObjectsOfType<Entity.PlayerEntity>())
+            {
+                if (player != null)
+                {
+                    Object.Destroy(player.gameObject);
+                }
+            }
+
+            Log.Info("[ProcedureBattle] 本局已清理，准备重新开局");
+        }
+
+        /// <summary>关闭战斗相关 UI 窗体（HUD / 商店 / 结算）。</summary>
+        private void CloseBattleForms()
+        {
+            if (GameEntry.UI == null)
+            {
+                return;
+            }
+            CloseFormIfOpen("BattleHudForm(Clone)");
+            CloseFormIfOpen("ShopForm(Clone)");
+            CloseFormIfOpen("GameOverForm(Clone)");
+        }
+
+        /// <summary>若指定窗体存在则关闭（未打开时静默跳过）。</summary>
+        private void CloseFormIfOpen(string name)
+        {
+            var form = GetUIForm(name);
+            if (form != null)
+            {
+                GameEntry.UI.CloseUIForm(form);
+            }
+        }
+
+        /// <summary>按名称查找 UIForm（简化实现）。</summary>
+        private UnityGameFramework.Runtime.UIForm GetUIForm(string name)
+        {
+            var ui = GameEntry.UI;
+            if (ui == null)
+            {
+                return null;
+            }
+
+            var groups = ui.GetAllUIGroups();
+            foreach (var group in groups)
+            {
+                foreach (var form in group.GetAllUIForms())
+                {
+                    var formLogic = form as UnityGameFramework.Runtime.UIForm;
+                    if (formLogic != null && formLogic.Logic != null && formLogic.Logic.Name == name)
+                    {
+                        return formLogic;
+                    }
+                }
+            }
+            return null;
         }
 
         private GameObject LoadPrefab(string path)
@@ -139,6 +250,10 @@ namespace EmojiWar.GameMain.Procedure
             if (GameEntry.Event != null)
             {
                 GameEntry.Event.Unsubscribe(LoadSceneSuccessEventArgs.EventId, OnLoadSceneSuccess);
+            }
+            if (Current == this)
+            {
+                Current = null;
             }
             CurrentFsm = null;
             base.OnLeave(procedureOwner, isShutdown);

@@ -75,12 +75,32 @@ namespace EmojiWar.GameMain.Procedure
             Log.Info("[ProcedureLobby] 加入房间: {0} @ {1}:{2}", playerName, ip, port);
 
             GameEntry.NetworkService.ConnectToServer(ip, port);
+
+            // 挂载客户端同步逻辑并排队发送加入房间请求（连接建立后自动补发）
+            var clientLogic = GetOrAddClientLogic();
+            if (clientLogic != null)
+            {
+                clientLogic.JoinRoom(playerName, ip, port);
+            }
+
             GoBattle();
         }
 
         private void OnBackRequested()
         {
             Log.Info("[ProcedureLobby] 返回主菜单");
+
+            // 离开房间：停止服务器 / 断开连接
+            if (GameEntry.NetworkService != null)
+            {
+                GameEntry.NetworkService.Shutdown();
+            }
+            var clientLogic = GetOrAddClientLogic();
+            if (clientLogic != null)
+            {
+                clientLogic.LeaveRoom();
+            }
+
             ChangeState<ProcedureMenu>(m_ProcedureFsm);
         }
 
@@ -88,6 +108,28 @@ namespace EmojiWar.GameMain.Procedure
         {
             Log.Info("[ProcedureLobby] 进入战斗");
             ChangeState<ProcedureBattle>(m_ProcedureFsm);
+        }
+
+        private Network.NetClientLogic GetOrAddClientLogic()
+        {
+            var instance = GameEntry.Instance;
+            if (instance == null)
+            {
+                return null;
+            }
+
+            var existing = instance.GetComponent<Network.NetClientLogic>();
+            if (existing != null)
+            {
+                return existing;
+            }
+
+            var go = new UnityEngine.GameObject("NetClientLogic");
+            go.transform.SetParent(instance.transform);
+            var logic = go.AddComponent<Network.NetClientLogic>();
+            logic.Bind(GameEntry.NetworkService);
+            logic.DisableAutoMove();    // 真实联机：静止时不上行绕圈移动
+            return logic;
         }
 
         private Network.NetHostLogic GetOrAddHostLogic()
@@ -117,6 +159,10 @@ namespace EmojiWar.GameMain.Procedure
             UI.LobbyForm.OnCreateRoomRequested -= OnCreateRoomRequested;
             UI.LobbyForm.OnJoinRoomRequested -= OnJoinRoomRequested;
             UI.LobbyForm.OnBackRequested -= OnBackRequested;
+
+            // 关闭大厅窗体，避免重复进入时累积
+            UI.UIFormCloser.CloseByName("LobbyForm(Clone)");
+
             m_ProcedureFsm = null;
             base.OnLeave(procedureOwner, isShutdown);
         }

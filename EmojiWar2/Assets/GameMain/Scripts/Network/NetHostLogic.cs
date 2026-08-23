@@ -49,6 +49,9 @@ namespace EmojiWar.GameMain.Network
         private int m_WaveIndex = 0;
         private Coroutine m_WaveCoroutine = null;
 
+        /// <summary>当前服务器波次（测试/诊断用）。</summary>
+        public int WaveIndex { get { return m_WaveIndex; } }
+
         private NetworkService m_Service = null;
 
         private void Awake()
@@ -227,6 +230,24 @@ namespace EmojiWar.GameMain.Network
                 Y = state.Position.y,
             };
             m_Service.BroadcastToClients(spawn);
+
+            // 广播已有玩家实体给新加入者（含房主），保证晚进客户端的可见性
+            foreach (var kv in m_Players)
+            {
+                if (kv.Key == sessionId)
+                {
+                    continue;
+                }
+                var p = kv.Value;
+                m_Service.SendToClient(sessionId, new S2CSpawnEntity
+                {
+                    EntityId = p.EntityId,
+                    Type = 0,
+                    Team = 1,
+                    X = p.Position.x,
+                    Y = p.Position.y,
+                });
+            }
 
             // 房间状态
             var room = new S2CRoomState { RoomId = "ROOM-001", PlayerCount = m_Players.Count };
@@ -462,6 +483,58 @@ namespace EmojiWar.GameMain.Network
             }
 
             Debug.Log("[NetHostLogic] 已清场 " + ids.Count + " 个敌人");
+        }
+
+        /// <summary>
+        /// Reset the run for a new round (host authority):
+        /// clear all enemies, reset wave index and player HP,
+        /// broadcast entity removals + S2CRunRestart, then restart wave 1.
+        /// </summary>
+        public void ResetRunAndBroadcast()
+        {
+            StopWave();
+
+            // Remove all enemies and notify every client.
+            var enemyIds = new List<int>(m_Enemies.Keys);
+            foreach (var id in enemyIds)
+            {
+                m_Enemies.Remove(id);
+                m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = id });
+            }
+
+            m_WaveIndex = 0;
+
+            // Reset server-authoritative player HP and rebroadcast state.
+            foreach (var player in m_Players.Values)
+            {
+                player.Hp = 100f;
+                BroadcastEntityState(player.EntityId, player.Position, player.Hp, 1);
+            }
+
+            // Notify all clients: new round begins.
+            m_Service.BroadcastToClients(new S2CRunRestart { Seed = Random.Range(0, 100000) });
+
+            // Re-broadcast all player spawns so clients rebuild their views after clearing.
+            foreach (var kv in m_Players)
+            {
+                var p = kv.Value;
+                m_Service.BroadcastToClients(new S2CSpawnEntity
+                {
+                    EntityId = p.EntityId,
+                    Type = 0,
+                    Team = 1,
+                    X = p.Position.x,
+                    Y = p.Position.y,
+                });
+            }
+
+            Debug.Log("[NetHostLogic] Run reset: enemies=" + enemyIds.Count + " players=" + m_Players.Count + ", broadcast S2CRunRestart");
+
+            // Restart wave 1 for the new round.
+            if (m_Players.Count >= 1 && m_WaveCoroutine == null)
+            {
+                m_WaveCoroutine = StartCoroutine(WaveLoop());
+            }
         }
 
         private int GetAliveEnemyCount()

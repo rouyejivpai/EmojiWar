@@ -4,6 +4,7 @@
 // 订阅"开始游戏"事件，触发后切换到战斗流程。
 //------------------------------------------------------------
 
+using GameFramework.Event;
 using GameFramework.Fsm;
 using GameFramework.Procedure;
 using UnityEngine.SceneManagement;
@@ -29,15 +30,35 @@ namespace EmojiWar.GameMain.Procedure
             m_ProcedureFsm = procedureOwner;
             UI.MenuForm.OnStartGameRequested += OnStartGameRequested;
 
-            // 若当前场景不是菜单场景，则加载菜单场景（编辑器资源模式：Assets 路径）
-            if (SceneManager.GetActiveScene().name != "Menu")
+            // 订阅场景加载成功事件（从战斗返回时打开菜单 UI）
+            GameEntry.Event.Subscribe(LoadSceneSuccessEventArgs.EventId, OnLoadSceneSuccess);
+
+            // 菜单场景：叠加加载架构下场景常驻 —— 已加载则复用并激活，避免重复加载产生重复框架对象
+            var menuScene = SceneManager.GetSceneByName("Menu");
+            if (menuScene.isLoaded)
             {
-                GameEntry.Scene.LoadScene(MenuSceneAssetName, this);
+                if (SceneManager.GetActiveScene().name != "Menu")
+                {
+                    SceneManager.SetActiveScene(menuScene);
+                }
+                OpenMenuForm();
             }
             else
             {
-                OpenMenuForm();
+                GameEntry.Scene.LoadScene(MenuSceneAssetName, this);
             }
+        }
+
+        private void OnLoadSceneSuccess(object sender, GameEventArgs e)
+        {
+            var args = e as LoadSceneSuccessEventArgs;
+            if (args == null || args.UserData != this)
+            {
+                return;
+            }
+
+            Log.Info("[ProcedureMenu] 菜单场景加载完成: {0}", args.SceneAssetName);
+            OpenMenuForm();
         }
 
         private void OnStartGameRequested()
@@ -67,6 +88,14 @@ namespace EmojiWar.GameMain.Procedure
         protected override void OnLeave(IFsm<IProcedureManager> procedureOwner, bool isShutdown)
         {
             UI.MenuForm.OnStartGameRequested -= OnStartGameRequested;
+            if (GameEntry.Event != null)
+            {
+                GameEntry.Event.Unsubscribe(LoadSceneSuccessEventArgs.EventId, OnLoadSceneSuccess);
+            }
+
+            // 关闭主菜单窗体，避免重复进入时累积
+            UI.UIFormCloser.CloseByName("MenuForm(Clone)");
+
             m_ProcedureFsm = null;
             base.OnLeave(procedureOwner, isShutdown);
         }

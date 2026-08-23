@@ -57,6 +57,22 @@ namespace EmojiWar.GameMain.Editor
             }
         }
 
+        [MenuItem("EmojiWar/Diagnostics/Simulate Restart")]
+        public static void SimulateRestart()
+        {
+            // 触发结算界面的"重新开始"（等价于点击重启按钮）
+            EmojiWar.GameMain.UI.GameOverEvents.RequestRestart();
+            Debug.Log("[Diagnostics] Simulated restart request");
+        }
+
+        [MenuItem("EmojiWar/Diagnostics/Simulate Menu Return")]
+        public static void SimulateMenuReturn()
+        {
+            // 触发结算界面的"返回菜单"（等价于点击菜单按钮）
+            EmojiWar.GameMain.UI.GameOverEvents.RequestMenu();
+            Debug.Log("[Diagnostics] Simulated menu return request");
+        }
+
         [MenuItem("EmojiWar/Diagnostics/Simulate Start Button")]
         public static void SimulateStartButton()
         {
@@ -77,6 +93,18 @@ namespace EmojiWar.GameMain.Editor
             var sb = new StringBuilder();
             sb.AppendLine("=== RUNTIME STATE v3 (isPlaying=" + Application.isPlaying + ") ===");
             sb.AppendLine("Scene: " + Safe(() => SceneManager.GetActiveScene().name));
+
+            try
+            {
+                var names = new System.Collections.Generic.List<string>();
+                for (int i = 0; i < SceneManager.sceneCount; i++)
+                {
+                    var s = SceneManager.GetSceneAt(i);
+                    names.Add(s.name + (s.isLoaded ? "" : "(unloaded)"));
+                }
+                sb.AppendLine("LoadedScenes(" + SceneManager.sceneCount + "): " + string.Join(",", names));
+            }
+            catch (Exception e) { sb.AppendLine("LoadedScenes ERROR: " + e.Message); }
 
             try
             {

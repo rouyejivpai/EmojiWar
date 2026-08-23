@@ -176,8 +176,14 @@ EmojiWar2/
 - [x] **断线检测与离开广播**：S2CPlayerLeft + Socket.Poll FIN 检测 + Host 断开清理 + 客户端实体移除
 - [x] **波间商店共享化**：Host 权威生成商品 → S2CShopOffer 广播 → 客户端接收 → C2SBuyItem 购买 → Host 校验回应
 - [x] **实测通过**：大厅创建→战斗；掉线→广播→其他客户端收到；波清→共享商店→购买
+- [x] **结算后下一局（多人重开）**：新增 `S2CRunRestart` 消息 + `NetHostLogic.ResetRunAndBroadcast()`
+  （清敌并广播 RemoveEntity、波次归零、玩家 HP 重置、重广播玩家实体、重启波次 1）
+  → 客户端收到后清空远端实体并本地重开（战斗流程未激活时自动触发结算重开）
+- [x] **真实联机链路接入**：`ProcedureLobby` 挂载 `NetClientLogic`（连接建立后自动补发加入请求），
+  `HandleJoin` 向晚进玩家广播已有实体（含房主），主动离开调用 `LeaveRoom()`（停止断线重连循环）
+- [x] **Net Restart Test 实测通过**（端口 7795）：双客户端收到 S2CRunRestart、实体清空重建、服务器波次归零重启
 - [ ] 自动重连 UI 提示完善
-- [ ] 同步观感优化（插值/预测）
+- [ ] 同步观感优化（预测/延迟补偿，位置插值已完成）
 
 ### Phase 5 — 打磨与发布 🟢 主体完成（2026-08-23）
 - [x] **Windows 打包验证**：StandaloneWindows64 成功（69.95MB，0 错误）
@@ -191,8 +197,14 @@ EmojiWar2/
 - [x] **波次配置数据化**：BattleManager 从 ConfigComponent 读波次参数
 - [x] **游戏结束流程**：玩家死亡 → GameOverForm 结算 → 重新开始/返回菜单
 - [x] **多人共存验证**：双客户端同场战斗（敌人生成/状态同步/实体移除双端广播）——多人 PvE 核心确认
-- [x] **最终打包**：StandaloneWindows64 成功（69.96MB，0 错误，Builds/EmojiWar2_final）
-- [ ] 双实例真机联调（构建 exe 网络对战，需人工在 Unity 外操作）
+- [x] **流程健壮性修复（多轮循环实测）**：
+  - 重开/返回菜单**不再直接重载场景**：GameFramework 场景为**叠加加载**（Menu 常驻），直接 `SceneManager.LoadScene` 会卸载框架对象 → 改为复用已加载场景 + `CleanupBattleScene()` 清理旧 BattleManager/敌人/子弹/玩家
+  - 窗体防堆积：新增 `UIFormCloser`，Menu/Lobby 流程 OnLeave 关闭各自窗体
+  - 修复 `ProcedureMenu` 返回时菜单窗体不弹出的潜在 bug（订阅 LoadSceneSuccess 后打开）
+  - 客户端空闲自动绕圈改为测试开关 `m_AutoMoveWhenIdle`（真实联机由流程关闭）
+  - 实测全循环：菜单→大厅→创建房间→战斗→死亡→结算→**重新开始**→战斗→死亡→**返回菜单**→再次开局，加载场景恒为 2、框架单实例、窗体无堆积 ✅
+- [x] **最终打包 v2**：StandaloneWindows64 成功（69.96MB，0 错误，`Builds/EmojiWar2_final.exe`，含重开/重连/窗体修复）
+- [ ] 双实例真机联调（构建 exe 网络对战，需人工在 Unity 外操作；完整指引见 **PLAYTEST.md**）
 
 ---
 

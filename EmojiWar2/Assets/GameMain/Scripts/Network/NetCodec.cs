@@ -34,6 +34,7 @@ namespace EmojiWar.GameMain.Network
             Register<S2CWaveState>();
             Register<S2CShopOffer>();
             Register<S2CGameOver>();
+            Register<S2CRunRestart>();
             Register<NetHeartbeat>();
         }
 

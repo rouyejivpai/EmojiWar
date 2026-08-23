@@ -285,6 +285,25 @@ namespace EmojiWar.GameMain.Network
     }
 
     /// <summary>心跳。</summary>
+    /// <summary>S2C: host restarts the run; clients should reset their local battle.</summary>
+    public sealed class S2CRunRestart : NetMessage
+    {
+        public int Seed;
+
+        public override MsgId Id { get { return MsgId.RunRestart; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(Seed);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            Seed = reader.ReadInt32();
+        }
+    }
+
+    /// <summary>Heartbeat.</summary>
     public sealed class NetHeartbeat : NetMessage
     {
         public long Timestamp;

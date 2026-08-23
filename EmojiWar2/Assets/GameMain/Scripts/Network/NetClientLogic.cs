@@ -29,8 +29,22 @@ namespace EmojiWar.GameMain.Network
         [SerializeField]
         private float m_InterpolationSpeed = 12f;   // 插值速度（越高越快跟随）
 
+        /// <summary>
+        /// 无输入时是否自动绕圈移动（回环测试用；正式联机时由流程关闭）。
+        /// </summary>
+        [SerializeField]
+        private bool m_AutoMoveWhenIdle = true;
+
+        /// <summary>关闭空闲自动移动（真实联机玩家静止时不应绕圈）。</summary>
+        public void DisableAutoMove()
+        {
+            m_AutoMoveWhenIdle = false;
+        }
+
         private NetworkService m_Service = null;
         private bool m_Joined = false;
+        private bool m_JoinSent = false;
+        private bool m_IntentionalLeave = false;
         private string m_PlayerName = "玩家";
         private string m_ServerIp = "127.0.0.1";
         private int m_ServerPort = NetworkService.DefaultPort;
@@ -87,7 +101,7 @@ namespace EmojiWar.GameMain.Network
 
         private void OnModeChanged(NetMode mode)
         {
-            if (mode == NetMode.Offline && m_Joined)
+            if (mode == NetMode.Offline && m_Joined && !m_IntentionalLeave)
             {
                 Debug.Log("[NetClientLogic] 连接断开，启动重连");
                 StartReconnect();
@@ -110,8 +124,20 @@ namespace EmojiWar.GameMain.Network
             }
 
             m_Joined = true;
-            m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName });
-            Debug.Log("[NetClientLogic] 发送加入房间请求: " + m_PlayerName);
+            m_JoinSent = false;
+            Debug.Log("[NetClientLogic] 加入房间请求已排队，连接建立后发送: " + m_PlayerName);
+        }
+
+        /// <summary>
+        /// 主动离开房间：停止重连并清理本地实体。
+        /// </summary>
+        public void LeaveRoom()
+        {
+            m_IntentionalLeave = true;
+            m_Joined = false;
+            m_Reconnecting = false;
+            ClearLocalEntities();
+            Debug.Log("[NetClientLogic] 主动离开房间");
         }
 
         private void Update()
@@ -129,12 +155,20 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
+            // 连接建立后补发加入房间请求（异步连接时序）
+            if (!m_JoinSent && m_Service.IsConnected)
+            {
+                m_JoinSent = true;
+                m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName });
+                Debug.Log("[NetClientLogic] 发送加入房间请求: " + m_PlayerName);
+            }
+
             // 上行输入（测试：自动移动；正式：读取真实输入）
             float inputX = Input.GetAxisRaw("Horizontal");
             float inputY = Input.GetAxisRaw("Vertical");
 
-            // 无键盘输入时自动转圈（便于回环验证）
-            if (inputX == 0f && inputY == 0f)
+            // 无键盘输入时自动转圈（回环验证用；真实联机由 DisableAutoMove 关闭）
+            if (m_AutoMoveWhenIdle && inputX == 0f && inputY == 0f)
             {
                 inputX = Mathf.Cos(Time.time);
                 inputY = Mathf.Sin(Time.time);
@@ -198,6 +232,7 @@ namespace EmojiWar.GameMain.Network
             if (m_Service != null && m_Service.IsConnected)
             {
                 Debug.Log("[NetClientLogic] 重连成功，重新加入房间");
+                m_JoinSent = true;
                 m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName });
                 m_Reconnecting = false;
                 OnReconnectStateChanged?.Invoke(false);
@@ -255,6 +290,10 @@ namespace EmojiWar.GameMain.Network
                 case MsgId.ShopOffer:
                     HandleShopOffer(message as S2CShopOffer);
                     break;
+
+                case MsgId.RunRestart:
+                    HandleRunRestart();
+                    break;
             }
         }
 
@@ -274,6 +313,25 @@ namespace EmojiWar.GameMain.Network
             LastShopOffer = offer.Items;
             GotShopOffer = true;
             Debug.Log("[NetClientLogic] 收到商店商品: " + offer.Items);
+        }
+
+        /// <summary>
+        /// 处理房主重开指令：清理远端实体并重启本地战斗。
+        /// 若本机正处于结算流程，则直接触发结算界面的重开按钮逻辑。
+        /// </summary>
+        private void HandleRunRestart()
+        {
+            Debug.Log("[NetClientLogic] 收到房主重开指令 S2CRunRestart");
+            ClearLocalEntities();
+
+            if (Procedure.ProcedureBattle.Current != null)
+            {
+                Procedure.ProcedureBattle.Current.RestartRunLocally();
+            }
+            else
+            {
+                UI.GameOverEvents.RequestRestart();
+            }
         }
 
         /// <summary>
