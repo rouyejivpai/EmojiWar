@@ -171,12 +171,12 @@ EmojiWar2/
 - [ ] 简单大厅 UI（玩家名输入 + 房间列表）
 - [ ] 断线重连
 
-### Phase 4 — 多人玩法完善 🟡 进行中（2026-08-23）
+### Phase 4 — 多人玩法完善 🟢 主体完成（2026-08-23）
 - [x] **简单大厅**：LobbyForm + ProcedureLobby（创建/加入/返回）+ 主菜单接入
-- [x] **断线检测与离开广播**：S2CPlayerLeft 消息 + Socket.Poll FIN 检测（服务器/客户端双向）+ Host 断开清理 + PlayerLeft/RemoveEntity 广播 + 客户端实体移除
-- [x] **实测通过**：Menu→大厅→创建房间→Host 监听→战斗；双客户端→ClientA 掉线→Host 检测→广播→ClientB 收到
-- [ ] 客户端自动重连完善（重连脚手架已就绪，需接大厅 UI 提示）
-- [ ] 波间商店共享化（Host 生成商品，客户端各自购买）
+- [x] **断线检测与离开广播**：S2CPlayerLeft + Socket.Poll FIN 检测 + Host 断开清理 + 客户端实体移除
+- [x] **波间商店共享化**：Host 权威生成商品 → S2CShopOffer 广播 → 客户端接收 → C2SBuyItem 购买 → Host 校验回应
+- [x] **实测通过**：大厅创建→战斗；掉线→广播→其他客户端收到；波清→共享商店→购买
+- [ ] 自动重连 UI 提示完善
 - [ ] 同步观感优化（插值/预测）
 
 ### Phase 5 — 打磨与发布
