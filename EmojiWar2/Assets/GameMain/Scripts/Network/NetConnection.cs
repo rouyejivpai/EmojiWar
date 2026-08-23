@@ -89,7 +89,27 @@ namespace EmojiWar.GameMain.Network
         /// </summary>
         public void Poll()
         {
-            if (!IsConnected || m_Stream == null || !m_Stream.DataAvailable)
+            if (!IsConnected || m_Stream == null)
+            {
+                return;
+            }
+
+            // 主动检测对端关闭（FIN）：可读但无数据 = 连接关闭
+            try
+            {
+                if (m_Client.Client.Poll(0, SelectMode.SelectRead) && m_Client.Available == 0)
+                {
+                    HandleDisconnect("peer-closed");
+                    return;
+                }
+            }
+            catch
+            {
+                HandleDisconnect("poll-error");
+                return;
+            }
+
+            if (!m_Stream.DataAvailable)
             {
                 return;
             }

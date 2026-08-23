@@ -60,7 +60,27 @@ namespace EmojiWar.GameMain.Network
 
         public void Poll()
         {
-            if (!IsAlive || m_Stream == null || !m_Stream.DataAvailable)
+            if (!IsAlive || m_Stream == null)
+            {
+                return;
+            }
+
+            // 主动检测对端关闭（FIN）：可读但无数据 = 连接关闭
+            try
+            {
+                if (m_Client.Client.Poll(0, SelectMode.SelectRead) && m_Client.Available == 0)
+                {
+                    Disconnect();
+                    return;
+                }
+            }
+            catch
+            {
+                Disconnect();
+                return;
+            }
+
+            if (!m_Stream.DataAvailable)
             {
                 return;
             }
@@ -262,6 +282,7 @@ namespace EmojiWar.GameMain.Network
             {
                 sessions = new List<NetServerSession>(m_Sessions.Values);
             }
+            Debug.Log("[NetServer] Broadcast " + message.Id + " to " + sessions.Count + " sessions");
             foreach (var session in sessions)
             {
                 session.Send(message);

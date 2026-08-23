@@ -1,16 +1,18 @@
 //------------------------------------------------------------
 // EmojiWar GameMain - 客户端同步逻辑
 // 每帧上行输入（C2SPlayerInput），应用下行状态（S2CEntityState）。
+// 支持：实体移除、玩家离开、断线自动重连。
 // 客户端只负责输入与表现，权威状态在 Host。
 //------------------------------------------------------------
 
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace EmojiWar.GameMain.Network
 {
     /// <summary>
-    /// 客户端同步：输入上行 + 状态应用。
+    /// 客户端同步：输入上行 + 状态应用 + 重连。
     /// </summary>
     public class NetClientLogic : MonoBehaviour
     {
@@ -19,6 +21,14 @@ namespace EmojiWar.GameMain.Network
 
         private NetworkService m_Service = null;
         private bool m_Joined = false;
+        private string m_PlayerName = "玩家";
+        private string m_ServerIp = "127.0.0.1";
+        private int m_ServerPort = NetworkService.DefaultPort;
+
+        // 重连状态
+        private bool m_Reconnecting = false;
+        private float m_ReconnectDelay = 1f;
+        private float m_ReconnectTimer = 0f;
 
         private void Awake()
         {
@@ -34,11 +44,13 @@ namespace EmojiWar.GameMain.Network
             if (m_Service != null)
             {
                 m_Service.OnServerMessage -= OnServerMessage;
+                m_Service.OnModeChanged -= OnModeChanged;
             }
             m_Service = service;
             if (m_Service != null)
             {
                 m_Service.OnServerMessage += OnServerMessage;
+                m_Service.OnModeChanged += OnModeChanged;
             }
         }
 
@@ -47,6 +59,7 @@ namespace EmojiWar.GameMain.Network
             if (m_Service != null)
             {
                 m_Service.OnServerMessage += OnServerMessage;
+                m_Service.OnModeChanged += OnModeChanged;
             }
         }
 
@@ -55,21 +68,46 @@ namespace EmojiWar.GameMain.Network
             if (m_Service != null)
             {
                 m_Service.OnServerMessage -= OnServerMessage;
+                m_Service.OnModeChanged -= OnModeChanged;
+            }
+        }
+
+        private void OnModeChanged(NetMode mode)
+        {
+            if (mode == NetMode.Offline && m_Joined)
+            {
+                Debug.Log("[NetClientLogic] 连接断开，启动重连");
+                StartReconnect();
             }
         }
 
         /// <summary>
         /// 加入房间（连接建立后调用）。
         /// </summary>
-        public void JoinRoom(string playerName)
+        public void JoinRoom(string playerName, string serverIp = null, int port = -1)
         {
+            m_PlayerName = playerName;
+            if (!string.IsNullOrEmpty(serverIp))
+            {
+                m_ServerIp = serverIp;
+            }
+            if (port > 0)
+            {
+                m_ServerPort = port;
+            }
+
             m_Joined = true;
-            m_Service.Send(new C2SJoinRoom { PlayerName = playerName });
-            Debug.Log("[NetClientLogic] 发送加入房间请求: " + playerName);
+            m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName });
+            Debug.Log("[NetClientLogic] 发送加入房间请求: " + m_PlayerName);
         }
 
         private void Update()
         {
+            if (m_Reconnecting)
+            {
+                UpdateReconnect();
+            }
+
             if (!m_Joined || m_Service == null || m_Service.Mode != NetMode.Client)
             {
                 return;
@@ -98,9 +136,73 @@ namespace EmojiWar.GameMain.Network
             m_Service.Send(input);
         }
 
+        // ==================== 重连 ====================
+
+        private void StartReconnect()
+        {
+            if (m_Reconnecting)
+            {
+                return;
+            }
+            m_Reconnecting = true;
+            m_ReconnectTimer = m_ReconnectDelay;
+            ClearLocalEntities();
+            Debug.Log("[NetClientLogic] 2 秒后自动重连 " + m_ServerIp + ":" + m_ServerPort);
+        }
+
+        private void UpdateReconnect()
+        {
+            m_ReconnectTimer -= Time.deltaTime;
+            if (m_ReconnectTimer > 0f)
+            {
+                return;
+            }
+
+            // 重连
+            if (m_Service != null)
+            {
+                m_Service.ConnectToServer(m_ServerIp, m_ServerPort);
+                m_ReconnectTimer = m_ReconnectDelay;
+
+                // 短暂等待连接后重新加入
+                StartCoroutine(RejoinAfterConnect());
+            }
+        }
+
+        private IEnumerator RejoinAfterConnect()
+        {
+            float wait = 1.5f;
+            while (wait > 0f)
+            {
+                wait -= Time.deltaTime;
+                yield return null;
+            }
+
+            if (m_Service != null && m_Service.IsConnected)
+            {
+                Debug.Log("[NetClientLogic] 重连成功，重新加入房间");
+                m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName });
+                m_Reconnecting = false;
+            }
+        }
+
         /// <summary>
-        /// 处理服务器消息。
+        /// 清理本地实体（重连/离开时）。
         /// </summary>
+        public void ClearLocalEntities()
+        {
+            foreach (var kv in m_LocalEntities)
+            {
+                if (kv.Value != null)
+                {
+                    Destroy(kv.Value.gameObject);
+                }
+            }
+            m_LocalEntities.Clear();
+        }
+
+        // ==================== 消息处理 ====================
+
         private void OnServerMessage(NetMessage message)
         {
             switch (message.Id)
@@ -115,6 +217,11 @@ namespace EmojiWar.GameMain.Network
                     Debug.Log(string.Format("[NetClientLogic] 玩家 {0} 加入", joined.PlayerName));
                     break;
 
+                case MsgId.PlayerLeft:
+                    var left = message as S2CPlayerLeft;
+                    Debug.Log(string.Format("[NetClientLogic] 玩家 {0} 离开", left.PlayerId));
+                    break;
+
                 case MsgId.SpawnEntity:
                     HandleSpawn(message as S2CSpawnEntity);
                     break;
@@ -124,7 +231,7 @@ namespace EmojiWar.GameMain.Network
                     break;
 
                 case MsgId.RemoveEntity:
-                    Debug.Log("[NetClientLogic] 实体移除");
+                    HandleRemoveEntity(message as S2CRemoveEntity);
                     break;
             }
         }
@@ -162,10 +269,34 @@ namespace EmojiWar.GameMain.Network
             tf.position = new Vector3(state.X, state.Y, 0f);
         }
 
+        private void HandleRemoveEntity(S2CRemoveEntity remove)
+        {
+            if (remove == null)
+            {
+                return;
+            }
+
+            if (m_LocalEntities.TryGetValue(remove.EntityId, out var tf))
+            {
+                if (tf != null)
+                {
+                    Destroy(tf.gameObject);
+                }
+                m_LocalEntities.Remove(remove.EntityId);
+                Debug.Log("[NetClientLogic] 实体 " + remove.EntityId + " 移除");
+            }
+        }
+
         /// <summary>当前实体数量（测试用）。</summary>
         public int LocalEntityCount
         {
             get { return m_LocalEntities.Count; }
+        }
+
+        /// <summary>是否正在重连。</summary>
+        public bool IsReconnecting
+        {
+            get { return m_Reconnecting; }
         }
     }
 }

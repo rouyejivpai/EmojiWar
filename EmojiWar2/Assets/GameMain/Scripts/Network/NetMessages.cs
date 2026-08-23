@@ -122,6 +122,24 @@ namespace EmojiWar.GameMain.Network
         }
     }
 
+    /// <summary>玩家离开。</summary>
+    public sealed class S2CPlayerLeft : NetMessage
+    {
+        public int PlayerId;
+
+        public override MsgId Id { get { return MsgId.PlayerLeft; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(PlayerId);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            PlayerId = reader.ReadInt32();
+        }
+    }
+
     /// <summary>生成实体。</summary>
     public sealed class S2CSpawnEntity : NetMessage
     {

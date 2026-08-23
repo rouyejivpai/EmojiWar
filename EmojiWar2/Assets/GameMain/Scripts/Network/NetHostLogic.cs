@@ -66,13 +66,21 @@ namespace EmojiWar.GameMain.Network
             {
                 m_Service.OnClientMessage -= OnClientMessage;
                 m_Service.OnModeChanged -= OnModeChanged;
+                m_Service.OnClientDisconnected -= OnClientDisconnected;
             }
             m_Service = service;
             if (m_Service != null)
             {
                 m_Service.OnClientMessage += OnClientMessage;
                 m_Service.OnModeChanged += OnModeChanged;
+                m_Service.OnClientDisconnected += OnClientDisconnected;
             }
+        }
+
+        private void OnClientDisconnected(int sessionId)
+        {
+            Debug.Log("[NetHostLogic] 客户端 " + sessionId + " 断开");
+            HandleLeave(sessionId);
         }
 
         private void OnEnable()
@@ -81,6 +89,7 @@ namespace EmojiWar.GameMain.Network
             {
                 m_Service.OnClientMessage += OnClientMessage;
                 m_Service.OnModeChanged += OnModeChanged;
+                m_Service.OnClientDisconnected += OnClientDisconnected;
             }
         }
 
@@ -90,6 +99,7 @@ namespace EmojiWar.GameMain.Network
             {
                 m_Service.OnClientMessage -= OnClientMessage;
                 m_Service.OnModeChanged -= OnModeChanged;
+                m_Service.OnClientDisconnected -= OnClientDisconnected;
             }
             StopWave();
         }
@@ -236,10 +246,12 @@ namespace EmojiWar.GameMain.Network
 
         private void HandleLeave(int sessionId)
         {
-            if (m_Players.Remove(sessionId))
+            if (m_Players.Remove(sessionId, out var state))
             {
-                m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = 0 });
-                Debug.Log("[NetHostLogic] 玩家 " + sessionId + " 离开");
+                // 广播玩家离开 + 移除实体
+                m_Service.BroadcastToClients(new S2CPlayerLeft { PlayerId = sessionId });
+                m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = state.EntityId });
+                Debug.Log("[NetHostLogic] 玩家 " + sessionId + " 离开，实体 " + state.EntityId + " 移除，广播已发送");
             }
         }
 

@@ -41,6 +41,9 @@ namespace EmojiWar.GameMain.Network
         /// <summary>收到客户端消息事件（Host 模式）。</summary>
         public event Action<int, NetMessage> OnClientMessage;
 
+        /// <summary>客户端断开事件（Host 模式，参数 sessionId）。</summary>
+        public event Action<int> OnClientDisconnected;
+
         /// <summary>连接状态变化事件。</summary>
         public event Action<NetMode> OnModeChanged;
 
@@ -70,7 +73,7 @@ namespace EmojiWar.GameMain.Network
             m_Server = new NetServer();
             m_Server.OnClientConnected += OnClientConnected;
             m_Server.OnMessage += OnClientMessageHandler;
-            m_Server.OnClientDisconnected += OnClientDisconnected;
+            m_Server.OnClientDisconnected += OnInternalClientDisconnected;
 
             if (!m_Server.Start(port))
             {
@@ -153,9 +156,10 @@ namespace EmojiWar.GameMain.Network
             OnServerMessage?.Invoke(message);
         }
 
-        private void OnClientDisconnected(int sessionId)
+        private void OnInternalClientDisconnected(int sessionId)
         {
             Debug.Log("[NetworkService] Client disconnected: " + sessionId);
+            OnClientDisconnected?.Invoke(sessionId);
         }
 
         private void OnConnectionDisconnected()

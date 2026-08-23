@@ -27,6 +27,7 @@ namespace EmojiWar.GameMain.Network
             Register<C2SBuyItem>();
             Register<S2CRoomState>();
             Register<S2CPlayerJoined>();
+            Register<S2CPlayerLeft>();
             Register<S2CSpawnEntity>();
             Register<S2CEntityState>();
             Register<S2CRemoveEntity>();
