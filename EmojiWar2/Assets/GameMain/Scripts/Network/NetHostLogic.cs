@@ -174,10 +174,29 @@ namespace EmojiWar.GameMain.Network
                     HandleInput(sessionId, message as C2SPlayerInput);
                     break;
 
+                case MsgId.BuyItem:
+                    HandleBuyItem(sessionId, message as C2SBuyItem);
+                    break;
+
                 case MsgId.LeaveRoom:
                     HandleLeave(sessionId);
                     break;
             }
+        }
+
+        /// <summary>
+        /// 处理购买请求（Host 权威校验）。
+        /// 简化：无金币系统，直接确认购买并广播。
+        /// </summary>
+        private void HandleBuyItem(int sessionId, C2SBuyItem buy)
+        {
+            if (buy == null)
+            {
+                return;
+            }
+
+            Debug.Log("[NetHostLogic] 玩家 " + sessionId + " 购买商品索引 " + buy.ShopItemIndex);
+            m_Service.SendToClient(sessionId, new S2CShopOffer { Count = 0, Items = "BUY_OK" });
         }
 
         private void HandleJoin(int sessionId, C2SJoinRoom join)
@@ -277,18 +296,58 @@ namespace EmojiWar.GameMain.Network
                 }
 
                 // 等待敌人清完
-                while (GetAliveEnemyCount() > 0)
+                int safety = 0;
+                while (GetAliveEnemyCount() > 0 && safety < 60)
                 {
+                    safety++;
                     yield return new WaitForSeconds(0.5f);
                 }
+                Debug.Log("[NetHostLogic] 波次敌人已清完，alive=" + GetAliveEnemyCount());
 
                 // 波次结束
                 var waveEnd = new S2CWaveState { WaveIndex = m_WaveIndex, AliveCount = 0, WaveActive = false };
                 m_Service.BroadcastToClients(waveEnd);
-                Debug.Log("[NetHostLogic] 第 " + m_WaveIndex + " 波结束");
+                Debug.Log("[NetHostLogic] 第 " + m_WaveIndex + " 波结束，广播波次状态");
 
-                yield return new WaitForSeconds(2f);
+                // 波间商店（Host 权威生成商品，广播给所有客户端）
+                BroadcastShopOffer();
+                Debug.Log("[NetHostLogic] 波间商店已开放");
+
+                // 商店开放 8 秒后继续下一波
+                yield return new WaitForSeconds(8f);
             }
+        }
+
+        /// <summary>
+        /// Host 权威生成商店商品并广播。
+        /// 商品格式："type:id:price;type:id:price;..."
+        /// </summary>
+        private void BroadcastShopOffer()
+        {
+            if (m_Service == null)
+            {
+                return;
+            }
+
+            var items = new System.Text.StringBuilder();
+            int count = 3;
+            for (int i = 0; i < count; i++)
+            {
+                // 50% 武器(0) / 50% Mod(1)
+                int type = Random.value < 0.5f ? 0 : 1;
+                int id = type == 0 ? Random.Range(1, 3) : Random.Range(1, 5);
+                int price = type == 0 ? 80 : 60;
+
+                if (i > 0)
+                {
+                    items.Append(';');
+                }
+                items.Append(type).Append(':').Append(id).Append(':').Append(price);
+            }
+
+            var offer = new S2CShopOffer { Count = count, Items = items.ToString() };
+            m_Service.BroadcastToClients(offer);
+            Debug.Log("[NetHostLogic] 商店商品: " + offer.Items);
         }
 
         private void SpawnEnemy()
@@ -379,6 +438,30 @@ namespace EmojiWar.GameMain.Network
                 m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = entityId });
                 Debug.Log("[NetHostLogic] 敌人 " + entityId + " 被击杀");
             }
+        }
+
+        /// <summary>
+        /// 服务器权威清场：击杀所有敌人（供测试/波次推进）。
+        /// </summary>
+        public void KillAllEnemies()
+        {
+            var ids = new List<int>(m_Enemies.Keys);
+            foreach (var id in ids)
+            {
+                if (m_Enemies.TryGetValue(id, out var enemy) && enemy.Alive)
+                {
+                    enemy.Alive = false;
+                }
+            }
+
+            // 立即广播移除
+            foreach (var id in ids)
+            {
+                m_Enemies.Remove(id);
+                m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = id });
+            }
+
+            Debug.Log("[NetHostLogic] 已清场 " + ids.Count + " 个敌人");
         }
 
         private int GetAliveEnemyCount()

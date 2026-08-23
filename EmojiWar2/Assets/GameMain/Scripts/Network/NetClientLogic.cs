@@ -233,6 +233,40 @@ namespace EmojiWar.GameMain.Network
                 case MsgId.RemoveEntity:
                     HandleRemoveEntity(message as S2CRemoveEntity);
                     break;
+
+                case MsgId.ShopOffer:
+                    HandleShopOffer(message as S2CShopOffer);
+                    break;
+            }
+        }
+
+        /// <summary>最近一次商店商品（测试/UI 用）。</summary>
+        public string LastShopOffer { get; private set; } = string.Empty;
+
+        /// <summary>是否收到商店商品。</summary>
+        public bool GotShopOffer { get; private set; } = false;
+
+        private void HandleShopOffer(S2CShopOffer offer)
+        {
+            if (offer == null)
+            {
+                return;
+            }
+
+            LastShopOffer = offer.Items;
+            GotShopOffer = true;
+            Debug.Log("[NetClientLogic] 收到商店商品: " + offer.Items);
+        }
+
+        /// <summary>
+        /// 发送购买请求。
+        /// </summary>
+        public void RequestBuy(int shopItemIndex)
+        {
+            if (m_Service != null)
+            {
+                m_Service.Send(new C2SBuyItem { ShopItemIndex = shopItemIndex });
+                Debug.Log("[NetClientLogic] 发送购买请求: " + shopItemIndex);
             }
         }
 
