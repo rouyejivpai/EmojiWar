@@ -33,6 +33,24 @@ namespace EmojiWar.GameMain.Weapon
         private void Awake()
         {
             m_Rigidbody = GetComponent<Rigidbody2D>();
+
+            // 应用子弹美术
+            var sr = GetComponent<SpriteRenderer>();
+            if (sr != null)
+            {
+                var sprite = Art.ArtManager.GetBulletSprite();
+                if (sprite != null)
+                {
+                    sr.sprite = sprite;
+                    float baseSize = 0.3f;
+                    float spriteWidth = sprite.bounds.size.x;
+                    if (spriteWidth > 0.01f)
+                    {
+                        transform.localScale = Vector3.one * (baseSize / spriteWidth);
+                    }
+                }
+            }
+
             if (m_Rigidbody != null)
             {
                 m_Rigidbody.gravityScale = 0f;

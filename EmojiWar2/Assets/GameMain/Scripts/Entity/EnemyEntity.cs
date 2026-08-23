@@ -26,6 +26,11 @@ namespace EmojiWar.GameMain.Entity
         private float m_LastAttackTime = 0f;
         private Transform m_Target = null;
 
+        protected override void ApplyArtSprite()
+        {
+            SetSprite(Art.ArtManager.GetEnemySprite());
+        }
+
         /// <summary>接触伤害。</summary>
         public float ContactDamage
         {

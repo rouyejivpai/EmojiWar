@@ -85,6 +85,9 @@ namespace EmojiWar.GameMain.Entity
                 m_BuffComponent = gameObject.AddComponent<Buff.BuffComponent>();
             }
 
+            // 尝试应用美术精灵（无则保持占位）
+            ApplyArtSprite();
+
             if (m_Rigidbody != null)
             {
                 m_Rigidbody.gravityScale = 0f;
@@ -191,6 +194,34 @@ namespace EmojiWar.GameMain.Entity
 
             OnDeath?.Invoke(this);
             Destroy(gameObject, 0.1f);
+        }
+
+        /// <summary>
+        /// 应用美术精灵（子类覆盖指定具体 Sprite）。
+        /// </summary>
+        protected virtual void ApplyArtSprite()
+        {
+        }
+
+        /// <summary>
+        /// 设置 SpriteRenderer 的精灵（带缩放适配）。
+        /// </summary>
+        protected void SetSprite(Sprite sprite)
+        {
+            if (sprite == null || m_SpriteRenderer == null)
+            {
+                return;
+            }
+
+            m_SpriteRenderer.sprite = sprite;
+
+            // 按精灵尺寸缩放对象（保持视觉大小一致）
+            float baseSize = 1f;
+            float spriteWidth = sprite.bounds.size.x;
+            if (spriteWidth > 0.01f)
+            {
+                transform.localScale = Vector3.one * (baseSize / spriteWidth);
+            }
         }
 
         /// <summary>

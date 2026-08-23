@@ -58,8 +58,7 @@ namespace EmojiWar.GameMain.Editor
             EmojiWar.GameMain.UI.MenuForm.TriggerStartGame();
         }
 
-        [MenuItem("EmojiWar/Diagnostics/Log Runtime State")]
-        public static void LogRuntimeState()
+        [MenuItem("EmojiWar/Diagnostics/Log Runtime State")]        public static void LogRuntimeState()
         {
             var sb = new StringBuilder();
             sb.AppendLine("=== RUNTIME STATE v3 (isPlaying=" + Application.isPlaying + ") ===");

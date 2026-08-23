@@ -49,6 +49,11 @@ namespace EmojiWar.GameMain.Entity
             }
         }
 
+        protected override void ApplyArtSprite()
+        {
+            SetSprite(Art.ArtManager.GetPlayerSprite());
+        }
+
         private void Update()
         {
             if (!IsAlive)
