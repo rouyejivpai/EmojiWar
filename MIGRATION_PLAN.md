@@ -172,9 +172,10 @@ EmojiWar2/
 - [ ] 断线重连
 
 ### Phase 4 — 多人玩法完善 🟡 进行中（2026-08-23）
-- [x] **简单大厅**：LobbyForm（玩家名/IP 输入 + 创建/加入/返回）+ ProcedureLobby（Host 启动 + 本机加入 / Client 连接）+ 主菜单接入
-- [x] **实测通过**：Menu → 开始 → 大厅 → 创建房间 → Host 监听 7777 → 房主加入 → 波次开始 → Battle 场景（玩家 + 敌人）
-- [ ] 断线重连 / 玩家中途加入退出
+- [x] **简单大厅**：LobbyForm + ProcedureLobby（创建/加入/返回）+ 主菜单接入
+- [x] **断线检测与离开广播**：S2CPlayerLeft 消息 + Socket.Poll FIN 检测（服务器/客户端双向）+ Host 断开清理 + PlayerLeft/RemoveEntity 广播 + 客户端实体移除
+- [x] **实测通过**：Menu→大厅→创建房间→Host 监听→战斗；双客户端→ClientA 掉线→Host 检测→广播→ClientB 收到
+- [ ] 客户端自动重连完善（重连脚手架已就绪，需接大厅 UI 提示）
 - [ ] 波间商店共享化（Host 生成商品，客户端各自购买）
 - [ ] 同步观感优化（插值/预测）
 
