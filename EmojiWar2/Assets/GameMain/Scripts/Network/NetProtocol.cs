@@ -28,7 +28,7 @@ namespace EmojiWar.GameMain.Network
         SpawnEntity = 2102,     // 生成实体 { entityId, type, team, x, y }
         EntityState = 2103,     // 实体状态同步 { entityId, x, y, hp, state }
         RemoveEntity = 2104,    // 移除实体 { entityId }
-        WaveState = 2201,       // 波次状态 { waveIndex, aliveCount }
+        WaveState = 2201,       // 波次状态 { waveIndex, aliveCount, waveActive }
         ShopOffer = 2202,       // 商店商品 { items[] }
         GameOver = 2999,        // 游戏结束 { win, waveIndex }
 

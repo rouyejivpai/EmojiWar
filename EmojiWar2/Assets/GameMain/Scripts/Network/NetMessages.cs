@@ -159,6 +159,7 @@ namespace EmojiWar.GameMain.Network
         public float X;
         public float Y;
         public float Hp;
+        public int State;       // 0=Idle,1=Moving,2=Attacking,4=Dead
 
         public override MsgId Id { get { return MsgId.EntityState; } }
 
@@ -168,6 +169,7 @@ namespace EmojiWar.GameMain.Network
             writer.Write(X);
             writer.Write(Y);
             writer.Write(Hp);
+            writer.Write(State);
         }
 
         public override void Deserialize(BinaryReader reader)
@@ -176,6 +178,7 @@ namespace EmojiWar.GameMain.Network
             X = reader.ReadSingle();
             Y = reader.ReadSingle();
             Hp = reader.ReadSingle();
+            State = reader.ReadInt32();
         }
     }
 
@@ -202,6 +205,7 @@ namespace EmojiWar.GameMain.Network
     {
         public int WaveIndex;
         public int AliveCount;
+        public bool WaveActive;
 
         public override MsgId Id { get { return MsgId.WaveState; } }
 
@@ -209,12 +213,14 @@ namespace EmojiWar.GameMain.Network
         {
             writer.Write(WaveIndex);
             writer.Write(AliveCount);
+            writer.Write(WaveActive);
         }
 
         public override void Deserialize(BinaryReader reader)
         {
             WaveIndex = reader.ReadInt32();
             AliveCount = reader.ReadInt32();
+            WaveActive = reader.ReadBoolean();
         }
     }
 

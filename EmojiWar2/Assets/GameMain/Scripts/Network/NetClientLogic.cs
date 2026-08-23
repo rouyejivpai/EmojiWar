@@ -144,11 +144,12 @@ namespace EmojiWar.GameMain.Network
             var renderer = go.GetComponent<Renderer>();
             if (renderer != null)
             {
-                renderer.material.color = spawn.Team == 1 ? Color.green : Color.red;
+                // 玩家绿色，敌人红色
+                renderer.material.color = spawn.Type == 0 ? Color.green : new Color(0.9f, 0.2f, 0.2f);
             }
             m_LocalEntities[spawn.EntityId] = go.transform;
 
-            Debug.Log(string.Format("[NetClientLogic] 生成实体 {0} 于 ({1:F1},{2:F1})", spawn.EntityId, spawn.X, spawn.Y));
+            Debug.Log(string.Format("[NetClientLogic] 生成实体 {0} type={1} 于 ({2:F1},{3:F1})", spawn.EntityId, spawn.Type, spawn.X, spawn.Y));
         }
 
         private void HandleEntityState(S2CEntityState state)
@@ -159,6 +160,12 @@ namespace EmojiWar.GameMain.Network
             }
 
             tf.position = new Vector3(state.X, state.Y, 0f);
+        }
+
+        /// <summary>当前实体数量（测试用）。</summary>
+        public int LocalEntityCount
+        {
+            get { return m_LocalEntities.Count; }
         }
     }
 }
