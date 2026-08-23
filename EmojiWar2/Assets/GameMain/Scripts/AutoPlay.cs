@@ -76,6 +76,19 @@ namespace EmojiWar.GameMain
                 renderers.Length, withSprite, players.Length, enemies.Length));
             Debug.Log(string.Format("[AutoPlay] 战斗实体统计: SpriteRenderers={0} withSprite={1} players={2} enemies={3}",
                 renderers.Length, withSprite, players.Length, enemies.Length));
+
+            // 等玩家被敌人打死 → 结算界面 → 模拟点"重新开始"，验证重开路径不产生多玩家
+            yield return new WaitForSeconds(15f);
+            WriteProbe("[auto] trigger restart (game over flow)");
+            UI.GameOverEvents.RequestRestart();
+            yield return new WaitForSeconds(8f);
+
+            var players2 = Object.FindObjectsOfType<Entity.PlayerEntity>();
+            var enemies2 = Object.FindObjectsOfType<Entity.EnemyEntity>();
+            WriteProbe(string.Format("[auto] after-restart: players={0} enemies={1}",
+                players2.Length, enemies2.Length));
+            Debug.Log(string.Format("[AutoPlay] 重开后: players={0} enemies={1}",
+                players2.Length, enemies2.Length));
         }
 
         private static void WriteProbe(string message)

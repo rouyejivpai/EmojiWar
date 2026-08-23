@@ -109,6 +109,23 @@ namespace EmojiWar.GameMain
             // 自动化联调辅助（-autocreate 启动参数）
             AutoPlay.TryStart();
 
+            // 诊断：框架/场景实例计数（排查重复 GameFramework/场景叠加）
+            try
+            {
+                var procs = Object.FindObjectsOfType<ProcedureComponent>();
+                var uis = Object.FindObjectsOfType<UIComponent>();
+                var names = new System.Collections.Generic.List<string>();
+                for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+                {
+                    names.Add(UnityEngine.SceneManagement.SceneManager.GetSceneAt(i).name);
+                }
+                WriteProbe(string.Format("[gameentry] ProcedureComponents={0} UIComponents={1} scenes={2} ({3})",
+                    procs.Length, uis.Length, names.Count, string.Join(",", names)));
+            }
+            catch
+            {
+            }
+
             Log.Info("GameEntry initialized. Procedure={0}, UI={1}, DataTable={2}, Scene={3}, Data={4}",
                 Procedure != null, UI != null, DataTable != null, Scene != null, Data != null);
         }
@@ -118,6 +135,20 @@ namespace EmojiWar.GameMain
             if (s_Instance == this)
             {
                 s_Instance = null;
+            }
+        }
+
+        /// <summary>运行时探针。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe.txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
             }
         }
     }

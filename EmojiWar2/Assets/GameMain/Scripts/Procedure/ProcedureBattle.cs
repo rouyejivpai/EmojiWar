@@ -46,7 +46,9 @@ namespace EmojiWar.GameMain.Procedure
             Log.Info("===== EmojiWar Battle =====");
 
             // 防重复进入：一局内重复 OnEnter（重复 ChangeState）直接忽略，避免重复开局/场景叠加
-            if (s_BattleSession || Current == this || m_BattleStartedThisEnter)
+            // 注意：m_BattleStartedThisEnter 不在防重条件中 —— 重开（GameOver 后同一实例重新进入）时
+            // 它会残留 true，若参与防重会误挡正常重开（players=0）。
+            if (s_BattleSession || Current == this)
             {
                 WriteProbe("[battle-proc] DUPLICATE OnEnter ignored, activeScene=" +
                     UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
@@ -56,7 +58,8 @@ namespace EmojiWar.GameMain.Procedure
             s_BattleSession = true;
             Current = this;
             m_BattleStartedThisEnter = false;
-            WriteProbe("[battle-proc] OnEnter, activeScene=" + UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
+            WriteProbe("[battle-proc] OnEnter, activeScene=" + UnityEngine.SceneManagement.SceneManager.GetActiveScene().name +
+                " battleSceneLoaded=" + UnityEngine.SceneManagement.SceneManager.GetSceneByName("Battle").isLoaded);
 
             Current = this;
             CurrentFsm = procedureOwner;
@@ -109,6 +112,7 @@ namespace EmojiWar.GameMain.Procedure
         private void OnPlayerDied()
         {
             Log.Info("[ProcedureBattle] 玩家死亡，进入结算");
+            WriteProbe("[battle-proc] OnPlayerDied");
             s_BattleSession = false;    // 本局结束，允许下次进入重新开局
             ChangeState<ProcedureGameOver>(CurrentFsm);
         }

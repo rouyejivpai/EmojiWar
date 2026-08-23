@@ -23,6 +23,7 @@ namespace EmojiWar.GameMain.Procedure
         {
             base.OnEnter(procedureOwner);
             Log.Info("===== EmojiWar Game Over =====");
+            WriteProbe("[gameover] OnEnter, activeScene=" + SceneManager.GetActiveScene().name);
 
             m_ProcedureFsm = procedureOwner;
 
@@ -51,6 +52,7 @@ namespace EmojiWar.GameMain.Procedure
         private void OnRestartRequested()
         {
             Log.Info("[ProcedureGameOver] 重新开始");
+            WriteProbe("[gameover] RestartRequested");
 
             // 关闭当前战斗 HUD、结算与商店 UI
             CloseBattleForms();
@@ -75,6 +77,7 @@ namespace EmojiWar.GameMain.Procedure
         private void OnMenuRequested()
         {
             Log.Info("[ProcedureGameOver] 返回菜单");
+            WriteProbe("[gameover] MenuRequested");
 
             // 离开房间：停止服务器 / 断开连接
             if (GameEntry.NetworkService != null)
@@ -143,6 +146,20 @@ namespace EmojiWar.GameMain.Procedure
             UI.GameOverEvents.OnMenuRequested -= OnMenuRequested;
             m_ProcedureFsm = null;
             base.OnLeave(procedureOwner, isShutdown);
+        }
+
+        /// <summary>运行时探针。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe.txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
+            }
         }
     }
 }
