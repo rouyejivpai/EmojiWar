@@ -179,10 +179,12 @@ EmojiWar2/
 - [ ] 自动重连 UI 提示完善
 - [ ] 同步观感优化（插值/预测）
 
-### Phase 5 — 打磨与发布
-- [ ] 音效/特效接入、UI 动效
-- [ ] 打包（Windows/移动端目标确认）
-- [ ] 性能与稳定性（GC、网络延迟容忍）
+### Phase 5 — 打磨与发布 🟡 进行中（2026-08-23）
+- [x] **Windows 打包验证**：`manage_build` 构建 StandaloneWindows64 成功（69.95MB，0 错误，2 个 GameFramework 过时 API 警告）
+- [x] 同步观感优化：客户端实体位置插值平滑
+- [ ] 音效/特效接入（旧 emoji GIF 已就位）
+- [ ] UI 动效完善
+- [ ] 双实例联调（Host + Client 真机验证）
 
 ---
 
