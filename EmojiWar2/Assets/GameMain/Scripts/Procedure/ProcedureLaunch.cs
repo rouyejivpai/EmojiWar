@@ -1,6 +1,6 @@
 //------------------------------------------------------------
 // EmojiWar GameMain - 启动流程
-// 首个流程：校验框架组件就绪，初始化基础配置后进入主菜单。
+// 首个流程：校验框架组件就绪，加载数据表，随后进入主菜单。
 //------------------------------------------------------------
 
 using GameFramework.Fsm;
@@ -27,9 +27,11 @@ namespace EmojiWar.GameMain.Procedure
                 return;
             }
 
-            // 初始化全局配置 / 数据表（后续 Phase 接入 DataTable 时启用）
-            // InitConfig();
-            // InitDataTables();
+            // 初始化数据组件（加载 Character/Weapon 等 DataTable）
+            if (GameEntry.Data != null)
+            {
+                GameEntry.Data.Init();
+            }
 
             // 进入主菜单流程
             ChangeState<ProcedureMenu>(procedureOwner);

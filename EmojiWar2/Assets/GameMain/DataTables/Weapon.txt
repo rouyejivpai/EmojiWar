@@ -1,0 +1,6 @@
+#------------------------------------------------------------
+# Weapon 数据表
+# 列顺序：Id, WeaponName, Description, PrefabPath, Category, Rarity, Weight, Damage, FireRate, Range, MaxAmmo, ReloadTime
+#------------------------------------------------------------
+1	水滴枪	能发射水滴的枪		远程	1	1	10	3	10	30	2
+2	盾	提供简单的防御		防具	1	1	0	0	0	0	0

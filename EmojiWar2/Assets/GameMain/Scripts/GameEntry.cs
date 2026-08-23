@@ -45,6 +45,9 @@ namespace EmojiWar.GameMain
         public static SettingComponent Setting { get; private set; }
         public static SoundComponent Sound { get; private set; }
 
+        // ---- 业务组件引用（由 GameEntry 自身创建/挂载）----
+        public static Data.DataComponent Data { get; private set; }
+
         private void Awake()
         {
             if (s_Instance != null)
@@ -84,8 +87,16 @@ namespace EmojiWar.GameMain
             Setting = UnityGameFramework.Runtime.GameEntry.GetComponent<SettingComponent>();
             Sound = UnityGameFramework.Runtime.GameEntry.GetComponent<SoundComponent>();
 
-            Log.Info("GameEntry initialized. Procedure={0}, UI={1}, DataTable={2}, Scene={3}",
-                Procedure != null, UI != null, DataTable != null, Scene != null);
+            // 初始化业务组件
+            if (Data == null)
+            {
+                var dataGo = new GameObject("DataComponent");
+                dataGo.transform.SetParent(transform);
+                Data = dataGo.AddComponent<Data.DataComponent>();
+            }
+
+            Log.Info("GameEntry initialized. Procedure={0}, UI={1}, DataTable={2}, Scene={3}, Data={4}",
+                Procedure != null, UI != null, DataTable != null, Scene != null, Data != null);
         }
 
         private void OnDestroy()

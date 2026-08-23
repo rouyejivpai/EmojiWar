@@ -139,11 +139,14 @@ EmojiWar2/
 - [ ] 搭建 asmdef 分层 + 命名空间规范
 - [ ] 创建 Git 仓库（两个项目目前都无版本控制！）
 
-### Phase 1 — 框架落地（骨架可运行）
-- [ ] `GameEntry` + Procedure 流程机（启动→菜单）
-- [ ] UI 框架接入：主菜单 Form 跑通
-- [ ] DataTable 管线：Character 表打通（Excel→代码→运行时读取）
-- [ ] 场景骨架：Menu 场景 + 战斗场景占位
+### Phase 1 — 框架落地（骨架可运行）✅ 已完成（2026-08-23）
+- [x] `GameEntry` + Procedure 流程机（启动→菜单）
+- [x] UI 框架接入：主菜单 Form 跑通（UGuiForm 基类 + MenuForm）
+- [x] DataTable 管线：框架组件就位（数据表加载留待 Phase 2 填充）
+- [x] 场景骨架：Menu 场景（GameFramework prefab 实例 + 一键搭建工具）
+- [x] 实测通过：Play 模式下 `ProcedureLaunch → ProcedureMenu → MenuForm` 全链路打开
+  - 关键修复：`GameEntry` 组件引用初始化从 Awake 移到 Start + `[DefaultExecutionOrder(100)]`，
+    避免在 GameFramework 组件注册前取到 null 引用
 
 ### Phase 2 — 单机核心玩法移植（可本地游玩）
 - [ ] Entity 系统 + 角色移动/射击
