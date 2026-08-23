@@ -133,6 +133,9 @@ namespace EmojiWar.GameMain.UI
                 return;
             }
 
+            // 购买成功音效
+            Audio.SfxManager.PlayBuy();
+
             if (item.Type == Shop.ShopItemType.Mod)
             {
                 session.AddModToBag(item.DataId);

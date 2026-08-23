@@ -172,6 +172,7 @@ namespace EmojiWar.GameMain.Entity
         /// <summary>受击回调（子类可覆盖做闪烁等表现）。</summary>
         protected virtual void OnTakeDamage()
         {
+            Audio.SfxManager.PlayHit();
         }
 
         /// <summary>

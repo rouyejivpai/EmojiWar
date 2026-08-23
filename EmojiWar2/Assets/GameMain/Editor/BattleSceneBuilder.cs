@@ -24,6 +24,7 @@ namespace EmojiWar.GameMain.Editor
         private const string EnemyPrefabPath = "Assets/GameMain/Entities/Enemy.prefab";
         private const string BattleManagerPrefabPath = "Assets/GameMain/Entities/BattleManager.prefab";
         private const string ShopFormPrefabPath = "Assets/GameMain/UI/ShopForm.prefab";
+        private const string BattleHudFormPrefabPath = "Assets/GameMain/UI/BattleHudForm.prefab";
 
         [MenuItem("EmojiWar/Setup/02 - Build Battle Scene")]
         public static void BuildBattleScene()
@@ -42,6 +43,9 @@ namespace EmojiWar.GameMain.Editor
 
             // 4. 生成 ShopForm prefab
             CreateShopFormPrefab();
+
+            // 4.5 生成 BattleHudForm prefab
+            CreateBattleHudFormPrefab();
 
             // 5. 创建战斗场景
             var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
@@ -200,6 +204,57 @@ namespace EmojiWar.GameMain.Editor
             PrefabUtility.SaveAsPrefabAsset(root, ShopFormPrefabPath);
             Object.DestroyImmediate(root);
             Debug.Log("[SceneBuilder] ShopForm prefab saved.");
+        }
+
+        /// <summary>
+        /// 生成战斗 HUD prefab（金币/波次/血量）。
+        /// </summary>
+        private static void CreateBattleHudFormPrefab()
+        {
+            EnsureFolder("Assets/GameMain/UI");
+
+            var root = new GameObject("BattleHudForm");
+            root.layer = LayerMask.NameToLayer("UI");
+
+            var canvas = root.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = root.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            root.AddComponent<GraphicRaycaster>();
+            root.AddComponent<CanvasGroup>();
+            var form = root.AddComponent<UI.BattleHudForm>();
+
+            // 左上角信息（锚定左上）
+            var coin = CreateUIText("CoinText", root.transform, "金币：0", 28, Vector2.zero);
+            SetAnchoredTopLeft(coin.GetComponent<RectTransform>(), new Vector2(30, -20), new Vector2(300, 40));
+
+            var wave = CreateUIText("WaveText", root.transform, "波次：0", 28, Vector2.zero);
+            SetAnchoredTopLeft(wave.GetComponent<RectTransform>(), new Vector2(30, -60), new Vector2(300, 40));
+
+            var hp = CreateUIText("HpText", root.transform, "HP: --", 32, Vector2.zero);
+            SetAnchoredTopLeft(hp.GetComponent<RectTransform>(), new Vector2(30, -100), new Vector2(300, 50));
+
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            form.GetType().GetField("m_CoinText", flags).SetValue(form, coin.GetComponent<UnityEngine.UI.Text>());
+            form.GetType().GetField("m_WaveText", flags).SetValue(form, wave.GetComponent<UnityEngine.UI.Text>());
+            form.GetType().GetField("m_HpText", flags).SetValue(form, hp.GetComponent<UnityEngine.UI.Text>());
+
+            PrefabUtility.SaveAsPrefabAsset(root, BattleHudFormPrefabPath);
+            Object.DestroyImmediate(root);
+            Debug.Log("[SceneBuilder] BattleHudForm prefab saved.");
+        }
+
+        /// <summary>
+        /// 设置 RectTransform 锚定左上角。
+        /// </summary>
+        private static void SetAnchoredTopLeft(RectTransform rect, Vector2 offset, Vector2 size)
+        {
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = offset;
+            rect.sizeDelta = size;
         }
 
         /// <summary>

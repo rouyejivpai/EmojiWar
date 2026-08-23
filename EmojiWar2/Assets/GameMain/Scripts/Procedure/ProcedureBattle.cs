@@ -96,6 +96,16 @@ namespace EmojiWar.GameMain.Procedure
             {
                 manager.StartBattle(m_CharacterId);
                 Log.Info("[ProcedureBattle] Battle started, character id={0}", m_CharacterId);
+
+                // 打开战斗 HUD
+                if (GameEntry.UI != null)
+                {
+                    if (!GameEntry.UI.HasUIGroup(Constant.UIGroup.Default))
+                    {
+                        GameEntry.UI.AddUIGroup(Constant.UIGroup.Default);
+                    }
+                    GameEntry.UI.OpenUIForm(Constant.UIFormAssetPath.BattleHudForm, Constant.UIGroup.Default, this);
+                }
             }
         }
 

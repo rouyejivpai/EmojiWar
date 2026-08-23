@@ -60,6 +60,9 @@ namespace EmojiWar.GameMain.Weapon
                     freezeSlow, freezeDuration);
             }
 
+            // 射击音效
+            Audio.SfxManager.PlayShoot();
+
             return true;
         }
     }

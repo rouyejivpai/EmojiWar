@@ -103,6 +103,9 @@ namespace EmojiWar.GameMain
                 NetworkService = netGo.AddComponent<Network.NetworkService>();
             }
 
+            // 初始化音效管理器
+            Audio.SfxManager.Init();
+
             Log.Info("GameEntry initialized. Procedure={0}, UI={1}, DataTable={2}, Scene={3}, Data={4}",
                 Procedure != null, UI != null, DataTable != null, Scene != null, Data != null);
         }
