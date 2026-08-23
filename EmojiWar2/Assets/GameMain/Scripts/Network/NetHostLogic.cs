@@ -106,6 +106,38 @@ namespace EmojiWar.GameMain.Network
         }
 
         /// <summary>
+        /// Host 本机加入（作为 1 号玩家，不走网络连接）。
+        /// </summary>
+        public void JoinLocal(string playerName)
+        {
+            var state = new PlayerState
+            {
+                SessionId = 0,
+                EntityId = m_NextEntityId++,
+                Position = Vector2.zero,
+            };
+            m_Players[0] = state;
+            Debug.Log("[NetHostLogic] 房主 " + playerName + " 本机加入，实体 " + state.EntityId);
+
+            // 广播生成（供其他客户端看到房主）
+            var spawn = new S2CSpawnEntity
+            {
+                EntityId = state.EntityId,
+                Type = 0,
+                Team = 1,
+                X = state.Position.x,
+                Y = state.Position.y,
+            };
+            m_Service?.BroadcastToClients(spawn);
+
+            // 启动波次
+            if (m_Players.Count >= 1 && m_WaveCoroutine == null)
+            {
+                m_WaveCoroutine = StartCoroutine(WaveLoop());
+            }
+        }
+
+        /// <summary>
         /// 每帧更新（服务器权威模拟）。
         /// </summary>
         private void Update()

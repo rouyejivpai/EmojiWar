@@ -24,7 +24,7 @@ namespace EmojiWar.GameMain.Network
     /// </summary>
     public class NetworkService : MonoBehaviour
     {
-        private const int DefaultPort = 7777;
+        public const int DefaultPort = 7777;
 
         private NetServer m_Server = null;
         private NetConnection m_Connection = null;

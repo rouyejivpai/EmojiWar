@@ -30,12 +30,14 @@ namespace EmojiWar.GameMain.Editor
         private const string GameFrameworkPrefabPath = "Packages/com.jiangyin.gameframework/GameFramework.prefab";
         private const string MenuScenePath = "Assets/GameMain/Scenes/Menu.unity";
         private const string MenuFormPrefabPath = "Assets/GameMain/UI/MenuForm.prefab";
+        private const string LobbyFormPrefabPath = "Assets/GameMain/UI/LobbyForm.prefab";
 
         // 流程类型全名（供 ProcedureComponent 反射创建）
         private static readonly string[] ProcedureTypeNames =
         {
             "EmojiWar.GameMain.Procedure.ProcedureLaunch",
             "EmojiWar.GameMain.Procedure.ProcedureMenu",
+            "EmojiWar.GameMain.Procedure.ProcedureLobby",
             "EmojiWar.GameMain.Procedure.ProcedureBattle",
         };
         private const string EntranceProcedureTypeName = "EmojiWar.GameMain.Procedure.ProcedureLaunch";
@@ -104,6 +106,14 @@ namespace EmojiWar.GameMain.Editor
                 Object.DestroyImmediate(menuFormGo);
             }
 
+            // 5.5 生成大厅 UI prefab
+            GameObject lobbyFormGo = CreateLobbyForm();
+            if (lobbyFormGo != null)
+            {
+                PrefabUtility.SaveAsPrefabAsset(lobbyFormGo, LobbyFormPrefabPath);
+                Object.DestroyImmediate(lobbyFormGo);
+            }
+
             // 6. 保存场景
             EditorSceneManager.SaveScene(newScene, MenuScenePath);
 
@@ -153,6 +163,107 @@ namespace EmojiWar.GameMain.Editor
             }
 
             return root;
+        }
+
+        /// <summary>
+        /// 创建大厅 UI 层级（玩家名/IP 输入 + 创建/加入/返回按钮）。
+        /// </summary>
+        private static GameObject CreateLobbyForm()
+        {
+            EnsureFolder("Assets/GameMain/UI");
+
+            var root = new GameObject("LobbyForm");
+            root.layer = LayerMask.NameToLayer("UI");
+
+            var canvas = root.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = root.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            root.AddComponent<GraphicRaycaster>();
+            root.AddComponent<CanvasGroup>();
+            var form = root.AddComponent<LobbyForm>();
+
+            // 标题
+            CreateText("Title", root.transform, "多人大厅", 48, new Vector2(0, 380));
+
+            // 玩家名输入
+            var nameInput = CreateInputField("NameInput", root.transform, "玩家名", new Vector2(0, 260), 400, 70);
+            // IP 输入
+            var ipInput = CreateInputField("IpInput", root.transform, "服务器 IP", new Vector2(0, 160), 400, 70);
+
+            // 状态文本
+            var status = CreateText("StatusText", root.transform, "创建房间成为房主，或加入好友房间", 24, new Vector2(0, 50));
+
+            // 按钮
+            var createBtn = CreateButton("CreateButton", root.transform, "创建房间", new Vector2(-200, -80));
+            var joinBtn = CreateButton("JoinButton", root.transform, "加入房间", new Vector2(200, -80));
+            var backBtn = CreateButton("BackButton", root.transform, "返回", new Vector2(0, -200));
+
+            // 通过反射绑定字段
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            form.GetType().GetField("m_NameInput", flags).SetValue(form, nameInput.GetComponent<InputField>());
+            form.GetType().GetField("m_IpInput", flags).SetValue(form, ipInput.GetComponent<InputField>());
+            form.GetType().GetField("m_StatusText", flags).SetValue(form, status.GetComponent<Text>());
+            form.GetType().GetField("m_CreateButton", flags).SetValue(form, createBtn.GetComponent<Button>());
+            form.GetType().GetField("m_JoinButton", flags).SetValue(form, joinBtn.GetComponent<Button>());
+            form.GetType().GetField("m_BackButton", flags).SetValue(form, backBtn.GetComponent<Button>());
+
+            return root;
+        }
+
+        /// <summary>
+        /// 创建输入框。
+        /// </summary>
+        private static GameObject CreateInputField(string name, Transform parent, string placeholder, Vector2 anchoredPos, float width, float height)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var rect = go.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = anchoredPos;
+            rect.sizeDelta = new Vector2(width, height);
+
+            var image = go.AddComponent<Image>();
+            image.color = new Color(1f, 1f, 1f, 0.9f);
+
+            var input = go.AddComponent<InputField>();
+
+            // 文本子对象
+            var textGo = new GameObject("Text");
+            textGo.transform.SetParent(go.transform, false);
+            var textRect = textGo.AddComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(10, 5);
+            textRect.offsetMax = new Vector2(-10, -5);
+            var text = textGo.AddComponent<Text>();
+            text.fontSize = 26;
+            text.alignment = TextAnchor.MiddleLeft;
+            text.color = Color.black;
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+            // 占位符
+            var placeholderGo = new GameObject("Placeholder");
+            placeholderGo.transform.SetParent(go.transform, false);
+            var phRect = placeholderGo.AddComponent<RectTransform>();
+            phRect.anchorMin = Vector2.zero;
+            phRect.anchorMax = Vector2.one;
+            phRect.offsetMin = new Vector2(10, 5);
+            phRect.offsetMax = new Vector2(-10, -5);
+            var phText = placeholderGo.AddComponent<Text>();
+            phText.text = placeholder;
+            phText.fontSize = 26;
+            phText.alignment = TextAnchor.MiddleLeft;
+            phText.color = new Color(0.4f, 0.4f, 0.4f, 0.8f);
+            phText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+            input.textComponent = text;
+            input.placeholder = phText;
+
+            return go;
         }
 
         private static GameObject CreateText(string name, Transform parent, string content, int fontSize, Vector2 anchoredPos)

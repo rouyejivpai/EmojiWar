@@ -26,6 +26,7 @@ namespace EmojiWar.GameMain
         {
             public const string MenuForm = "Assets/GameMain/UI/MenuForm.prefab";
             public const string ShopForm = "Assets/GameMain/UI/ShopForm.prefab";
+            public const string LobbyForm = "Assets/GameMain/UI/LobbyForm.prefab";
         }
     }
 }

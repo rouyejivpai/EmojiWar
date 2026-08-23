@@ -29,6 +29,20 @@ namespace EmojiWar.GameMain.Editor
             }
         }
 
+        [MenuItem("EmojiWar/Diagnostics/Simulate Create Room")]
+        public static void SimulateCreateRoom()
+        {
+            var forms = UnityEngine.Object.FindObjectsOfType<EmojiWar.GameMain.UI.LobbyForm>(true);
+            if (forms == null || forms.Length == 0)
+            {
+                Debug.Log("[Diagnostics] LobbyForm not found (is play mode active?)");
+                return;
+            }
+
+            Debug.Log("[Diagnostics] Simulating create room on " + forms[0].name);
+            EmojiWar.GameMain.UI.LobbyForm.TriggerCreateRoom();
+        }
+
         [MenuItem("EmojiWar/Diagnostics/Simulate Start Button")]
         public static void SimulateStartButton()
         {

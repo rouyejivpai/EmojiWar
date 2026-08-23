@@ -42,8 +42,8 @@ namespace EmojiWar.GameMain.Procedure
 
         private void OnStartGameRequested()
         {
-            Log.Info("[ProcedureMenu] 开始游戏请求，切换到战斗流程");
-            ChangeState<ProcedureBattle>(m_ProcedureFsm);
+            Log.Info("[ProcedureMenu] 开始游戏请求，进入大厅");
+            ChangeState<ProcedureLobby>(m_ProcedureFsm);
         }
 
         private void OpenMenuForm()
