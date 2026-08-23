@@ -189,7 +189,9 @@ EmojiWar2/
 - [x] **内容扩展与平衡**：第 3 把武器（刀光）、Mod 6 种、玩家血量 150、敌人平衡、击杀奖励提升
 - [x] **OnKill 效果**：杀戮怒火 Mod 击杀触发临时攻速加成
 - [x] **波次配置数据化**：BattleManager 从 ConfigComponent 读波次参数
-- [x] **游戏结束流程**：玩家死亡 → GameOverForm 结算（波次/金币 + 重新开始/返回菜单）→ ProcedureGameOver
+- [x] **游戏结束流程**：玩家死亡 → GameOverForm 结算 → 重新开始/返回菜单
+- [x] **多人共存验证**：双客户端同场战斗（敌人生成/状态同步/实体移除双端广播）——多人 PvE 核心确认
+- [x] **最终打包**：StandaloneWindows64 成功（69.96MB，0 错误，Builds/EmojiWar2_final）
 - [ ] 双实例真机联调（构建 exe 网络对战，需人工在 Unity 外操作）
 
 ---
