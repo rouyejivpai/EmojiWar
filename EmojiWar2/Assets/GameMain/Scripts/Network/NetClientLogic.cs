@@ -353,21 +353,32 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
-            // 生成本地表现对象（占位方块）
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = "NetEntity_" + spawn.EntityId;
+            // 生成本地表现对象：SpriteRenderer + 旧项目迁移的 emoji 美术
+            // （玩家=黄色笑脸 1f603，敌人=红色恶魔 1f47f；替代原占位方块，
+            //   修复构建版 3D 默认材质 shader 未打包导致的粉色方块）
+            var go = new GameObject("NetEntity_" + spawn.EntityId);
+            var spriteRenderer = go.AddComponent<SpriteRenderer>();
+            Sprite sprite = spawn.Type == 0 ? Art.ArtManager.GetPlayerSprite() : Art.ArtManager.GetEnemySprite();
+            spriteRenderer.sprite = sprite;
+            spriteRenderer.sortingOrder = spawn.Type == 0 ? 10 : 5;
+
             Vector3 spawnPos = new Vector3(spawn.X, spawn.Y, 0f);
             go.transform.position = spawnPos;
-            go.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
-            var renderer = go.GetComponent<Renderer>();
-            if (renderer != null)
+
+            // 按精灵尺寸缩放（与本地实体视觉大小一致）
+            if (sprite != null)
             {
-                // 玩家绿色，敌人红色
-                renderer.material.color = spawn.Type == 0 ? Color.green : new Color(0.9f, 0.2f, 0.2f);
+                float spriteWidth = sprite.bounds.size.x;
+                if (spriteWidth > 0.01f)
+                {
+                    go.transform.localScale = Vector3.one * (1f / spriteWidth);
+                }
             }
+
             m_LocalEntities[spawn.EntityId] = new LocalEntity { Transform = go.transform, TargetPosition = spawnPos };
 
-            Debug.Log(string.Format("[NetClientLogic] 生成实体 {0} type={1} 于 ({2:F1},{3:F1})", spawn.EntityId, spawn.Type, spawn.X, spawn.Y));
+            Debug.Log(string.Format("[NetClientLogic] 生成实体 {0} type={1} 于 ({2:F1},{3:F1}) sprite={4}",
+                spawn.EntityId, spawn.Type, spawn.X, spawn.Y, sprite != null ? "OK" : "NULL"));
         }
 
         private void HandleEntityState(S2CEntityState state)

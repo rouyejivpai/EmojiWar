@@ -3,6 +3,7 @@
   <ResourceCollection>
     <Resources>
       <Resource Name="game" LoadType="0" Packed="False" />
+      <Resource Name="scene" LoadType="0" Packed="False" />
     </Resources>
     <Assets>
       <Asset Guid="75704016679d7cc4f8d1de63427e609a" ResourceName="game" />
@@ -13,6 +14,8 @@
       <Asset Guid="e1a52f432216d3a428b5b1df0906f13d" ResourceName="game" />
       <Asset Guid="6ce0355f179e7ab4f8218c99c2524747" ResourceName="game" />
       <Asset Guid="f8e1652814a48494ea94793aebd85a97" ResourceName="game" />
+      <Asset Guid="0f4c7dde9450cf1438c65df58711687b" ResourceName="scene" />
+      <Asset Guid="caf462ffe62cb4949bd21f7bd778cfc5" ResourceName="scene" />
     </Assets>
   </ResourceCollection>
 </UnityGameFramework>

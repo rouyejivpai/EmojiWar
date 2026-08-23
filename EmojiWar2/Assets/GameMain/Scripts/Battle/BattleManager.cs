@@ -103,6 +103,10 @@ namespace EmojiWar.GameMain.Battle
         {
             var character = GameEntry.Data != null ? GameEntry.Data.GetCharacter(characterId) : null;
             GameObject prefab = LoadPrefab(PlayerPrefabPath);
+            var playerSprite = Art.ArtManager.GetPlayerSprite();
+            WriteProbe(string.Format("[battle] SpawnPlayer prefab={0} player={1} sprite={2}",
+                prefab != null ? "OK" : "NULL", "?",
+                playerSprite != null ? "OK" : "NULL"));
             if (prefab == null)
             {
                 return;
@@ -110,6 +114,7 @@ namespace EmojiWar.GameMain.Battle
 
             GameObject playerGo = Instantiate(prefab, Vector3.zero, Quaternion.identity);
             var player = playerGo.GetComponent<Entity.PlayerEntity>();
+            WriteProbe("[battle] SpawnPlayer instantiated, PlayerEntity=" + (player != null ? "OK" : "NULL"));
             if (player != null)
             {
                 player.Team = Entity.EntityTeam.Player;
@@ -210,6 +215,7 @@ namespace EmojiWar.GameMain.Battle
             GameObject prefab = LoadPrefab(EnemyPrefabPath);
             if (prefab == null)
             {
+                WriteProbe("[battle] SpawnEnemy prefab=NULL");
                 m_AliveEnemies--;
                 return;
             }
@@ -269,6 +275,20 @@ namespace EmojiWar.GameMain.Battle
             if (m_WaveLoop != null)
             {
                 StopCoroutine(m_WaveLoop);
+            }
+        }
+
+        /// <summary>运行时探针（验证构建版战斗实体加载）。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(Application.dataPath, "../Logs/runtime_probe.txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
             }
         }
     }

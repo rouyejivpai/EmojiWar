@@ -3,7 +3,9 @@
 // 菜单：EmojiWar/Tools/Build Runtime AssetBundles
 // 用途：构建 GameFramework Package 模式所需的 AssetBundle + version list，
 //       并把 Package 输出拷贝到 StreamingAssets，供构建版 exe 加载。
-// 资源范围：UI 窗体 prefab（5 个）+ 数据表 txt（3 个）。
+// 资源分组（重要：场景与普通资源必须分属不同 AssetBundle）：
+//   game  = UI 窗体 prefab（5 个）+ 数据表 txt（3 个）
+//   scene = 场景（Menu/Battle，GameFramework SceneComponent 构建版经 Resource 模块加载）
 // 实体 prefab 与 emoji 美术走 Unity 原生 Resources（Assets/GameMain/Resources/）。
 //------------------------------------------------------------
 
@@ -20,6 +22,7 @@ namespace EmojiWar.GameMain.Editor
     public static class GameResourceBuilder
     {
         private const string ResourceName = "game";
+        private const string SceneResourceName = "scene";
         private const string OutputDirectory = "D:/EmojiWarStudio/BuildRes";
 
         private static readonly string[] AssetPaths =
@@ -34,6 +37,12 @@ namespace EmojiWar.GameMain.Editor
             "Assets/GameMain/DataTables/Mod.txt",
         };
 
+        private static readonly string[] ScenePaths =
+        {
+            "Assets/GameMain/Scenes/Menu.unity",
+            "Assets/GameMain/Scenes/Battle.unity",
+        };
+
         [MenuItem("EmojiWar/Tools/Build Runtime AssetBundles", false, 100)]
         public static void BuildRuntimeAssetBundles()
         {
@@ -43,6 +52,14 @@ namespace EmojiWar.GameMain.Editor
                 if (string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path)))
                 {
                     Debug.LogError("[ResBuilder] 资源不存在: " + path);
+                    return;
+                }
+            }
+            foreach (var path in ScenePaths)
+            {
+                if (string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path)))
+                {
+                    Debug.LogError("[ResBuilder] 场景不存在: " + path);
                     return;
                 }
             }
@@ -93,6 +110,10 @@ namespace EmojiWar.GameMain.Editor
             {
                 File.Delete(f);
             }
+            foreach (var f in Directory.GetFiles(dstDir, SceneResourceName + ".*"))
+            {
+                File.Delete(f);
+            }
 
             foreach (var file in Directory.GetFiles(srcDir))
             {
@@ -116,12 +137,18 @@ namespace EmojiWar.GameMain.Editor
             sb.AppendLine("  <ResourceCollection>");
             sb.AppendLine("    <Resources>");
             sb.AppendLine(string.Format("      <Resource Name=\"{0}\" LoadType=\"0\" Packed=\"False\" />", ResourceName));
+            sb.AppendLine(string.Format("      <Resource Name=\"{0}\" LoadType=\"0\" Packed=\"False\" />", SceneResourceName));
             sb.AppendLine("    </Resources>");
             sb.AppendLine("    <Assets>");
             foreach (var path in AssetPaths)
             {
                 string guid = AssetDatabase.AssetPathToGUID(path);
                 sb.AppendLine(string.Format("      <Asset Guid=\"{0}\" ResourceName=\"{1}\" />", guid, ResourceName));
+            }
+            foreach (var path in ScenePaths)
+            {
+                string guid = AssetDatabase.AssetPathToGUID(path);
+                sb.AppendLine(string.Format("      <Asset Guid=\"{0}\" ResourceName=\"{1}\" />", guid, SceneResourceName));
             }
             sb.AppendLine("    </Assets>");
             sb.AppendLine("  </ResourceCollection>");

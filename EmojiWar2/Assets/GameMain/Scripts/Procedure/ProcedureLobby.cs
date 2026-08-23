@@ -51,6 +51,7 @@ namespace EmojiWar.GameMain.Procedure
 
         private void OnCreateRoomRequested(string playerName)
         {
+            WriteProbe("[lobby] OnCreateRoomRequested player=" + playerName);
             m_PlayerName = playerName;
             Log.Info("[ProcedureLobby] 创建房间: {0}", playerName);
 
@@ -165,6 +166,20 @@ namespace EmojiWar.GameMain.Procedure
 
             m_ProcedureFsm = null;
             base.OnLeave(procedureOwner, isShutdown);
+        }
+
+        /// <summary>运行时探针。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe.txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
+            }
         }
     }
 }

@@ -34,6 +34,7 @@ namespace EmojiWar.GameMain.Procedure
         {
             base.OnEnter(procedureOwner);
             Log.Info("===== EmojiWar Battle =====");
+            WriteProbe("[battle-proc] OnEnter, activeScene=" + UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
 
             Current = this;
             CurrentFsm = procedureOwner;
@@ -101,11 +102,13 @@ namespace EmojiWar.GameMain.Procedure
             }
 
             Log.Info("[ProcedureBattle] 战斗场景加载完成: {0}", args.SceneAssetName);
+            WriteProbe("[battle-proc] LoadSceneSuccess: " + args.SceneAssetName);
             StartBattle();
         }
 
         private void StartBattle()
         {
+            WriteProbe("[battle-proc] StartBattle called, DataReady=" + (GameEntry.Data != null ? GameEntry.Data.IsReady.ToString() : "DataNULL"));
             if (GameEntry.Data == null || !GameEntry.Data.IsReady)
             {
                 Log.Error("[ProcedureBattle] DataComponent not ready.");
@@ -113,6 +116,7 @@ namespace EmojiWar.GameMain.Procedure
             }
 
             GameObject managerPrefab = LoadPrefab(BattleManagerPrefabPath);
+            WriteProbe("[battle-proc] BattleManager prefab=" + (managerPrefab != null ? "OK" : "NULL"));
             if (managerPrefab == null)
             {
                 Log.Error("[ProcedureBattle] BattleManager prefab not found.");
@@ -262,6 +266,20 @@ namespace EmojiWar.GameMain.Procedure
             }
             CurrentFsm = null;
             base.OnLeave(procedureOwner, isShutdown);
+        }
+
+        /// <summary>运行时探针。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe.txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
+            }
         }
     }
 }

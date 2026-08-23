@@ -210,6 +210,11 @@ EmojiWar2/
   - 修复 2：`ProcedureLaunch` 在构建模式先 `GameEntry.Resource.InitResources()` 再加载数据表进菜单（编辑器模式直接跳过）
   - 修复 3：实体 prefab 与 emoji 美术移入 `Assets/GameMain/Resources/`，`LoadPrefab`/`ArtManager` 运行时走 `Resources.Load`（原构建分支返回 null / 路径错误）
   - 验证：构建版 exe 运行探针 `Builds/Logs/runtime_probe.txt` → `[launch] resources init complete` + `[menu] MenuForm open requested`，日志 0 错误 ✅
+- [x] **构建版实机问题修复（2026-08-24 实测）**：
+  - **场景未打包**：GameFramework 构建版场景经 Resource 模块（AssetBundle）加载，而资源包只含 UI/数据表 → 战斗场景永远加载不了 → 进战斗"什么都不显示"。修复：场景独立 bundle `scene.dat`（场景与普通资源不能同 bundle，`AssetType` 冲突会导致其余资源全部 Assign 失败）
+  - **粉色方块**：网络实体用 `CreatePrimitive(Cube)`（3D 默认材质 shader 在 2D 构建未打包）→ 粉色。修复：`NetClientLogic.HandleSpawn` 改用 `SpriteRenderer` + 旧项目迁移的 emoji 美术（玩家=黄笑脸 1f603，敌人=红恶魔 1f47f）
+  - 验证（`-autocreate` 自动化 + probe）：场景加载成功 → BattleManager OK → `LoadEmoji -> OK` → `players=1 enemies=5`、`SpriteRenderers=7 withSprite=6`、0 错误 ✅
+  - 工具：`-autocreate` 启动参数自动走 菜单→创建房间→战斗（`AutoPlay.cs`）；`EmojiWar/Diagnostics/Dump Version List`（`VersionListDiag.cs`）
 - [ ] 双实例真机联调（构建 exe 网络对战，需人工在 Unity 外操作；完整指引见 **PLAYTEST.md**）
 
 ---

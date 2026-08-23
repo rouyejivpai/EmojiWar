@@ -14,6 +14,7 @@ namespace EmojiWar.GameMain.Art
     public static class ArtManager
     {
         private const string EmojiArtPath = "Assets/GameMain/Resources/Art/";
+        private static bool s_Probed = false;
 
         /// <summary>
         /// 加载 emoji Sprite（按文件名，不含扩展名）。
@@ -32,7 +33,22 @@ namespace EmojiWar.GameMain.Art
             return sprite;
 #else
             // 运行时：从 Resources 目录按相对路径加载（"Art/文件名"，不带扩展名）
-            return Resources.Load<Sprite>("Art/" + emojiFile);
+            var sprite = Resources.Load<Sprite>("Art/" + emojiFile);
+            if (!s_Probed)
+            {
+                s_Probed = true;
+                try
+                {
+                    string probePath = System.IO.Path.Combine(Application.dataPath, "../Logs/runtime_probe.txt");
+                    System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(probePath));
+                    System.IO.File.AppendAllText(probePath,
+                        string.Format("[art] LoadEmoji({0}) -> {1}\n", emojiFile, sprite != null ? "OK" : "NULL"));
+                }
+                catch
+                {
+                }
+            }
+            return sprite;
 #endif
         }
 

@@ -106,6 +106,9 @@ namespace EmojiWar.GameMain
             // 初始化音效管理器
             Audio.SfxManager.Init();
 
+            // 自动化联调辅助（-autocreate 启动参数）
+            AutoPlay.TryStart();
+
             Log.Info("GameEntry initialized. Procedure={0}, UI={1}, DataTable={2}, Scene={3}, Data={4}",
                 Procedure != null, UI != null, DataTable != null, Scene != null, Data != null);
         }
