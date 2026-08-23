@@ -9,6 +9,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace EmojiWar.GameMain.Editor
 {
@@ -22,6 +23,7 @@ namespace EmojiWar.GameMain.Editor
         private const string PlayerPrefabPath = "Assets/GameMain/Entities/Player.prefab";
         private const string EnemyPrefabPath = "Assets/GameMain/Entities/Enemy.prefab";
         private const string BattleManagerPrefabPath = "Assets/GameMain/Entities/BattleManager.prefab";
+        private const string ShopFormPrefabPath = "Assets/GameMain/UI/ShopForm.prefab";
 
         [MenuItem("EmojiWar/Setup/02 - Build Battle Scene")]
         public static void BuildBattleScene()
@@ -38,7 +40,10 @@ namespace EmojiWar.GameMain.Editor
             // 3. 生成 BattleManager prefab
             CreateBattleManagerPrefab();
 
-            // 4. 创建战斗场景
+            // 4. 生成 ShopForm prefab
+            CreateShopFormPrefab();
+
+            // 5. 创建战斗场景
             var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
             SceneManager.SetActiveScene(scene);
 
@@ -131,6 +136,118 @@ namespace EmojiWar.GameMain.Editor
             PrefabUtility.SaveAsPrefabAsset(go, BattleManagerPrefabPath);
             Object.DestroyImmediate(go);
             Debug.Log("[SceneBuilder] BattleManager prefab saved.");
+        }
+
+        /// <summary>
+        /// 生成 ShopForm prefab（标题 + 金币 + 信息 + 商品根 + 继续按钮）。
+        /// </summary>
+        private static void CreateShopFormPrefab()
+        {
+            EnsureFolder("Assets/GameMain/UI");
+
+            var root = new GameObject("ShopForm");
+            root.layer = LayerMask.NameToLayer("UI");
+
+            var canvas = root.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = root.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            root.AddComponent<GraphicRaycaster>();
+            root.AddComponent<CanvasGroup>();
+            var form = root.AddComponent<UI.ShopForm>();
+
+            // 半透明背景
+            var bg = new GameObject("Backdrop");
+            bg.transform.SetParent(root.transform, false);
+            var bgImage = bg.AddComponent<UnityEngine.UI.Image>();
+            bgImage.color = new Color(0f, 0f, 0f, 0.7f);
+            var bgRect = bg.GetComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = Vector2.zero;
+            bgRect.offsetMax = Vector2.zero;
+
+            // 标题
+            var title = CreateUIText("Title", root.transform, "波间商店", 48, new Vector2(0, 380));
+            title.GetComponent<RectTransform>().sizeDelta = new Vector2(800, 80);
+
+            // 金币
+            var coin = CreateUIText("CoinText", root.transform, "金币：0", 32, new Vector2(0, 300));
+            coin.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 60);
+
+            // 信息
+            var info = CreateUIText("InfoText", root.transform, "", 26, new Vector2(0, -280));
+            info.GetComponent<RectTransform>().sizeDelta = new Vector2(900, 50);
+
+            // 继续按钮
+            var continueBtn = CreateUIButton("ContinueButton", root.transform, "继续战斗", new Vector2(0, -350));
+
+            // 通过反射绑定字段
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            form.GetType().GetField("m_CoinText", flags).SetValue(form, coin.GetComponent<UnityEngine.UI.Text>());
+            form.GetType().GetField("m_InfoText", flags).SetValue(form, info.GetComponent<UnityEngine.UI.Text>());
+            form.GetType().GetField("m_ContinueButton", flags).SetValue(form, continueBtn.GetComponent<UnityEngine.UI.Button>());
+
+            // 确保 EventSystem 存在
+            if (Object.FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null)
+            {
+                var es = new GameObject("EventSystem");
+                es.AddComponent<UnityEngine.EventSystems.EventSystem>();
+                es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+            }
+
+            PrefabUtility.SaveAsPrefabAsset(root, ShopFormPrefabPath);
+            Object.DestroyImmediate(root);
+            Debug.Log("[SceneBuilder] ShopForm prefab saved.");
+        }
+
+        /// <summary>
+        /// 创建 UI 文本。
+        /// </summary>
+        private static GameObject CreateUIText(string name, Transform parent, string content, int fontSize, Vector2 anchoredPos)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var rect = go.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = anchoredPos;
+
+            var text = go.AddComponent<UnityEngine.UI.Text>();
+            text.text = content;
+            text.fontSize = fontSize;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.color = Color.white;
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            return go;
+        }
+
+        /// <summary>
+        /// 创建 UI 按钮。
+        /// </summary>
+        private static GameObject CreateUIButton(string name, Transform parent, string label, Vector2 anchoredPos)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var rect = go.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = anchoredPos;
+            rect.sizeDelta = new Vector2(360, 90);
+
+            var image = go.AddComponent<UnityEngine.UI.Image>();
+            image.color = new Color(0.15f, 0.6f, 0.3f, 1f);
+
+            var button = go.AddComponent<UnityEngine.UI.Button>();
+            button.targetGraphic = image;
+
+            var labelGo = CreateUIText("Label", go.transform, label, 28, Vector2.zero);
+            labelGo.GetComponent<RectTransform>().sizeDelta = new Vector2(340, 80);
+
+            return go;
         }
 
         private static GameObject CreateProjectilePrefab()

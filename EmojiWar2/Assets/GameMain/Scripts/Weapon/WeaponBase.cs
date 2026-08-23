@@ -41,28 +41,49 @@ namespace EmojiWar.GameMain.Weapon
 
         protected float m_LastFireTime = 0f;
         protected Entity.EntityBase m_Owner = null;
+        protected WeaponModComponent m_ModComponent = null;
 
         public string WeaponName { get { return m_WeaponName; } }
         public float Damage { get { return m_Damage; } }
-        public float FireRate { get { return m_FireRate; } }
         public float Range { get { return m_Range; } }
         public int MaxAmmo { get { return m_MaxAmmo; } }
         public int CurrentAmmo { get { return m_CurrentAmmo; } }
         public bool IsReloading { get { return m_IsReloading; } }
         public Entity.EntityBase Owner { get { return m_Owner; } }
+        public WeaponModComponent ModComponent { get { return m_ModComponent; } }
+
+        /// <summary>实际射速（含 Mod 修正）。</summary>
+        public float FireRate
+        {
+            get
+            {
+                if (m_ModComponent == null)
+                {
+                    return m_FireRate;
+                }
+
+                var (add, mul) = m_ModComponent.GetFireRateModifiers();
+                return Mathf.Max(0.1f, (m_FireRate + add) * (1f + mul));
+            }
+        }
 
         /// <summary>是否可开火。</summary>
         public bool CanFire
         {
             get
             {
-                return !m_IsReloading && m_CurrentAmmo > 0 && Time.time - m_LastFireTime >= 1f / Mathf.Max(0.01f, m_FireRate);
+                return !m_IsReloading && m_CurrentAmmo > 0 && Time.time - m_LastFireTime >= 1f / Mathf.Max(0.01f, FireRate);
             }
         }
 
         protected virtual void Awake()
         {
             m_CurrentAmmo = m_MaxAmmo;
+            m_ModComponent = GetComponent<WeaponModComponent>();
+            if (m_ModComponent == null)
+            {
+                m_ModComponent = gameObject.AddComponent<WeaponModComponent>();
+            }
         }
 
         protected virtual void Start()
@@ -147,7 +168,7 @@ namespace EmojiWar.GameMain.Weapon
         /// <summary>开火进度（0~1，用于 UI 冷却条）。</summary>
         public virtual float GetProgress()
         {
-            float interval = 1f / Mathf.Max(0.01f, m_FireRate);
+            float interval = 1f / Mathf.Max(0.01f, FireRate);
             float progress = (Time.time - m_LastFireTime) / interval;
             return Mathf.Clamp01(progress);
         }
@@ -155,8 +176,8 @@ namespace EmojiWar.GameMain.Weapon
         /// <summary>武器信息（UI 展示）。</summary>
         public virtual string GetWeaponInfo()
         {
-            return string.Format("{0} - 弹药 {1}/{2} - 伤害 {3} - 射速 {4}/s",
-                m_WeaponName, m_CurrentAmmo, m_MaxAmmo, m_Damage, m_FireRate);
+            return string.Format("{0} - 弹药 {1}/{2} - 伤害 {3} - 射速 {4:F1}/s",
+                m_WeaponName, m_CurrentAmmo, m_MaxAmmo, m_Damage, FireRate);
         }
     }
 }

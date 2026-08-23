@@ -46,7 +46,18 @@ namespace EmojiWar.GameMain.Weapon
             var projectile = bullet.GetComponent<Projectile>();
             if (projectile != null)
             {
-                projectile.Setup(direction, m_BulletSpeed, m_Damage, Owner != null ? Owner.Team : Entity.EntityTeam.Player, Owner);
+                // 冰霜效果参数（来自 Mod）
+                float freezeSlow = 0f;
+                float freezeDuration = 0f;
+                if (m_ModComponent != null && m_ModComponent.HasEffect(ModEffectType.Freeze))
+                {
+                    freezeSlow = m_ModComponent.GetEffectParam(ModEffectType.Freeze, 1);
+                    freezeDuration = m_ModComponent.GetEffectParam(ModEffectType.Freeze, 2);
+                }
+
+                projectile.Setup(direction, m_BulletSpeed, m_Damage,
+                    Owner != null ? Owner.Team : Entity.EntityTeam.Player, Owner,
+                    freezeSlow, freezeDuration);
             }
 
             return true;

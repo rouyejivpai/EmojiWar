@@ -1,11 +1,14 @@
 //------------------------------------------------------------
 // EmojiWar GameMain - 战斗管理器
-// 负责：生成玩家、波次敌人生成、战斗状态。
+// 负责：生成玩家、波次敌人生成、波间商店、战斗状态。
+// 流程：开始 → 波次战斗 → 波间商店 → 下一波 → ...
 // 后续网络化：生成/波次由服务器权威驱动。
 //------------------------------------------------------------
 
+using System;
 using System.Collections;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace EmojiWar.GameMain.Battle
 {
@@ -22,14 +25,19 @@ namespace EmojiWar.GameMain.Battle
         private int m_EnemiesPerWave = 5;
 
         [SerializeField]
-        private float m_WaveInterval = 10f;
-
-        [SerializeField]
         private float m_SpawnRadius = 12f;
 
+        /// <summary>波间商店打开事件（参数：波次号）。</summary>
+        public static event Action<int> OnShopPhase;
+
+        /// <summary>战斗结束事件（参数：波次号）。</summary>
+        public static event Action<int> OnBattleEnd;
+
         private bool m_BattleRunning = false;
+        private bool m_WaitingForShop = false;
         private int m_WaveIndex = 0;
         private int m_AliveEnemies = 0;
+        private Coroutine m_WaveLoop = null;
 
         public bool BattleRunning { get { return m_BattleRunning; } }
         public int WaveIndex { get { return m_WaveIndex; } }
@@ -47,8 +55,25 @@ namespace EmojiWar.GameMain.Battle
             m_BattleRunning = true;
             m_WaveIndex = 0;
 
+            // 局内会话
+            var session = RunSession.Instance;
+            if (session == null)
+            {
+                var go = new GameObject("RunSession");
+                session = go.AddComponent<RunSession>();
+            }
+            session.StartRun(characterId);
+
             SpawnPlayer(characterId);
-            StartCoroutine(WaveLoop());
+            m_WaveLoop = StartCoroutine(WaveLoop());
+        }
+
+        /// <summary>
+        /// 商店关闭后继续下一波（由 ShopForm 调用）。
+        /// </summary>
+        public void ResumeAfterShop()
+        {
+            m_WaitingForShop = false;
         }
 
         private void SpawnPlayer(int characterId)
@@ -70,6 +95,20 @@ namespace EmojiWar.GameMain.Battle
                 // 装备主武器（从数据表配置）
                 int weaponId = character != null ? character.DefaultWeaponId : 1;
                 EquipWeapon(player, weaponId, true);
+
+                // 应用背包中的 Mod 到武器
+                var session = RunSession.Instance;
+                if (session != null)
+                {
+                    foreach (var modId in session.ModBag)
+                    {
+                        var modRow = GameEntry.Data.GetMod(modId);
+                        if (modRow != null && player.PrimaryWeapon != null)
+                        {
+                            player.PrimaryWeapon.ModComponent.AddMod(modRow);
+                        }
+                    }
+                }
             }
         }
 
@@ -81,7 +120,6 @@ namespace EmojiWar.GameMain.Battle
                 return;
             }
 
-            // 简化：主武器直接用数据行配置的远程武器逻辑挂载
             var weapon = player.GetComponentInChildren<Weapon.WeaponBase>();
             if (weapon == null)
             {
@@ -98,19 +136,37 @@ namespace EmojiWar.GameMain.Battle
             while (m_BattleRunning)
             {
                 m_WaveIndex++;
+                RunSession.Instance?.AdvanceWave(m_WaveIndex);
                 Debug.Log(string.Format("[BattleManager] 第 {0} 波开始", m_WaveIndex));
 
                 yield return StartCoroutine(SpawnWave(m_WaveIndex));
 
                 // 等待本波敌人清完或超时
-                float timeout = 30f;
-                while (m_AliveEnemies > 0 && timeout > 0f)
+                float timeout = 40f;
+                while (m_AliveEnemies > 0 && timeout > 0f && m_BattleRunning)
                 {
                     timeout -= Time.deltaTime;
                     yield return null;
                 }
 
-                yield return new WaitForSeconds(m_WaveInterval);
+                if (!m_BattleRunning)
+                {
+                    yield break;
+                }
+
+                // 波间商店
+                m_WaitingForShop = true;
+                Debug.Log(string.Format("[BattleManager] 第 {0} 波结束，进入商店", m_WaveIndex));
+                OnShopPhase?.Invoke(m_WaveIndex);
+
+                // 等待商店关闭
+                while (m_WaitingForShop && m_BattleRunning)
+                {
+                    yield return null;
+                }
+
+                // 敌人生成位置基于当前玩家位置，无需额外处理
+                yield return new WaitForSeconds(1f);
             }
         }
 
@@ -135,7 +191,6 @@ namespace EmojiWar.GameMain.Battle
                 return;
             }
 
-            // 玩家周围随机位置生成
             Vector3 playerPos = FindPlayerPosition();
             Vector2 randomDir = Random.insideUnitCircle.normalized;
             Vector3 spawnPos = playerPos + (Vector3)(randomDir * m_SpawnRadius);
@@ -154,12 +209,20 @@ namespace EmojiWar.GameMain.Battle
         private void OnEnemyDeath(Entity.EntityBase enemy)
         {
             enemy.OnDeath -= OnEnemyDeath;
+
+            // 击杀奖励
+            var session = RunSession.Instance;
+            if (session != null)
+            {
+                session.AddCoin(10);
+            }
+
             m_AliveEnemies = Mathf.Max(0, m_AliveEnemies - 1);
         }
 
         private Vector3 FindPlayerPosition()
         {
-            var player = Object.FindObjectOfType<Entity.PlayerEntity>();
+            var player = UnityEngine.Object.FindObjectOfType<Entity.PlayerEntity>();
             return player != null ? player.transform.position : Vector3.zero;
         }
 
@@ -175,7 +238,10 @@ namespace EmojiWar.GameMain.Battle
         private void OnDestroy()
         {
             m_BattleRunning = false;
-            StopAllCoroutines();
+            if (m_WaveLoop != null)
+            {
+                StopCoroutine(m_WaveLoop);
+            }
         }
     }
 }

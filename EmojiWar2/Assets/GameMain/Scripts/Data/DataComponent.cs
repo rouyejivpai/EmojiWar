@@ -17,6 +17,7 @@ namespace EmojiWar.GameMain.Data
     {
         private const string CharacterTable = "Character";
         private const string WeaponTable = "Weapon";
+        private const string ModTable = "Mod";
 
         /// <summary>
         /// 是否已初始化。
@@ -25,6 +26,7 @@ namespace EmojiWar.GameMain.Data
 
         private IDataTable<DRCharacter> m_CharacterTable = null;
         private IDataTable<DRWeapon> m_WeaponTable = null;
+        private IDataTable<DRMod> m_ModTable = null;
 
         /// <summary>
         /// 初始化：创建并加载所有数据表（异步）。
@@ -40,14 +42,16 @@ namespace EmojiWar.GameMain.Data
             // 加载数据表（ReadData 异步，完成后通过事件通知）
             GameEntry.DataTable.LoadDataTable<DRCharacter>(CharacterTable, this);
             GameEntry.DataTable.LoadDataTable<DRWeapon>(WeaponTable, this);
+            GameEntry.DataTable.LoadDataTable<DRMod>(ModTable, this);
 
             // 由于 ReadData 是异步的，这里先创建引用，
             // 实际数据就绪需监听 LoadDataTableSuccess 事件。
             m_CharacterTable = GameEntry.DataTable.GetDataTable<DRCharacter>(CharacterTable);
             m_WeaponTable = GameEntry.DataTable.GetDataTable<DRWeapon>(WeaponTable);
+            m_ModTable = GameEntry.DataTable.GetDataTable<DRMod>(ModTable);
 
             IsReady = true;
-            Log.Info("[DataComponent] Init finished. CharacterTable={0}, WeaponTable={1}", m_CharacterTable != null, m_WeaponTable != null);
+            Log.Info("[DataComponent] Init finished. CharacterTable={0}, WeaponTable={1}, ModTable={2}", m_CharacterTable != null, m_WeaponTable != null, m_ModTable != null);
         }
 
         /// <summary>
@@ -77,6 +81,27 @@ namespace EmojiWar.GameMain.Data
         public DRWeapon GetWeapon(int id)
         {
             return m_WeaponTable != null ? m_WeaponTable.GetDataRow(id) : null;
+        }
+
+        /// <summary>
+        /// 获取所有 Mod。
+        /// </summary>
+        public List<DRMod> GetAllMods()
+        {
+            var results = new List<DRMod>();
+            if (m_ModTable != null)
+            {
+                m_ModTable.GetAllDataRows(results);
+            }
+            return results;
+        }
+
+        /// <summary>
+        /// 按 ID 获取 Mod。
+        /// </summary>
+        public DRMod GetMod(int id)
+        {
+            return m_ModTable != null ? m_ModTable.GetDataRow(id) : null;
         }
     }
 }

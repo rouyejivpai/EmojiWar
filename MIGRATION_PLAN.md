@@ -148,13 +148,17 @@ EmojiWar2/
   - 关键修复：`GameEntry` 组件引用初始化从 Awake 移到 Start + `[DefaultExecutionOrder(100)]`，
     避免在 GameFramework 组件注册前取到 null 引用
 
-### Phase 2 — 单机核心玩法移植（可本地游玩）
-- [ ] Entity 系统 + 角色移动/射击
-- [ ] 武器系统（Pistol/Dun/近战）+ 弹药/装填
-- [ ] 敌人 AI + 波次生成（服务器逻辑先行，本地单机模拟）
+### Phase 2 — 单机核心玩法移植（本地可游玩）🟡 进行中（2026-08-23）
+- [x] DataTable 管线：Character/Weapon 表（txt 数据 + DR 行类 + 加载扩展 + DataComponent），实测加载成功（Character count=2, Weapon count=2）
+- [x] 实体系统：EntityData（纯数据，为网络化预留）+ EntityBase + PlayerEntity（WASD 移动 + 鼠标射击）+ EnemyEntity（简单 AI 追逐）
+- [x] 武器系统：WeaponBase 数据驱动重构 + RangedWeapon（子弹带扩散）+ Projectile（碰撞伤害）
+- [x] 战斗管理器：BattleManager 波次生成（每波 5+2*(n-1) 敌人）
+- [x] 流程：ProcedureBattle（订阅场景加载完成事件）→ Battle 场景
+- [x] 一键搭建：`EmojiWar/Setup/02 - Build Battle Scene`（Player/Enemy/BattleManager prefab + Battle 场景）、`03 - Add Scenes to Build Settings`
+- [x] **实测通过**：Play → 主菜单 → 点"开始游戏" → 切换到 Battle → 玩家 + 第一波 5 敌人生成
 - [ ] 商店 + 背包 UI（Form 化）
 - [ ] Buff/模组系统移植（数据驱动化）
-- [ ] 美术资源接入（角色/特效/动画）
+- [ ] 美术资源接入（旧 emoji GIF/动画）
 
 ### Phase 3 — 网络化（多人联机）
 - [ ] 自研协议：消息编解码（头+消息ID+长度+Payload）

@@ -26,6 +26,10 @@ namespace EmojiWar.GameMain.Weapon
         private Entity.EntityBase m_Shooter = null;
         private Rigidbody2D m_Rigidbody = null;
 
+        // Freeze（冰霜）效果：命中时减速敌人
+        private float m_FreezeSlowFactor = 0f;
+        private float m_FreezeDuration = 0f;
+
         private void Awake()
         {
             m_Rigidbody = GetComponent<Rigidbody2D>();
@@ -45,10 +49,20 @@ namespace EmojiWar.GameMain.Weapon
         /// </summary>
         public void Setup(Vector2 direction, float speed, float damage, Entity.EntityTeam team, Entity.EntityBase shooter)
         {
+            Setup(direction, speed, damage, team, shooter, 0f, 0f);
+        }
+
+        /// <summary>
+        /// 初始化子弹（含冰霜效果参数）。
+        /// </summary>
+        public void Setup(Vector2 direction, float speed, float damage, Entity.EntityTeam team, Entity.EntityBase shooter, float freezeSlowFactor, float freezeDuration)
+        {
             m_Speed = speed;
             m_Damage = damage;
             m_Team = team;
             m_Shooter = shooter;
+            m_FreezeSlowFactor = freezeSlowFactor;
+            m_FreezeDuration = freezeDuration;
 
             if (m_Rigidbody == null)
             {
@@ -79,6 +93,17 @@ namespace EmojiWar.GameMain.Weapon
             }
 
             entity.TakeDamage(m_Damage, m_Shooter);
+
+            // 冰霜减速
+            if (m_FreezeDuration > 0f && m_FreezeSlowFactor > 0f)
+            {
+                var enemy = entity as Entity.EnemyEntity;
+                if (enemy != null)
+                {
+                    enemy.ApplySlow(m_FreezeSlowFactor, m_FreezeDuration);
+                }
+            }
+
             Destroy(gameObject);
         }
     }

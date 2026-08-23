@@ -26,6 +26,10 @@ namespace EmojiWar.GameMain.Entity
         private float m_LastAttackTime = 0f;
         private Transform m_Target = null;
 
+        // 减速状态（冰霜效果）
+        private float m_SlowFactor = 0f;
+        private float m_SlowRemaining = 0f;
+
         /// <summary>接触伤害。</summary>
         public float ContactDamage
         {
@@ -51,7 +55,18 @@ namespace EmojiWar.GameMain.Entity
                 Vector2 toTarget = (Vector2)m_Target.position - (Vector2)transform.position;
                 if (toTarget.sqrMagnitude > 0.01f)
                 {
-                    Move(toTarget.normalized);
+                    // 应用减速（冰霜）
+                    if (m_SlowRemaining > 0f)
+                    {
+                        m_SlowRemaining -= Time.deltaTime;
+                        if (m_SlowRemaining <= 0f)
+                        {
+                            m_SlowFactor = 0f;
+                        }
+                    }
+
+                    Vector2 moveDir = toTarget.normalized;
+                    Move(moveDir * (1f - m_SlowFactor));
                     FaceDirection(toTarget);
                 }
 
@@ -71,6 +86,15 @@ namespace EmojiWar.GameMain.Entity
             {
                 StopMoving();
             }
+        }
+
+        /// <summary>
+        /// 应用减速（冰霜效果）。
+        /// </summary>
+        public void ApplySlow(float slowFactor, float duration)
+        {
+            m_SlowFactor = Mathf.Clamp01(slowFactor);
+            m_SlowRemaining = Mathf.Max(m_SlowRemaining, duration);
         }
 
         /// <summary>

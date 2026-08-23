@@ -1,6 +1,7 @@
 //------------------------------------------------------------
 // EmojiWar GameMain - 战斗流程
 // 加载战斗场景，监听场景加载完成事件后启动战斗管理器。
+// 监听波间商店事件，打开商店 UI。
 //------------------------------------------------------------
 
 using GameFramework.Event;
@@ -22,17 +23,17 @@ namespace EmojiWar.GameMain.Procedure
 
         // 通过 userData 传入的角色 ID（Phase 2 固定为 1，后续接选角）
         private int m_CharacterId = 1;
-        private bool m_SceneLoaded = false;
 
         protected override void OnEnter(IFsm<IProcedureManager> procedureOwner)
         {
             base.OnEnter(procedureOwner);
             Log.Info("===== EmojiWar Battle =====");
 
-            m_SceneLoaded = false;
-
             // 订阅场景加载成功事件
             GameEntry.Event.Subscribe(LoadSceneSuccessEventArgs.EventId, OnLoadSceneSuccess);
+
+            // 订阅波间商店事件
+            Battle.BattleManager.OnShopPhase += OnShopPhase;
 
             if (SceneManager.GetActiveScene().name != "Battle")
             {
@@ -40,9 +41,26 @@ namespace EmojiWar.GameMain.Procedure
             }
             else
             {
-                m_SceneLoaded = true;
                 StartBattle();
             }
+        }
+
+        private void OnShopPhase(int waveIndex)
+        {
+            Log.Info("[ProcedureBattle] 第 {0} 波结束，打开商店", waveIndex);
+
+            if (GameEntry.UI == null)
+            {
+                Log.Error("UIComponent is null, cannot open shop.");
+                return;
+            }
+
+            if (!GameEntry.UI.HasUIGroup(Constant.UIGroup.Default))
+            {
+                GameEntry.UI.AddUIGroup(Constant.UIGroup.Default);
+            }
+
+            GameEntry.UI.OpenUIForm(Constant.UIFormAssetPath.ShopForm, Constant.UIGroup.Default, this);
         }
 
         private void OnLoadSceneSuccess(object sender, GameEventArgs e)
@@ -54,7 +72,6 @@ namespace EmojiWar.GameMain.Procedure
             }
 
             Log.Info("[ProcedureBattle] 战斗场景加载完成: {0}", args.SceneAssetName);
-            m_SceneLoaded = true;
             StartBattle();
         }
 
@@ -93,6 +110,7 @@ namespace EmojiWar.GameMain.Procedure
 
         protected override void OnLeave(IFsm<IProcedureManager> procedureOwner, bool isShutdown)
         {
+            Battle.BattleManager.OnShopPhase -= OnShopPhase;
             if (GameEntry.Event != null)
             {
                 GameEntry.Event.Unsubscribe(LoadSceneSuccessEventArgs.EventId, OnLoadSceneSuccess);

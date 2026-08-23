@@ -15,6 +15,20 @@ namespace EmojiWar.GameMain.Editor
 {
     public static class RuntimeDiagnostics
     {
+        [MenuItem("EmojiWar/Diagnostics/Kill All Enemies")]
+        public static void KillAllEnemies()
+        {
+            var enemies = UnityEngine.Object.FindObjectsOfType<EmojiWar.GameMain.Entity.EnemyEntity>(true);
+            Debug.Log("[Diagnostics] Killing " + enemies.Length + " enemies");
+            foreach (var enemy in enemies)
+            {
+                if (enemy != null && enemy.IsAlive)
+                {
+                    enemy.TakeDamage(99999f);
+                }
+            }
+        }
+
         [MenuItem("EmojiWar/Diagnostics/Simulate Start Button")]
         public static void SimulateStartButton()
         {
