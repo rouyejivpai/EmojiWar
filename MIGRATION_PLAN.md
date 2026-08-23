@@ -179,14 +179,14 @@ EmojiWar2/
 - [ ] 自动重连 UI 提示完善
 - [ ] 同步观感优化（插值/预测）
 
-### Phase 5 — 打磨与发布 🟡 进行中（2026-08-23）
+### Phase 5 — 打磨与发布 🟢 主体完成（2026-08-23）
 - [x] **Windows 打包验证**：StandaloneWindows64 成功（69.95MB，0 错误）
 - [x] 同步观感优化：客户端实体位置插值平滑
 - [x] **音效接入**：SfxManager 程序合成音效（射击/受击/购买）
 - [x] **战斗 HUD**：BattleHudForm（金币/波次/血量）
-- [x] **emoji 美术接入**：ArtManager 加载已迁移素材（玩家😃/敌人👿/子弹💧），实体 Awake 应用 + 尺寸缩放
-- [ ] UI 动效完善（Form 打开/关闭过渡）
-- [ ] 双实例真机联调（构建 exe 网络对战）
+- [x] **emoji 美术接入**：ArtManager（玩家😃/敌人👿/子弹💧）
+- [x] **UI 动效**：UGuiForm 打开缩放淡入（smoothstep），全部 Form 生效
+- [ ] 双实例真机联调（构建 exe 网络对战，需人工在 Unity 外操作）
 
 ---
 
