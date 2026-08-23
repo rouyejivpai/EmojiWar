@@ -35,29 +35,48 @@ namespace EmojiWar.GameMain.Weapon
                 direction = m_FirePoint.right;
             }
 
-            // 随机扩散
-            if (m_Spread > 0f)
-            {
-                float randomAngle = Random.Range(-m_Spread, m_Spread);
-                direction = Quaternion.Euler(0f, 0f, randomAngle) * direction;
-            }
+            // 散射 Mod：一次发射多颗子弹（扇形分布）
+            int spreadCount = m_ModComponent != null ? m_ModComponent.GetSpreadCount() : 1;
+            float baseAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
 
-            GameObject bullet = Instantiate(m_ProjectilePrefab, firePos, Quaternion.identity);
-            var projectile = bullet.GetComponent<Projectile>();
-            if (projectile != null)
+            for (int i = 0; i < spreadCount; i++)
             {
-                // 冰霜效果参数（来自 Mod）
-                float freezeSlow = 0f;
-                float freezeDuration = 0f;
-                if (m_ModComponent != null && m_ModComponent.HasEffect(ModEffectType.Freeze))
+                float angleOffset = 0f;
+
+                // 随机扩散（基础）
+                if (m_Spread > 0f)
                 {
-                    freezeSlow = m_ModComponent.GetEffectParam(ModEffectType.Freeze, 1);
-                    freezeDuration = m_ModComponent.GetEffectParam(ModEffectType.Freeze, 2);
+                    angleOffset += Random.Range(-m_Spread, m_Spread);
                 }
 
-                projectile.Setup(direction, m_BulletSpeed, m_Damage,
-                    Owner != null ? Owner.Team : Entity.EntityTeam.Player, Owner,
-                    freezeSlow, freezeDuration);
+                // 散射 Mod：均匀扇形分布
+                if (spreadCount > 1)
+                {
+                    float spreadAngle = 25f;
+                    float t = spreadCount > 1 ? (float)i / (spreadCount - 1) - 0.5f : 0f;
+                    angleOffset += t * spreadAngle;
+                }
+
+                float finalAngle = baseAngle + angleOffset;
+                Vector2 fireDirection = new Vector2(Mathf.Cos(finalAngle * Mathf.Deg2Rad), Mathf.Sin(finalAngle * Mathf.Deg2Rad));
+
+                GameObject bullet = Instantiate(m_ProjectilePrefab, firePos, Quaternion.identity);
+                var projectile = bullet.GetComponent<Projectile>();
+                if (projectile != null)
+                {
+                    // 冰霜效果参数（来自 Mod）
+                    float freezeSlow = 0f;
+                    float freezeDuration = 0f;
+                    if (m_ModComponent != null && m_ModComponent.HasEffect(ModEffectType.Freeze))
+                    {
+                        freezeSlow = m_ModComponent.GetEffectParam(ModEffectType.Freeze, 1);
+                        freezeDuration = m_ModComponent.GetEffectParam(ModEffectType.Freeze, 2);
+                    }
+
+                    projectile.Setup(fireDirection, m_BulletSpeed, Damage,
+                        Owner != null ? Owner.Team : Entity.EntityTeam.Player, Owner,
+                        freezeSlow, freezeDuration);
+                }
             }
 
             // 射击音效

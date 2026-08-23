@@ -15,10 +15,10 @@ namespace EmojiWar.GameMain.Entity
     {
         [Header("AI 参数")]
         [SerializeField]
-        private float m_ContactDamage = 10f;
+        private float m_ContactDamage = 6f;
 
         [SerializeField]
-        private float m_AttackInterval = 1f;
+        private float m_AttackInterval = 1.5f;
 
         [SerializeField]
         private float m_DetectionRadius = 30f;

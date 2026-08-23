@@ -200,8 +200,8 @@ namespace EmojiWar.GameMain.Battle
             if (enemy != null)
             {
                 enemy.Team = Entity.EntityTeam.Enemy;
-                enemy.MoveSpeed = 3f;
-                enemy.ContactDamage = 8f;
+                enemy.MoveSpeed = 2.5f;
+                enemy.ContactDamage = 6f;   // 平衡：降低接触伤害
                 enemy.OnDeath += OnEnemyDeath;
             }
         }
@@ -214,7 +214,7 @@ namespace EmojiWar.GameMain.Battle
             var session = RunSession.Instance;
             if (session != null)
             {
-                session.AddCoin(10);
+                session.AddCoin(15);
             }
 
             m_AliveEnemies = Mathf.Max(0, m_AliveEnemies - 1);

@@ -129,6 +129,16 @@ namespace EmojiWar.GameMain.Editor
                     {
                         var firstW = weaponTable.GetDataRow(1);
                         sb.AppendLine("  Row1: id=" + firstW.Id + " name=" + firstW.WeaponName + " dmg=" + firstW.Damage);
+                        var lastW = weaponTable.GetDataRow(weaponTable.Count);
+                        sb.AppendLine("  Row" + weaponTable.Count + ": id=" + lastW.Id + " name=" + lastW.WeaponName);
+                    }
+
+                    var modTable = GameEntry.DataTable.GetDataTable<EmojiWar.GameMain.Data.DRMod>("Mod");
+                    sb.AppendLine("ModTable: " + (modTable != null ? "FOUND count=" + modTable.Count : "NULL"));
+                    if (modTable != null && modTable.Count > 0)
+                    {
+                        var lastM = modTable.GetDataRow(modTable.Count);
+                        sb.AppendLine("  Row" + modTable.Count + ": id=" + lastM.Id + " name=" + lastM.ModName + " effect=" + lastM.EffectType);
                     }
                 }
             }

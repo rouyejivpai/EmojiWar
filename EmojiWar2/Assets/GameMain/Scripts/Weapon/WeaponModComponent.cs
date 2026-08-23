@@ -19,6 +19,8 @@ namespace EmojiWar.GameMain.Weapon
         FireRateMul = 2,    // 攻速乘区
         OnKill = 3,         // 击杀触发（攻速临时提升）
         Freeze = 4,         // 子弹减速敌人
+        Spread = 5,         // 散射（一次多发）
+        DamageUp = 6,       // 伤害提升
     }
 
     /// <summary>
@@ -108,6 +110,37 @@ namespace EmojiWar.GameMain.Weapon
         }
 
         /// <summary>
+        /// 计算伤害修正（累加）。
+        /// </summary>
+        public float GetDamageModifier()
+        {
+            float add = 0f;
+            foreach (var mod in m_Mods)
+            {
+                if (mod.Row != null && GetEffectType(mod.Row.EffectType) == ModEffectType.DamageUp)
+                {
+                    add += mod.Row.Param1;
+                }
+            }
+            return add;
+        }
+
+        /// <summary>
+        /// 获取散射弹数（无散射 Mod 时返回 1）。
+        /// </summary>
+        public int GetSpreadCount()
+        {
+            foreach (var mod in m_Mods)
+            {
+                if (mod.Row != null && GetEffectType(mod.Row.EffectType) == ModEffectType.Spread)
+                {
+                    return Mathf.Max(1, (int)mod.Row.Param1);
+                }
+            }
+            return 1;
+        }
+
+        /// <summary>
         /// 是否拥有指定效果类型的 Mod。
         /// </summary>
         public bool HasEffect(ModEffectType effectType)
@@ -148,6 +181,8 @@ namespace EmojiWar.GameMain.Weapon
                 case "FireRateMul": return ModEffectType.FireRateMul;
                 case "OnKill": return ModEffectType.OnKill;
                 case "Freeze": return ModEffectType.Freeze;
+                case "Spread": return ModEffectType.Spread;
+                case "DamageUp": return ModEffectType.DamageUp;
                 default: return ModEffectType.None;
             }
         }

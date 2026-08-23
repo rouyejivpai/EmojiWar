@@ -44,7 +44,20 @@ namespace EmojiWar.GameMain.Weapon
         protected WeaponModComponent m_ModComponent = null;
 
         public string WeaponName { get { return m_WeaponName; } }
-        public float Damage { get { return m_Damage; } }
+
+        /// <summary>实际伤害（含 Mod 修正）。</summary>
+        public float Damage
+        {
+            get
+            {
+                if (m_ModComponent == null)
+                {
+                    return m_Damage;
+                }
+                return m_Damage + m_ModComponent.GetDamageModifier();
+            }
+        }
+
         public float Range { get { return m_Range; } }
         public int MaxAmmo { get { return m_MaxAmmo; } }
         public int CurrentAmmo { get { return m_CurrentAmmo; } }

@@ -1,9 +1,11 @@
 #------------------------------------------------------------
 # Mod 数据表
 # 列顺序：Id, ModId, ModName, Description, Category, Rarity, Weight, EffectType, Param1, Param2
-# EffectType: FireRateUp(攻速+), FireRateMul(攻速×), OnKill(击杀触发), Freeze(冰霜减速)
+# EffectType: FireRateUp(攻速+), FireRateMul(攻速×), OnKill(击杀触发), Freeze(冰霜减速), Spread(散射), DamageUp(伤害+)
 #------------------------------------------------------------
 1	rateup_mod	攻速提升	提升武器攻速	武器	2	1.5	FireRateUp	1	0
 2	ratemul_mod	攻速增幅	武器攻速乘区增幅	武器	2	1.5	FireRateMul	0.2	0
 3	kill_mod	杀戮怒火	子弹击杀敌人后获得攻速加成	武器	2	1.5	OnKill	0.5	3
 4	ice_mod	雪花	子弹触碰敌人时使其减速	武器	2	1.5	Freeze	0.3	2
+5	flash_mod	散射水滴	一次发射三颗小水滴	武器	3	1.2	Spread	3	0
+6	damage_mod	伤害强化	提升武器伤害	武器	3	1.2	DamageUp	5	0

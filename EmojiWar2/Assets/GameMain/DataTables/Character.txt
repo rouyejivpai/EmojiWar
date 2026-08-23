@@ -2,5 +2,5 @@
 # Character 数据表
 # 列顺序：Id, CharacterId, CharacterName, Description, PrefabPath, DefaultWeaponId, SecondWeaponId, MaxHealth, MoveSpeed, Coin
 #------------------------------------------------------------
-1	player1	流汗黄豆	黄豆世界的第一个勇者	Assets/GameMain/Entities/Player.prefab	1	2	100	5	300
-2	player2	好吃黄豆	一个抽象的黄豆	Assets/GameMain/Entities/Player.prefab	1	2	100	5	300
+1	player1	流汗黄豆	黄豆世界的第一个勇者	Assets/GameMain/Entities/Player.prefab	1	2	150	5	300
+2	player2	好吃黄豆	一个抽象的黄豆	Assets/GameMain/Entities/Player.prefab	1	2	150	5	300
