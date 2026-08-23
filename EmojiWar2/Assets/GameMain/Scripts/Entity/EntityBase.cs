@@ -20,11 +20,30 @@ namespace EmojiWar.GameMain.Entity
 
         protected Rigidbody2D m_Rigidbody = null;
         protected SpriteRenderer m_SpriteRenderer = null;
+        protected Buff.BuffComponent m_BuffComponent = null;
 
         /// <summary>实体数据（只读访问）。</summary>
         public EntityData Data
         {
             get { return m_Data; }
+        }
+
+        /// <summary>Buff 组件。</summary>
+        public Buff.BuffComponent BuffComponent
+        {
+            get { return m_BuffComponent; }
+        }
+
+        /// <summary>移动速度倍率（含 Buff 修正）。</summary>
+        public float MoveSpeedMultiplier
+        {
+            get { return m_BuffComponent != null ? m_BuffComponent.MoveSpeedMultiplier : 1f; }
+        }
+
+        /// <summary>是否被眩晕。</summary>
+        public bool IsStunned
+        {
+            get { return m_BuffComponent != null && m_BuffComponent.IsStunned; }
         }
 
         /// <summary>阵营。</summary>
@@ -60,6 +79,11 @@ namespace EmojiWar.GameMain.Entity
         {
             m_Rigidbody = GetComponent<Rigidbody2D>();
             m_SpriteRenderer = GetComponent<SpriteRenderer>();
+            m_BuffComponent = GetComponent<Buff.BuffComponent>();
+            if (m_BuffComponent == null)
+            {
+                m_BuffComponent = gameObject.AddComponent<Buff.BuffComponent>();
+            }
 
             if (m_Rigidbody != null)
             {
@@ -94,13 +118,13 @@ namespace EmojiWar.GameMain.Entity
         /// </summary>
         protected void Move(Vector2 direction)
         {
-            if (!m_Data.IsAlive || m_Rigidbody == null)
+            if (!m_Data.IsAlive || m_Rigidbody == null || IsStunned)
             {
                 return;
             }
 
             Vector2 normalized = direction.sqrMagnitude > 1f ? direction.normalized : direction;
-            m_Rigidbody.velocity = normalized * m_Data.MoveSpeed;
+            m_Rigidbody.velocity = normalized * m_Data.MoveSpeed * MoveSpeedMultiplier;
 
             if (normalized.sqrMagnitude > 0.01f)
             {
