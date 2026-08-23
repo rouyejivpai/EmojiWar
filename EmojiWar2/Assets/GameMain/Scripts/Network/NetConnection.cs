@@ -53,7 +53,7 @@ namespace EmojiWar.GameMain.Network
             {
                 m_Client.EndConnect(ar);
                 m_Stream = m_Client.GetStream();
-                Debug.Log("[NetConnection] Connected.");
+                Debug.Log("[NetConnection] Connected to " + m_Client.Client.RemoteEndPoint);
             }
             catch (Exception e)
             {
@@ -100,7 +100,7 @@ namespace EmojiWar.GameMain.Network
                 int read = m_Stream.Read(buffer, 0, buffer.Length);
                 if (read <= 0)
                 {
-                    HandleDisconnect();
+                    HandleDisconnect("read<=0");
                     return;
                 }
 
@@ -114,7 +114,7 @@ namespace EmojiWar.GameMain.Network
             catch (Exception e)
             {
                 Debug.LogError("[NetConnection] Poll failed: " + e.Message);
-                HandleDisconnect();
+                HandleDisconnect("poll-exception");
             }
         }
 
@@ -144,8 +144,9 @@ namespace EmojiWar.GameMain.Network
             }
         }
 
-        private void HandleDisconnect()
+        private void HandleDisconnect(string reason = "")
         {
+            Debug.Log("[NetConnection] Disconnecting. reason=" + reason);
             try
             {
                 if (m_Stream != null)

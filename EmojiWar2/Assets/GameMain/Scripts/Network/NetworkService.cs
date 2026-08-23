@@ -49,6 +49,10 @@ namespace EmojiWar.GameMain.Network
             // 轮询网络（服务器与客户端）
             if (m_Server != null)
             {
+                if (Time.frameCount % 90 == 0)
+                {
+                    Debug.Log("[NetworkService] Update tick, server=" + (m_Server != null) + " sessions=" + (m_Server != null ? m_Server.SessionCount : -1));
+                }
                 m_Server.Poll();
             }
             if (m_Connection != null)
@@ -56,7 +60,6 @@ namespace EmojiWar.GameMain.Network
                 m_Connection.Poll();
             }
         }
-
         /// <summary>
         /// 启动为服务器（Host）。
         /// </summary>

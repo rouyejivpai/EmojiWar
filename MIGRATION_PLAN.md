@@ -159,11 +159,13 @@ EmojiWar2/
 - [x] **美术迁移**：85 个 emoji GIF + 动画 → `Assets/GameMain/Art/`（2D Sprite 导入验证）
 - [x] 实测：战斗 → 击杀 → 商店 → 全链路回归通过
 
-### Phase 3 — 网络化（多人联机）
-- [ ] 自研协议：消息编解码（头+消息ID+长度+Payload）
-- [ ] 连接管理：客户端连 Host、断线重连
-- [ ] 输入上行：玩家输入帧上报
-- [ ] 状态下行：敌人/子弹/掉落/血量同步
+### Phase 3 — 网络化（多人联机）🟡 进行中（2026-08-23）
+- [x] 自研协议：二进制帧（消息ID ushort + 长度 ushort + Payload）+ NetCodec 编解码 + 12 种消息（JoinRoom/PlayerInput/BuyItem/RoomState/SpawnEntity/EntityState/RemoveEntity/WaveState/ShopOffer/GameOver/Heartbeat）
+- [x] 传输层：NetConnection（TCP 客户端，异步连接/拆帧轮询）+ NetServer（Host 监听/会话管理/广播）
+- [x] NetworkService 业务组件：Host/Client/Offline 三模式，GameEntry 接入
+- [x] **实测通过**：Play 内回环测试——CLIENT 连接 127.0.0.1:7777 → JoinRoom → HOST 回 RoomState → CLIENT 收到（双向通信验证）
+- [ ] 输入上行：玩家输入帧上报服务器
+- [ ] 状态下行：敌人/子弹/掉落/血量同步（Host 权威）
 - [ ] 房间/匹配流程（简单大厅）
 
 ### Phase 4 — 多人玩法完善

@@ -107,6 +107,7 @@ namespace EmojiWar.GameMain.Network
                 var message = NetCodec.Decode(frame, 0, total);
                 if (message != null)
                 {
+                    Debug.Log("[NetServerSession] Received msg " + message.Id + " from session " + Id);
                     OnMessage?.Invoke(Id, message);
                 }
             }
@@ -142,10 +143,20 @@ namespace EmojiWar.GameMain.Network
     {
         private TcpListener m_Listener = null;
         private readonly Dictionary<int, NetServerSession> m_Sessions = new Dictionary<int, NetServerSession>();
+        private readonly object m_SyncRoot = new object();
         private int m_NextSessionId = 1;
 
         public bool IsRunning { get; private set; }
-        public int SessionCount { get { return m_Sessions.Count; } }
+        public int SessionCount
+        {
+            get
+            {
+                lock (m_SyncRoot)
+                {
+                    return m_Sessions.Count;
+                }
+            }
+        }
         public IReadOnlyCollection<NetServerSession> Sessions { get { return m_Sessions.Values; } }
 
         /// <summary>新客户端连接事件。</summary>
@@ -166,9 +177,8 @@ namespace EmojiWar.GameMain.Network
             {
                 m_Listener = new TcpListener(IPAddress.Any, port);
                 m_Listener.Start();
-                m_Listener.BeginAcceptTcpClient(OnAcceptCallback, null);
                 IsRunning = true;
-                Debug.Log("[NetServer] Listening on port " + port);
+                Debug.Log("[NetServer] Listening on " + m_Listener.LocalEndpoint);
                 return true;
             }
             catch (Exception e)
@@ -178,49 +188,67 @@ namespace EmojiWar.GameMain.Network
             }
         }
 
-        private void OnAcceptCallback(IAsyncResult ar)
+        /// <summary>
+        /// 每帧轮询（主线程）：接受新连接 + 处理各会话消息。
+        /// 主线程同步模型，避免异步回调线程竞态。
+        /// </summary>
+        public void Poll()
         {
-            try
+            // 接受新连接（主线程同步）
+            if (m_Listener != null)
             {
-                if (m_Listener == null)
+                bool pending = m_Listener.Pending();
+                if (Time.frameCount % 30 == 0)
                 {
-                    return;
+                    Debug.Log("[NetServer] Poll pending=" + pending + " sessions=" + m_Sessions.Count);
                 }
+                if (pending)
+                {
+                    try
+                    {
+                        TcpClient client = m_Listener.AcceptTcpClient();
+                        int sessionId = m_NextSessionId++;
+                        var session = new NetServerSession(sessionId, client);
+                        session.OnMessage += (id, msg) => OnMessage?.Invoke(id, msg);
+                        session.OnDisconnected += OnSessionDisconnected;
+                        lock (m_SyncRoot)
+                        {
+                            m_Sessions[sessionId] = session;
+                        }
 
-                TcpClient client = m_Listener.EndAcceptTcpClient(ar);
-                int sessionId = m_NextSessionId++;
-                var session = new NetServerSession(sessionId, client);
-                session.OnMessage += (id, msg) => OnMessage?.Invoke(id, msg);
-                session.OnDisconnected += OnSessionDisconnected;
-                m_Sessions[sessionId] = session;
-
-                OnClientConnected?.Invoke(sessionId);
-
-                // 继续接受新连接
-                m_Listener.BeginAcceptTcpClient(OnAcceptCallback, null);
+                        Debug.Log("[NetServer] Accepted client, sessionId=" + sessionId);
+                        OnClientConnected?.Invoke(sessionId);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError("[NetServer] Accept failed: " + e.Message);
+                    }
+                }
             }
-            catch (Exception e)
+
+            // 处理各会话消息（先拷贝避免遍历中修改）
+            List<NetServerSession> sessions;
+            lock (m_SyncRoot)
             {
-                Debug.LogError("[NetServer] Accept failed: " + e.Message);
+                sessions = new List<NetServerSession>(m_Sessions.Values);
+            }
+            foreach (var session in sessions)
+            {
+                if (session.IsAlive)
+                {
+                    session.Poll();
+                }
             }
         }
 
         private void OnSessionDisconnected(int sessionId)
         {
-            if (m_Sessions.Remove(sessionId))
+            lock (m_SyncRoot)
             {
-                OnClientDisconnected?.Invoke(sessionId);
-            }
-        }
-
-        /// <summary>
-        /// 每帧轮询所有会话。
-        /// </summary>
-        public void Poll()
-        {
-            foreach (var session in m_Sessions.Values)
-            {
-                session.Poll();
+                if (m_Sessions.Remove(sessionId))
+                {
+                    OnClientDisconnected?.Invoke(sessionId);
+                }
             }
         }
 
@@ -229,7 +257,12 @@ namespace EmojiWar.GameMain.Network
         /// </summary>
         public void Broadcast(NetMessage message)
         {
-            foreach (var session in m_Sessions.Values)
+            List<NetServerSession> sessions;
+            lock (m_SyncRoot)
+            {
+                sessions = new List<NetServerSession>(m_Sessions.Values);
+            }
+            foreach (var session in sessions)
             {
                 session.Send(message);
             }
@@ -240,10 +273,12 @@ namespace EmojiWar.GameMain.Network
         /// </summary>
         public void SendTo(int sessionId, NetMessage message)
         {
-            if (m_Sessions.TryGetValue(sessionId, out var session))
+            NetServerSession session;
+            lock (m_SyncRoot)
             {
-                session.Send(message);
+                m_Sessions.TryGetValue(sessionId, out session);
             }
+            session?.Send(message);
         }
 
         /// <summary>
@@ -253,11 +288,20 @@ namespace EmojiWar.GameMain.Network
         {
             IsRunning = false;
 
-            foreach (var session in m_Sessions.Values)
+            // 先拷贝再遍历，避免 Disconnect 事件回调修改字典导致枚举异常
+            List<NetServerSession> sessions;
+            lock (m_SyncRoot)
+            {
+                sessions = new List<NetServerSession>(m_Sessions.Values);
+            }
+            foreach (var session in sessions)
             {
                 session.Disconnect();
             }
-            m_Sessions.Clear();
+            lock (m_SyncRoot)
+            {
+                m_Sessions.Clear();
+            }
 
             if (m_Listener != null)
             {
