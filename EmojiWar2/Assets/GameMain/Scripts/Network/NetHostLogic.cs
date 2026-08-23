@@ -209,6 +209,14 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
+            // 幂等：同一连接重复加入时，先移除旧实体并广播删除，避免残留多个玩家实体
+            if (m_Players.TryGetValue(sessionId, out var oldState))
+            {
+                m_Players.Remove(sessionId);
+                m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = oldState.EntityId });
+                Debug.Log("[NetHostLogic] 玩家 " + sessionId + " 重复加入，移除旧实体 " + oldState.EntityId);
+            }
+
             var state = new PlayerState
             {
                 SessionId = sessionId,
@@ -230,6 +238,9 @@ namespace EmojiWar.GameMain.Network
                 Y = state.Position.y,
             };
             m_Service.BroadcastToClients(spawn);
+
+            // 告知新加入者"自己的实体 ID"（客户端跳过渲染自己，避免与本地玩家重复）
+            m_Service.SendToClient(sessionId, new S2CMyEntity { EntityId = state.EntityId });
 
             // 广播已有玩家实体给新加入者（含房主），保证晚进客户端的可见性
             foreach (var kv in m_Players)

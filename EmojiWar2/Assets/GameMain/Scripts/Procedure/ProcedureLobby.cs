@@ -18,11 +18,20 @@ namespace EmojiWar.GameMain.Procedure
     {
         private IFsm<IProcedureManager> m_ProcedureFsm = null;
         private string m_PlayerName = "玩家";
+        private bool m_Entered = false;
 
         protected override void OnEnter(IFsm<IProcedureManager> procedureOwner)
         {
             base.OnEnter(procedureOwner);
             Log.Info("===== EmojiWar Lobby =====");
+
+            // 防重复进入（重复 ChangeState 会重复订阅事件，导致创建/加入被触发两次）
+            if (m_Entered)
+            {
+                WriteProbe("[lobby] DUPLICATE OnEnter ignored");
+                return;
+            }
+            m_Entered = true;
 
             m_ProcedureFsm = procedureOwner;
 
@@ -164,6 +173,7 @@ namespace EmojiWar.GameMain.Procedure
             // 关闭大厅窗体，避免重复进入时累积
             UI.UIFormCloser.CloseByName("LobbyForm(Clone)");
 
+            m_Entered = false;
             m_ProcedureFsm = null;
             base.OnLeave(procedureOwner, isShutdown);
         }

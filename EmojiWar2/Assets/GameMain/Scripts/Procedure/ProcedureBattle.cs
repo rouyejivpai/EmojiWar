@@ -30,10 +30,32 @@ namespace EmojiWar.GameMain.Procedure
         /// <summary>当前流程实例（供网络层触发本地重开）。</summary>
         public static ProcedureBattle Current { get; private set; }
 
+        /// <summary>本次进入是否已启动战斗（防重复 OnEnter 导致的重复开局）。</summary>
+        private bool m_BattleStartedThisEnter = false;
+
+        /// <summary>
+        /// 会话级战斗标志：从进入战斗到结算/返回菜单为一局。
+        /// 防重复 ChangeState&lt;ProcedureBattle&gt;（重复进入/重复开局/场景叠加）：
+        /// 一局内重复 OnEnter 一律忽略，直到 OnPlayerDied（进结算）或返回菜单才复位。
+        /// </summary>
+        private static bool s_BattleSession = false;
+
         protected override void OnEnter(IFsm<IProcedureManager> procedureOwner)
         {
             base.OnEnter(procedureOwner);
             Log.Info("===== EmojiWar Battle =====");
+
+            // 防重复进入：一局内重复 OnEnter（重复 ChangeState）直接忽略，避免重复开局/场景叠加
+            if (s_BattleSession || Current == this || m_BattleStartedThisEnter)
+            {
+                WriteProbe("[battle-proc] DUPLICATE OnEnter ignored, activeScene=" +
+                    UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
+                return;
+            }
+
+            s_BattleSession = true;
+            Current = this;
+            m_BattleStartedThisEnter = false;
             WriteProbe("[battle-proc] OnEnter, activeScene=" + UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
 
             Current = this;
@@ -87,6 +109,7 @@ namespace EmojiWar.GameMain.Procedure
         private void OnPlayerDied()
         {
             Log.Info("[ProcedureBattle] 玩家死亡，进入结算");
+            s_BattleSession = false;    // 本局结束，允许下次进入重新开局
             ChangeState<ProcedureGameOver>(CurrentFsm);
         }
 
@@ -108,6 +131,13 @@ namespace EmojiWar.GameMain.Procedure
 
         private void StartBattle()
         {
+            if (m_BattleStartedThisEnter)
+            {
+                WriteProbe("[battle-proc] StartBattle already done this enter, skip");
+                return;
+            }
+            m_BattleStartedThisEnter = true;
+
             WriteProbe("[battle-proc] StartBattle called, DataReady=" + (GameEntry.Data != null ? GameEntry.Data.IsReady.ToString() : "DataNULL"));
             if (GameEntry.Data == null || !GameEntry.Data.IsReady)
             {

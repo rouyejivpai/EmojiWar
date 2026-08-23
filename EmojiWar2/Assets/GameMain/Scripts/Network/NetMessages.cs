@@ -303,6 +303,24 @@ namespace EmojiWar.GameMain.Network
         }
     }
 
+    /// <summary>S2C: host tells a joiner its own entity id (client skips rendering itself).</summary>
+    public sealed class S2CMyEntity : NetMessage
+    {
+        public int EntityId;
+
+        public override MsgId Id { get { return MsgId.MyEntity; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(EntityId);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            EntityId = reader.ReadInt32();
+        }
+    }
+
     /// <summary>Heartbeat.</summary>
     public sealed class NetHeartbeat : NetMessage
     {

@@ -215,6 +215,11 @@ EmojiWar2/
   - **粉色方块**：网络实体用 `CreatePrimitive(Cube)`（3D 默认材质 shader 在 2D 构建未打包）→ 粉色。修复：`NetClientLogic.HandleSpawn` 改用 `SpriteRenderer` + 旧项目迁移的 emoji 美术（玩家=黄笑脸 1f603，敌人=红恶魔 1f47f）
   - 验证（`-autocreate` 自动化 + probe）：场景加载成功 → BattleManager OK → `LoadEmoji -> OK` → `players=1 enemies=5`、`SpriteRenderers=7 withSprite=6`、0 错误 ✅
   - 工具：`-autocreate` 启动参数自动走 菜单→创建房间→战斗（`AutoPlay.cs`）；`EmojiWar/Diagnostics/Dump Version List`（`VersionListDiag.cs`）
+- [x] **多玩家实体问题修复（2026-08-24 实测：一场生成多个不符合预期的玩家实体）**：
+  - 根因 1：**重复开局**——重复 `ChangeState<ProcedureBattle>` 导致 `OnEnter`/`LoadSceneSuccess`/`StartBattle`/`SpawnPlayer` 各执行两次（probe 证实：一次创建房间 → 两次 SpawnPlayer）→ 修复：`ProcedureBattle` 增加**会话级防重**（静态 `s_BattleSession`，一局只开一次，`OnPlayerDied` 进结算才复位）；`ProcedureMenu/Lobby` 也加 OnEnter 防重（防事件双订阅）
+  - 根因 2：**重复加入**——同一连接多次 `JoinRoom`（客户端重连/多实例）→ Host 每次生成新实体且旧实体不清理 → 修复：`NetHostLogic.HandleJoin` 幂等（同 session 重复加入先移除旧实体并广播 RemoveEntity）
+  - 根因 3：**自己重复渲染**——客户端既有本地玩家（黄笑脸）又渲染自己的网络实体（同样黄笑脸）→ 同屏多个"自己" → 修复：新增 `S2CMyEntity` 消息，Host 告知加入者自己的实体 ID，客户端跳过渲染自己（网络实体只显示其他玩家与敌人）
+  - 验证：`-autocreate` → 一次 OnEnter/一次 StartBattle/一次 SpawnPlayer、`players=1 enemies=5`、0 错误；Net Restart Test 回归通过（实体计数符合"跳过自己"预期）
 - [ ] 双实例真机联调（构建 exe 网络对战，需人工在 Unity 外操作；完整指引见 **PLAYTEST.md**）
 
 ---

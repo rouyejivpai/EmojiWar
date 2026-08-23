@@ -22,11 +22,20 @@ namespace EmojiWar.GameMain.Procedure
 
         // 当前流程机引用（事件回调中需要）
         private IFsm<IProcedureManager> m_ProcedureFsm = null;
+        private bool m_Entered = false;
 
         protected override void OnEnter(IFsm<IProcedureManager> procedureOwner)
         {
             base.OnEnter(procedureOwner);
             Log.Info("===== EmojiWar Menu =====");
+
+            // 防重复进入（重复 ChangeState 会导致菜单 UI 重复打开/事件双订阅）
+            if (m_Entered)
+            {
+                WriteProbe("[menu] DUPLICATE OnEnter ignored");
+                return;
+            }
+            m_Entered = true;
 
             m_ProcedureFsm = procedureOwner;
             UI.MenuForm.OnStartGameRequested += OnStartGameRequested;
@@ -108,8 +117,23 @@ namespace EmojiWar.GameMain.Procedure
             // 关闭主菜单窗体，避免重复进入时累积
             UI.UIFormCloser.CloseByName("MenuForm(Clone)");
 
+            m_Entered = false;
             m_ProcedureFsm = null;
             base.OnLeave(procedureOwner, isShutdown);
+        }
+
+        /// <summary>运行时探针。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe.txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
+            }
         }
     }
 }

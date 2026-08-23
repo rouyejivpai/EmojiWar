@@ -45,6 +45,9 @@ namespace EmojiWar.GameMain.Network
         private bool m_Joined = false;
         private bool m_JoinSent = false;
         private bool m_IntentionalLeave = false;
+
+        /// <summary>自己的网络实体 ID（Host 告知；客户端不渲染自己，避免与本地玩家重复）。</summary>
+        private int m_MyEntityId = -1;
         private string m_PlayerName = "玩家";
         private string m_ServerIp = "127.0.0.1";
         private int m_ServerPort = NetworkService.DefaultPort;
@@ -294,6 +297,15 @@ namespace EmojiWar.GameMain.Network
                 case MsgId.RunRestart:
                     HandleRunRestart();
                     break;
+
+                case MsgId.MyEntity:
+                    var my = message as S2CMyEntity;
+                    if (my != null)
+                    {
+                        m_MyEntityId = my.EntityId;
+                        Debug.Log("[NetClientLogic] 我的实体 ID = " + m_MyEntityId + "（客户端不渲染自己）");
+                    }
+                    break;
             }
         }
 
@@ -350,6 +362,13 @@ namespace EmojiWar.GameMain.Network
         {
             if (spawn == null || m_LocalEntities.ContainsKey(spawn.EntityId))
             {
+                return;
+            }
+
+            // 不渲染自己的网络实体（本地玩家已代表自己，避免同屏多个"玩家"）
+            if (spawn.Type == 0 && spawn.EntityId == m_MyEntityId)
+            {
+                Debug.Log("[NetClientLogic] 跳过渲染自己的实体 " + spawn.EntityId);
                 return;
             }
 

@@ -32,6 +32,7 @@ namespace EmojiWar.GameMain.Network
         ShopOffer = 2202,       // 商店商品 { items[] }
         GameOver = 2999,        // 游戏结束 { win, waveIndex }
         RunRestart = 2105,      // S2C: host restarts the run for a new round
+        MyEntity = 2106,        // S2C: host tells a joiner its own entity id { entityId }
 
         // ---- 心跳 ----
         Heartbeat = 9001,
