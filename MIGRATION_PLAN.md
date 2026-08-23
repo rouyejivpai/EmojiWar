@@ -187,8 +187,9 @@ EmojiWar2/
 - [x] **emoji 美术接入**：ArtManager
 - [x] **UI 动效**：UGuiForm 打开缩放淡入
 - [x] **内容扩展与平衡**：第 3 把武器（刀光）、Mod 6 种、玩家血量 150、敌人平衡、击杀奖励提升
-- [x] **OnKill 效果**：杀戮怒火 Mod 击杀触发临时攻速加成（Projectile→WeaponModComponent.NotifyKill），验证 mul=0.5
-- [x] **波次配置数据化**：BattleManager 从 ConfigComponent 读波次参数（Battle.EnemiesPerWave 等）
+- [x] **OnKill 效果**：杀戮怒火 Mod 击杀触发临时攻速加成
+- [x] **波次配置数据化**：BattleManager 从 ConfigComponent 读波次参数
+- [x] **游戏结束流程**：玩家死亡 → GameOverForm 结算（波次/金币 + 重新开始/返回菜单）→ ProcedureGameOver
 - [ ] 双实例真机联调（构建 exe 网络对战，需人工在 Unity 外操作）
 
 ---
