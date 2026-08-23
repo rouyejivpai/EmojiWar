@@ -159,15 +159,16 @@ EmojiWar2/
 - [x] **美术迁移**：85 个 emoji GIF + 动画 → `Assets/GameMain/Art/`（2D Sprite 导入验证）
 - [x] 实测：战斗 → 击杀 → 商店 → 全链路回归通过
 
-### Phase 3 — 网络化（多人联机）🟡 进行中（2026-08-23）
-- [x] 自研协议：二进制帧（消息ID + 长度 + Payload）+ NetCodec + 12 种消息
+### Phase 3 — 网络化（多人联机）🟢 主体完成（2026-08-23）
+- [x] 自研协议：二进制帧（消息ID + 长度 + Payload）+ NetCodec + 14 种消息
 - [x] 传输层：NetConnection（TCP 客户端）+ NetServer（Host 监听/会话/广播，线程安全）
 - [x] NetworkService 业务组件：Host/Client/Offline 三模式
-- [x] **Host 权威同步**：NetHostLogic（服务器模拟：加入/输入/位置广播）+ NetClientLogic（输入上行 + 状态应用）
-- [x] **实测通过**：CLIENT 连接 → 加入房间 → Host 生成实体 → 输入上行 → 位置广播 → CLIENT 应用（位置持续变化）
-  - 排障：7778 端口残留监听导致 accept 不触发（换端口验证）；异步 accept 线程竞态 → 字典加锁 + 主线程同步 accept
-- [ ] 房间/匹配流程（简单大厅）
-- [ ] 敌人/子弹/波次服务器权威模拟（多人对战完整化）
+- [x] **Host 权威玩家同步**：NetHostLogic + NetClientLogic（输入上行/状态下行）
+- [x] **服务器权威敌人模拟**：波次循环 + 敌人 AI 追逐 + 接触伤害 + KillEnemy + RemoveEntity 广播
+- [x] **实测通过**：
+  - 玩家同步：CLIENT 连接 → 加入 → Host 生成 → 输入上行 → 位置广播 → 应用
+  - 战斗模拟：Host 驱动第 1 波 → 3 敌人生成 → 客户端渲染 + 状态同步
+- [ ] 简单大厅 UI（玩家名输入 + 房间列表）
 - [ ] 断线重连
 
 ### Phase 4 — 多人玩法完善
