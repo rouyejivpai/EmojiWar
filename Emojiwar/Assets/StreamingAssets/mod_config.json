@@ -1,0 +1,24 @@
+{
+  "mods": [
+    {
+      "modId": "rateup_mod",
+      "modName": "攻速提升",
+      "description": "提升武器攻速",
+      "prefabPath": "prefab/mod/RateUP",
+      "imagePath": "images/emojiGIF/1f47b.gif",
+      "category": "武器",
+      "rarity": 2,
+      "weight": 1.5
+    },
+    {
+      "modId": "ratemul_mod",
+      "modName": "攻速增幅",
+      "description": "提升武器攻速",
+      "prefabPath": "prefab/mod/RateMUL",
+      "imagePath": "images/emojiGIF/1f916.gif",
+      "category": "武器",
+      "rarity": 2,
+      "weight": 1.5
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "buffs": [
+    {
+      "buffId": "rateup",
+      "duration": 15.0,
+      "maxStacks": 5,
+      "parameters": {
+        "ratevalue": 1.8
+      }
+    },
+    {
+      "buffId": "deathwhisper",
+      "duration": -1,
+      "maxStacks": 1,
+      "parameters": {}
+    }
+  ],
+  "buffCombos": [
+    {
+      "name": "Speed Combo",
+      "buffs": [
+        {
+          "buffId": "rateup",
+          "duration": 20.0,
+          "maxStacks": 3
+        }
+      ]
+    }
+  ]
+}

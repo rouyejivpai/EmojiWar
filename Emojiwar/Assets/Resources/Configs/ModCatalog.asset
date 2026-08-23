@@ -1,0 +1,85 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c64e8abc9e77dd4a8ff27104d06e311, type: 3}
+  m_Name: ModCatalog
+  m_EditorClassIdentifier: 
+  mods:
+  - modId: rateup_mod
+    modName: "\u653B\u901F\u63D0\u5347"
+    description: "\u63D0\u5347\u6B66\u5668\u653B\u901F"
+    prefabPath: prefab/mod/RateUP
+    modPrefab: {fileID: 8992416458093480989, guid: 114edd62d47e9604db099d31bed719fd, type: 3}
+    imagePath: 
+    icon: {fileID: 21300000, guid: ecc894abc78f41a49a3a17d863d5e2ca, type: 3}
+    category: "\u6B66\u5668"
+    rarity: 2
+    weight: 1.5
+  - modId: ratemul_mod
+    modName: "\u653B\u901F\u589E\u5E45"
+    description: "\u63D0\u5347\u6B66\u5668\u653B\u901F"
+    prefabPath: prefab/mod/RateUP
+    modPrefab: {fileID: 168464252239298633, guid: 251953904196a6841a042251efce72c3, type: 3}
+    imagePath: 
+    icon: {fileID: 21300000, guid: 26fe21d994e117d4a979631fd65a365f, type: 3}
+    category: "\u6B66\u5668"
+    rarity: 2
+    weight: 1.5
+  - modId: KILL_mod
+    modName: "\u6740\u622E\u6012\u706B"
+    description: "\u5B50\u5F39\u51FB\u6740\u654C\u4EBA\u540E\u83B7\u5F97\u6682\u65F6\u653B\u901F\u52A0\u6210"
+    prefabPath: 
+    modPrefab: {fileID: 8992416458093480989, guid: 547183e5d66076044ad95485bfa51fd7, type: 3}
+    imagePath: 
+    icon: {fileID: 21300000, guid: c1072c1b11b64a74f9ce58d3ba3efc8c, type: 3}
+    category: "\u6B66\u5668"
+    rarity: 2
+    weight: 1.5
+  - modId: ice_mod
+    modName: "\u96EA\u82B1"
+    description: "\u53D1\u5C04\u96EA\u82B1\u89E6\u78B0\u654C\u4EBA\u65F6\u4F1A\u4F7F\u5176\u51CF\u901F"
+    prefabPath: 
+    modPrefab: {fileID: 827914961880015212, guid: 5313354b8661e1c4896b1a0132807226, type: 3}
+    imagePath: 
+    icon: {fileID: 21300000, guid: a2c4b6f6adef53c46840164ba6773157, type: 3}
+    category: "\u6B66\u5668"
+    rarity: 2
+    weight: 1.5
+  - modId: flash_mod
+    modName: "\u6563\u5C04\u6C34\u6EF4"
+    description: "\u53D1\u5C04\u4E09\u4E2A\u5C0F\u6C34\u6EF4"
+    prefabPath: 
+    modPrefab: {fileID: 827914961880015212, guid: 2a9408a4321037445895375d1501f407, type: 3}
+    imagePath: 
+    icon: {fileID: 21300000, guid: b774139b88a3dce4a82a31945f57d7d7, type: 3}
+    category: "\u6B66\u5668"
+    rarity: 2
+    weight: 1.5
+  - modId: flash_mod
+    modName: "\u95EA\u7535"
+    description: "\u5B50\u5F39\u51FB\u4E2D\u654C\u4EBA\u540E\uFF0C\u5BF9\u9644\u8FD1\u7684\u4E24\u4E2A\u654C\u4EBA\u9020\u6210\u4F24\u5BB3"
+    prefabPath: 
+    modPrefab: {fileID: 8992416458093480989, guid: 547183e5d66076044ad95485bfa51fd7, type: 3}
+    imagePath: 
+    icon: {fileID: 21300000, guid: 9c8159b00a5375a43a7c282641b75c9c, type: 3}
+    category: "\u6B66\u5668"
+    rarity: 2
+    weight: 1.5
+  - modId: water_mod
+    modName: "\u6C34\u6EF4"
+    description: "\u53D1\u5C04\u4E00\u9897\u5E73\u5E73\u65E0\u5947\u7684\u6C34\u6EF4"
+    prefabPath: 
+    modPrefab: {fileID: 827914961880015212, guid: 63f8e3adacd2d904a8c0a913c422eb03, type: 3}
+    imagePath: 
+    icon: {fileID: 21300000, guid: 9c8159b00a5375a43a7c282641b75c9c, type: 3}
+    category: "\u6B66\u5668"
+    rarity: 0
+    weight: 0

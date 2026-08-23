@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf6b5333c8776b340b46bf8f4882ff3c, type: 3}
+  m_Name: BattleAsset
+  m_EditorClassIdentifier: 
+  phases:
+  - battleName: "\u521D\u59CB\u6218\u6597"
+    description: 
+    phases:
+    - phaseName: 1
+      phaseDuration: 5
+      phaseDelay: 0
+      waitForClear: 0
+      requiredKills: 5
+      enemies:
+      - enemyId: Devil
+        maxCount: 5
+        spawnInterval: 1
+        spawnRadius: 0
+    totalDuration: 0
+    autoStart: 0

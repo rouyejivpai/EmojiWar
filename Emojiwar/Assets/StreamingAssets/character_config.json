@@ -1,0 +1,30 @@
+{
+  "defaultCharacterId": "HeroA",
+  "characters": [
+    {
+      "characterId": "HeroA",
+      "characterName": "基础剑士",
+      "description": "平衡型角色，移动与生命均衡",
+      "prefabPath": "prefab/Entitypre/player",
+      "defaultWeaponId": 1,
+      "secondWeaponId": 0,
+      "maxHealth": 100,
+      "moveSpeed": 5.0,
+      "iconPath": "images/characters/hero_a"
+    },
+    {
+      "characterId": "HeroB",
+      "characterName": "敏捷游侠",
+      "description": "速度较快但生命略低",
+      "prefabPath": "prefab/Entitypre/PlayerB",
+      "defaultWeaponId": 1,
+      "secondWeaponId": 2,
+      "maxHealth": 80,
+      "moveSpeed": 6.5,
+      "iconPath": "images/characters/hero_b"
+    }
+  ]
+}
+
+
+

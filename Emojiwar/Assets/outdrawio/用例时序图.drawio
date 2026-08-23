@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0" version="28.2.8">
+  <diagram name="控制角色移动" id="seq-move">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title-move" value="控制角色移动时序图" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="420" y="20" width="330" height="24" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-PlayerInput" value="PlayerInput" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1" vertex="1">
+          <mxGeometry x="60" y="60" width="160" height="680" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-PlayerInput" value="" style="line;strokeWidth=2;" parent="lifeline-PlayerInput" vertex="1">
+          <mxGeometry x="80" y="40" width="2" height="620" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-PlayerController" value="PlayerController" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1" vertex="1">
+          <mxGeometry x="280" y="60" width="180" height="680" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-PlayerController" value="" style="line;strokeWidth=2;" parent="lifeline-PlayerController" vertex="1">
+          <mxGeometry x="90" y="40" width="2" height="620" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-Entity" value="Entity" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1" vertex="1">
+          <mxGeometry x="520" y="60" width="160" height="680" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-Entity" value="" style="line;strokeWidth=2;" parent="lifeline-Entity" vertex="1">
+          <mxGeometry x="80" y="40" width="2" height="620" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-Rigidbody2D" value="Rigidbody2D" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1" vertex="1">
+          <mxGeometry x="740" y="60" width="180" height="680" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-Rigidbody2D" value="" style="line;strokeWidth=2;" parent="lifeline-Rigidbody2D" vertex="1">
+          <mxGeometry x="90" y="40" width="2" height="620" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="msg1" value="Update(): 读取输入轴" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.12;entryX=0;entryY=0.12;" parent="1" source="lifelineLine-PlayerInput" target="lifelineLine-PlayerController" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="msg2" value="Move(direction)" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.24;entryX=0;entryY=0.24;" parent="1" source="lifelineLine-PlayerController" target="lifelineLine-Entity" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="msg3" value="FixedUpdate() → UpdatePosition()" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.36;entryX=0;entryY=0.36;" parent="1" source="lifelineLine-Entity" target="lifelineLine-Rigidbody2D" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="msg4" value="rb.velocity = direction * moveSpeed" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.42;entryX=0;entryY=0.42;" parent="1" source="lifelineLine-Rigidbody2D" target="lifelineLine-Rigidbody2D" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="控制武器开火" id="seq-fire">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0f"/>
+        <mxCell id="1f" parent="0f"/>
+
+        <mxCell id="title-fire" value="控制武器开火时序图" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;" parent="1f" vertex="1">
+          <mxGeometry x="420" y="20" width="330" height="24" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-InputFire" value="PlayerInput" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1f" vertex="1">
+          <mxGeometry x="60" y="60" width="160" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-InputFire" value="" style="line;strokeWidth=2;" parent="lifeline-InputFire" vertex="1">
+          <mxGeometry x="80" y="40" width="2" height="640" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-PCFire" value="PlayerController" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1f" vertex="1">
+          <mxGeometry x="260" y="60" width="200" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-PCFire" value="" style="line;strokeWidth=2;" parent="lifeline-PCFire" vertex="1">
+          <mxGeometry x="100" y="40" width="2" height="640" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-EntityFire" value="Entity" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1f" vertex="1">
+          <mxGeometry x="500" y="60" width="160" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-EntityFire" value="" style="line;strokeWidth=2;" parent="lifeline-EntityFire" vertex="1">
+          <mxGeometry x="80" y="40" width="2" height="640" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-Weapon" value="WeaponBase" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1f" vertex="1">
+          <mxGeometry x="700" y="60" width="180" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-Weapon" value="" style="line;strokeWidth=2;" parent="lifeline-Weapon" vertex="1">
+          <mxGeometry x="90" y="40" width="2" height="640" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-Projectile" value="Projectile(Rigidbody2D)" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1f" vertex="1">
+          <mxGeometry x="930" y="60" width="220" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-Projectile" value="" style="line;strokeWidth=2;" parent="lifeline-Projectile" vertex="1">
+          <mxGeometry x="110" y="40" width="2" height="640" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="msgf1" value="HandleShootInput()" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.12;entryX=0;entryY=0.12;" parent="1f" source="lifelineLine-InputFire" target="lifelineLine-PCFire" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="msgf2" value="FireWeapon(target)" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.22;entryX=0;entryY=0.22;" parent="1f" source="lifelineLine-PCFire" target="lifelineLine-EntityFire" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="msgf3" value="currentWeapon.TryFire(target)" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.32;entryX=0;entryY=0.32;" parent="1f" source="lifelineLine-EntityFire" target="lifelineLine-Weapon" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="msgf4" value="Fire(target) / Instantiate(projectile)" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.42;entryX=0;entryY=0.42;" parent="1f" source="lifelineLine-Weapon" target="lifelineLine-Projectile" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="msgf5" value="SetProjectile(team, damage)" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1f" source="lifelineLine-Weapon" target="lifelineLine-Projectile" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="msgf6" value="bulletRb.velocity = dir * speed" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.58;entryX=0;entryY=0.58;" parent="1f" source="lifelineLine-Weapon" target="lifelineLine-Projectile" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="msgf7" value="PlayOneShot(fireSound)" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.66;entryX=0;entryY=0.66;" parent="1f" source="lifelineLine-Weapon" target="lifelineLine-Weapon" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="msgf8" value="return true" style="endArrow=open;endFill=0;dashed=1;html=1;exitX=0;exitY=0.74;entryX=1;entryY=0.74;" parent="1f" source="lifelineLine-Weapon" target="lifelineLine-EntityFire" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="msgf9" value="return true" style="endArrow=open;endFill=0;dashed=1;html=1;exitX=0;exitY=0.82;entryX=1;entryY=0.82;" parent="1f" source="lifelineLine-EntityFire" target="lifelineLine-PCFire" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="装备与卸载武器" id="seq-equip">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0e"/>
+        <mxCell id="1e" parent="0e"/>
+
+        <mxCell id="title-equip" value="装备与卸载武器时序图" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;" parent="1e" vertex="1">
+          <mxGeometry x="420" y="20" width="330" height="24" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-User" value="User(Drag)" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1e" vertex="1">
+          <mxGeometry x="40" y="60" width="160" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-User" value="" style="line;strokeWidth=2;" parent="lifeline-User" vertex="1">
+          <mxGeometry x="80" y="40" width="2" height="640" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-WeaponGrid" value="WeaponGrid" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1e" vertex="1">
+          <mxGeometry x="220" y="60" width="180" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-WeaponGrid" value="" style="line;strokeWidth=2;" parent="lifeline-WeaponGrid" vertex="1">
+          <mxGeometry x="90" y="40" width="2" height="640" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-Obj" value="Obj(拖拽物)" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1e" vertex="1">
+          <mxGeometry x="420" y="60" width="160" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-Obj" value="" style="line;strokeWidth=2;" parent="lifeline-Obj" vertex="1">
+          <mxGeometry x="80" y="40" width="2" height="640" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-PC" value="PlayerController" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1e" vertex="1">
+          <mxGeometry x="600" y="60" width="200" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-PC" value="" style="line;strokeWidth=2;" parent="lifeline-PC" vertex="1">
+          <mxGeometry x="100" y="40" width="2" height="640" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-EntityEq" value="Entity" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1e" vertex="1">
+          <mxGeometry x="820" y="60" width="160" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-EntityEq" value="" style="line;strokeWidth=2;" parent="lifeline-EntityEq" vertex="1">
+          <mxGeometry x="80" y="40" width="2" height="640" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lifeline-WeaponPanel" value="WeaponPanel(UI)" style="swimlane;fontStyle=1;align=center;verticalAlign=top;startSize=26;" parent="1e" vertex="1">
+          <mxGeometry x="1020" y="60" width="200" height="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="lifelineLine-WeaponPanel" value="" style="line;strokeWidth=2;" parent="lifeline-WeaponPanel" vertex="1">
+          <mxGeometry x="100" y="40" width="2" height="640" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="msge1" value="OnItemEnter(Obj)" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.12;entryX=0;entryY=0.12;" parent="1e" source="lifelineLine-User" target="lifelineLine-WeaponGrid" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="msge2" value="GetComponent<WeaponBase>()" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.24;entryX=0;entryY=0.24;" parent="1e" source="lifelineLine-WeaponGrid" target="lifelineLine-Obj" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="msge3" value="Weapon1 = weapon" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.32;entryX=0;entryY=0.32;" parent="1e" source="lifelineLine-WeaponGrid" target="lifelineLine-PC" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="msge4" value="EquipWeapon(weaponObj)" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.42;entryX=0;entryY=0.42;" parent="1e" source="lifelineLine-PC" target="lifelineLine-EntityEq" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="msge5" value="Weapon1update.Invoke(obj) → 更新UI" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.52;entryX=0;entryY=0.52;" parent="1e" source="lifelineLine-PC" target="lifelineLine-WeaponPanel" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="msge6" value="RemoveWeapon1()" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.68;entryX=0;entryY=0.68;" parent="1e" source="lifelineLine-User" target="lifelineLine-PC" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="msge7" value="Weapon1 = null" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.76;entryX=0;entryY=0.76;" parent="1e" source="lifelineLine-PC" target="lifelineLine-PC" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="msge8" value="EquipWeapon(null)" style="endArrow=open;endFill=0;dashed=0;html=1;exitX=1;exitY=0.84;entryX=0;entryY=0.84;" parent="1e" source="lifelineLine-PC" target="lifelineLine-EntityEq" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="msge9" value="return weapon GameObject" style="endArrow=open;endFill=0;dashed=1;html=1;exitX=0;exitY=0.92;entryX=1;entryY=0.92;" parent="1e" source="lifelineLine-PC" target="lifelineLine-WeaponGrid" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

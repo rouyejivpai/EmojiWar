@@ -1,0 +1,33 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Serialization;
+public class rate2 : mod
+{
+    [FormerlySerializedAs("effect")] public IBuff buff;
+    
+    public override void init(GameObject target)
+    {
+        base.init(target);
+        ffloat rate = target.GetComponent<WeaponBase>().fireRate;
+        // 使用新的BuffSystem
+        var buffSystem = Weapon.GetComponent<BuffSystem>();
+        if (buffSystem != null)
+        {
+            buff = buffSystem.AddBuff(new floatbuffmul(rate,0.2f)); // 
+            
+        }
+    }
+
+    public override void Remove()
+    {
+        if (buff != null)
+        {
+            var buffSystem = Weapon.GetComponent<BuffSystem>();
+            if (buffSystem != null)
+            {
+                buffSystem.RemoveBuff(buff);
+            }
+        }
+    }
+}

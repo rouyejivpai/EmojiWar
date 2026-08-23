@@ -1,0 +1,29 @@
+{
+  "battleName": "第一关：基础训练",
+  "description": "新手玩家的第一场战斗，学习基本的战斗机制",
+  "phases": [
+    {
+      "phaseName": "第一阶段：基础敌人",
+      "phaseDuration": 1.0,
+      "phaseDelay": 2.0,
+      "waitForClear": false,
+      "requiredKills": 0,
+      "enemies": [
+        {
+          "enemyId": "Devil1",
+          "maxCount": 10,
+          "spawnInterval": 1,
+          "spawnRadius": 15.0
+        },
+        {
+          "enemyId": "Devil",
+          "maxCount": 10,
+          "spawnInterval": 1,
+          "spawnRadius": 15.0
+        }
+      ]
+    }
+  ],
+  "totalDuration": 0.0,
+  "autoStart": false
+}

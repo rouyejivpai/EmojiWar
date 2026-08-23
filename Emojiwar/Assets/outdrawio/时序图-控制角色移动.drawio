@@ -1,0 +1,55 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0" version="29.2.4">
+  <diagram name="控制角色移动" id="seq-move">
+    <mxGraphModel dx="1167" dy="749" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="lifeline-PlayerInput" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};participant=umlActor;" value="PlayerInput" vertex="1">
+          <mxGeometry height="300" width="20" x="130" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="lifeline-PlayerController" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};" value="PlayerController" vertex="1">
+          <mxGeometry height="300" width="100" x="250" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="lifeline-Entity" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};" value="Entity" vertex="1">
+          <mxGeometry height="300" width="100" x="370" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="lifeline-Rigidbody2D" parent="1" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};" value="Rigidbody2D" vertex="1">
+          <mxGeometry height="300" width="100" x="500" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="msg1" edge="1" parent="1" source="lifeline-PlayerInput" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;curved=0;" target="lifeline-PlayerController" value="Update(): 读取输入轴">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="140" y="240" />
+              <mxPoint x="140" y="240" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg2" edge="1" parent="1" source="lifeline-PlayerController" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;curved=0;" target="lifeline-Entity" value="Move(direction)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg3" edge="1" parent="1" source="lifeline-Entity" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;curved=0;" target="lifeline-Rigidbody2D" value="FixedUpdate() → UpdatePosition()">
+          <mxGeometry relative="1" x="0.34" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="480" y="290" />
+              <mxPoint x="480" y="290" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="msg4" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;curved=0;" value="rb.velocity = direction * moveSpeed">
+          <mxGeometry relative="1" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="550" y="310" />
+              <mxPoint x="620" y="310" />
+              <mxPoint x="620" y="340" />
+              <mxPoint x="550" y="340" />
+            </Array>
+            <mxPoint x="549.5" y="270" as="sourcePoint" />
+            <mxPoint x="549.5" y="370" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

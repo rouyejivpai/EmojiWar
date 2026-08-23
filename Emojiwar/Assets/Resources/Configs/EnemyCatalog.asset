@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7dde44d9a95252541b6e38470f0947a8, type: 3}
+  m_Name: EnemyCatalog
+  m_EditorClassIdentifier: 
+  enemies:
+  - enemyId: Devil
+    enemyName: "\u57FA\u7840\u654C\u4EBA"
+    prefabPath: prefab/Entitypre/Devil
+    prefab: {fileID: 3289965924070567969, guid: 07c32a1b4d451b84abdcce831f265e41, type: 3}
+    description: 
+    baseStats:
+      health: 1
+      speed: 3
+      damage: 8
+      attackRange: 1.5
+      defense: 2
+    difficulty: Easy
+    enemyType: Normal
+  - enemyId: Devil1
+    enemyName: "\u57FA\u7840\u654C\u4EBA"
+    prefabPath: prefab/Entitypre/Devil
+    prefab: {fileID: 8847473810796173101, guid: ebe9daa7221ebff41a3b579c2bd4cfef, type: 3}
+    description: 
+    baseStats:
+      health: 1
+      speed: 3
+      damage: 8
+      attackRange: 1.5
+      defense: 2
+    difficulty: Easy
+    enemyType: Normal

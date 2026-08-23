@@ -1,0 +1,22 @@
+{
+  "weapons": [
+    {
+      "weaponId": "1",
+      "weaponName": "水滴枪",
+      "description": "能发射水滴的枪",
+      "prefabPath": "prefab/weapon/dripgun",
+      "category": "远程",
+      "rarity": 1,
+      "weight": 1.0
+    },
+    {
+      "weaponId": "2",
+      "weaponName": "木盾",
+      "description": "提供简单的防御",
+      "prefabPath": "prefab/weapon/dun",
+      "category": "防具",
+      "rarity": 1,
+      "weight": 1.0
+    }
+  ]
+}

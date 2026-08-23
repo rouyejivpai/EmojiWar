@@ -1,0 +1,88 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0" version="29.2.4">
+  <diagram name="流程控制类图" id="flow-control-class-diagram">
+    <mxGraphModel dx="1667" dy="1070" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;" value="游戏流程控制类图" vertex="1">
+          <mxGeometry height="30" width="270" x="450" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="GameManager" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;" value="&lt;&lt;Singleton&gt;&gt;&#xa;GameManager" vertex="1">
+          <mxGeometry height="206" width="300" x="340" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="GameManager-fields" parent="GameManager" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" value="+ player: GameObject&#xa;+ coin: int&#xa;+ modCatalog: ModCatalog&#xa;+ weaponCatalog: WeaponCatalog&#xa;+ buffCatalog: BuffCatalog" vertex="1">
+          <mxGeometry height="112" width="300" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GameManager-line" parent="GameManager" style="line;strokeWidth=1;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;" value="" vertex="1">
+          <mxGeometry height="8" width="300" y="152" as="geometry" />
+        </mxCell>
+        <mxCell id="GameManager-methods" parent="GameManager" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" value="+ levelComplete(): void" vertex="1">
+          <mxGeometry height="46" width="300" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="EnemyManager" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;" value="&lt;&lt;Singleton&gt;&gt;&#xa;EnemyManager" vertex="1">
+          <mxGeometry height="220" width="280" x="20" y="138" as="geometry" />
+        </mxCell>
+        <mxCell id="EnemyManager-fields" parent="EnemyManager" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" value="+ battlePhases: List&lt;BattlePhase&gt;&#xa;+ isBattleActive: bool&#xa;+ currentPhaseIndex: int&#xa;+ OnLevelComplete: Action" vertex="1">
+          <mxGeometry height="98" width="280" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="EnemyManager-line" parent="EnemyManager" style="line;strokeWidth=1;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;" value="" vertex="1">
+          <mxGeometry height="8" width="280" y="138" as="geometry" />
+        </mxCell>
+        <mxCell id="EnemyManager-methods" parent="EnemyManager" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" value="+ LoadBattleConfig(): void&#xa;+ StartSpawning(): void&#xa;+ StopSpawning(): void&#xa;+ SpawnEnemy(id, pos): GameObject" vertex="1">
+          <mxGeometry height="74" width="280" y="146" as="geometry" />
+        </mxCell>
+        <mxCell id="StoreManager" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;" value="&lt;&lt;Singleton&gt;&gt;&#xa;StoreManager" vertex="1">
+          <mxGeometry height="194" width="280" x="800" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="StoreManager-fields" parent="StoreManager" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" value="+ isModsLoaded: bool&#xa;+ modCatalog: ModCatalog&#xa;+ weaponCatalog: WeaponCatalog" vertex="1">
+          <mxGeometry height="72" width="280" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="StoreManager-line" parent="StoreManager" style="line;strokeWidth=1;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;" value="" vertex="1">
+          <mxGeometry height="8" width="280" y="112" as="geometry" />
+        </mxCell>
+        <mxCell id="StoreManager-methods" parent="StoreManager" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" value="+ enterStore(): void&#xa;+ exit(): void&#xa;+ refresh(): void" vertex="1">
+          <mxGeometry height="74" width="280" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="RunData" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;" value="&lt;&lt;Singleton&gt;&gt;&#xa;RunData" vertex="1">
+          <mxGeometry height="218" width="260" x="400" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="RunData-fields" parent="RunData" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" value="+ selectedCharacterId: string&#xa;+ stageIndex: int&#xa;+ coin: int&#xa;+ relicCapacity: int" vertex="1">
+          <mxGeometry height="88" width="260" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="RunData-line" parent="RunData" style="line;strokeWidth=1;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;" value="" vertex="1">
+          <mxGeometry height="8" width="260" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="RunData-methods" parent="RunData" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" value="+ ResetRun(): void&#xa;+ AddCoin(amount): void&#xa;+ TrySpendCoin(amount): bool&#xa;+ NextStage(): void&#xa;+ SetCharacter(id): void" vertex="1">
+          <mxGeometry height="82" width="260" y="136" as="geometry" />
+        </mxCell>
+        <mxCell id="BuffConfigManager" parent="1" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;" value="&lt;&lt;Singleton&gt;&gt;&#xa;BuffConfigManager" vertex="1">
+          <mxGeometry height="154" width="240" x="750" y="158" as="geometry" />
+        </mxCell>
+        <mxCell id="BuffConfigManager-fields" parent="BuffConfigManager" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" value="+ buffCatalog: BuffCatalog" vertex="1">
+          <mxGeometry height="26" width="240" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="BuffConfigManager-line" parent="BuffConfigManager" style="line;strokeWidth=1;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;" value="" vertex="1">
+          <mxGeometry height="8" width="240" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="BuffConfigManager-methods" parent="BuffConfigManager" style="text;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" value="+ GetBuffConfig(id): BuffConfig&#xa;+ GetBuffCombo(name): BuffCombo&#xa;+ ApplyBuffCombo(name, target): void" vertex="1">
+          <mxGeometry height="80" width="240" y="74" as="geometry" />
+        </mxCell>
+        <mxCell id="relation3" edge="1" parent="1" source="EnemyManager" style="endArrow=open;endFill=0;dashed=1;html=1;" target="GameManager" value="依赖">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="relation4" edge="1" parent="1" source="StoreManager" style="endArrow=open;endFill=0;dashed=1;html=1;" target="GameManager" value="依赖">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="relation5" edge="1" parent="1" source="BuffConfigManager" style="endArrow=open;endFill=0;dashed=1;html=1;" target="GameManager" value="依赖">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="UfCP5GmmWwmDHr9XoJEF-1" edge="1" parent="1" source="RunData-methods" style="endArrow=open;endFill=0;dashed=1;html=1;entryX=0.456;entryY=0.012;entryDx=0;entryDy=0;entryPerimeter=0;exitX=0.457;exitY=1.007;exitDx=0;exitDy=0;exitPerimeter=0;" target="GameManager" value="依赖">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="920" y="459" as="sourcePoint" />
+            <mxPoint x="640" y="440" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

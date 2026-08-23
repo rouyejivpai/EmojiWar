@@ -1,0 +1,102 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0" version="29.2.4">
+  <diagram id="weapon-system" name="武器系统类图">
+    <mxGraphModel dx="3702" dy="1248" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1300" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="wb" parent="1" style="shape=swimlane;childLayout=stackLayout;rounded=1;whiteSpace=wrap;html=1;horizontal=1;startSize=26;fillColor=#ffffff;strokeColor=#666666;fontSize=16;" value="WeaponBase" vertex="1">
+          <mxGeometry height="220" width="280" x="120" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="wb_attr" parent="wb" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=16;" value="&lt;div&gt;- name: string&lt;/div&gt;&lt;div&gt;- damage: float&lt;/div&gt;&lt;div&gt;- fireRate: ffloat&lt;/div&gt;&lt;div&gt;- projectilePrefab: GameObject&lt;/div&gt;&lt;div&gt;- TryFire(target)&lt;/div&gt;&lt;div&gt;- Reload()&lt;/div&gt;&lt;div&gt;- addmod()/removemod()&lt;/div&gt;" vertex="1">
+          <mxGeometry height="194" width="280" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pistol" parent="1" style="shape=swimlane;childLayout=stackLayout;rounded=1;whiteSpace=wrap;html=1;horizontal=1;startSize=26;fillColor=#ffffff;strokeColor=#666666;fontSize=16;" value="Pistol : WeaponBase" vertex="1">
+          <mxGeometry height="120" width="280" x="-120" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="pistol_attr" parent="pistol" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=16;" value="&lt;div&gt;- bulletSpeed: float&lt;/div&gt;&lt;div&gt;- Fire(target) : override&lt;/div&gt;" vertex="1">
+          <mxGeometry height="94" width="280" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="melee" parent="1" style="shape=swimlane;childLayout=stackLayout;rounded=1;whiteSpace=wrap;html=1;horizontal=1;startSize=26;fillColor=#ffffff;strokeColor=#666666;fontSize=16;" value="MeleeWeapon : WeaponBase" vertex="1">
+          <mxGeometry height="140" width="280" x="220" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="melee_attr" parent="melee" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=16;" value="&lt;div&gt;- slashCount/speed/duration&lt;/div&gt;&lt;div&gt;- Fire(target) : override&lt;/div&gt;" vertex="1">
+          <mxGeometry height="114" width="280" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="dun" parent="1" style="shape=swimlane;childLayout=stackLayout;rounded=1;whiteSpace=wrap;html=1;horizontal=1;startSize=26;fillColor=#ffffff;strokeColor=#666666;fontSize=16;" value="Dun : WeaponBase" vertex="1">
+          <mxGeometry height="120" width="280" x="540" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="dun_attr" parent="dun" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=16;" value="&lt;div&gt;- delay: float&lt;/div&gt;&lt;div&gt;- Fire(target) : override&lt;/div&gt;" vertex="1">
+          <mxGeometry height="94" width="280" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="profile" parent="1" style="shape=swimlane;childLayout=stackLayout;rounded=1;whiteSpace=wrap;html=1;horizontal=1;startSize=26;fillColor=#ffffff;strokeColor=#666666;fontSize=16;" value="profile (Projectile)" vertex="1">
+          <mxGeometry height="160" width="280" x="-300" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="profile_attr" parent="profile" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=16;" value="&lt;div&gt;- team: int&lt;/div&gt;&lt;div&gt;- damage: float&lt;/div&gt;&lt;div&gt;- SetProjectile(team, damage)&lt;/div&gt;&lt;div&gt;- OnTriggerEnter2D(col)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="134" width="280" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="slash" parent="1" style="shape=swimlane;childLayout=stackLayout;rounded=1;whiteSpace=wrap;html=1;horizontal=1;startSize=26;fillColor=#ffffff;strokeColor=#666666;fontSize=16;" value="SlashProjectile" vertex="1">
+          <mxGeometry height="140" width="280" x="300" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="slash_attr" parent="slash" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=16;" value="&lt;div&gt;- damage/duration&lt;/div&gt;&lt;div&gt;- Initialize(team, damage, dir, duration, rotSpeed, rotAngle)&lt;/div&gt;&lt;div&gt;- Update()&lt;/div&gt;" vertex="1">
+          <mxGeometry height="114" width="280" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="mod" parent="1" style="shape=swimlane;childLayout=stackLayout;rounded=1;whiteSpace=wrap;html=1;horizontal=1;startSize=26;fillColor=#ffffff;strokeColor=#666666;fontSize=16;" value="mod (abstract)" vertex="1">
+          <mxGeometry height="160" width="280" x="540" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="mod_attr" parent="mod" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=16;" value="&lt;div&gt;- order: int&lt;/div&gt;&lt;div&gt;- init(target)&lt;/div&gt;&lt;div&gt;- Trigger(weapon)&lt;/div&gt;&lt;div&gt;- Remove()&lt;/div&gt;" vertex="1">
+          <mxGeometry height="134" width="280" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="mod_kill" parent="1" style="shape=swimlane;childLayout=stackLayout;rounded=1;whiteSpace=wrap;html=1;horizontal=1;startSize=26;fillColor=#ffffff;strokeColor=#666666;fontSize=16;" value="KILL : mod" vertex="1">
+          <mxGeometry height="30" width="220" x="940" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="mod_rate1" parent="1" style="shape=swimlane;childLayout=stackLayout;rounded=1;whiteSpace=wrap;html=1;horizontal=1;startSize=26;fillColor=#ffffff;strokeColor=#666666;fontSize=16;" value="rate1 : mod" vertex="1">
+          <mxGeometry height="30" width="220" x="960" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="mod_ice" parent="1" style="shape=swimlane;childLayout=stackLayout;rounded=1;whiteSpace=wrap;html=1;horizontal=1;startSize=26;fillColor=#ffffff;strokeColor=#666666;fontSize=16;" value="ice : mod" vertex="1">
+          <mxGeometry height="20" width="220" x="980" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="pinfo" parent="1" style="shape=swimlane;childLayout=stackLayout;rounded=1;whiteSpace=wrap;html=1;horizontal=1;startSize=26;fillColor=#ffffff;strokeColor=#666666;fontSize=16;" value="ProfileInfo" vertex="1">
+          <mxGeometry height="120" width="280" x="-30" y="570" as="geometry" />
+        </mxCell>
+        <mxCell id="pinfo_attr" parent="pinfo" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=16;" value="&lt;div&gt;- projectilePrefab: GameObject&lt;/div&gt;&lt;div&gt;- delay: float&lt;/div&gt;" vertex="1">
+          <mxGeometry height="94" width="280" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="r_pistol_wb" edge="1" parent="1" source="pistol" style="endArrow=block;endFill=0;html=1;strokeColor=#000000;fontSize=16;" target="wb" value="Inheritance">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r_melee_wb" edge="1" parent="1" source="melee" style="endArrow=block;endFill=0;html=1;strokeColor=#000000;fontSize=16;" target="wb" value="Inheritance">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r_dun_wb" edge="1" parent="1" source="dun" style="endArrow=block;endFill=0;html=1;strokeColor=#000000;fontSize=16;" target="wb" value="Inheritance">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r_wb_profile" edge="1" parent="1" source="wb" style="endArrow=open;html=1;strokeColor=#000000;fontSize=16;" target="profile" value="Association">
+          <mxGeometry relative="1" x="-0.0006" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r_melee_slash" edge="1" parent="1" source="melee" style="endArrow=open;html=1;strokeColor=#000000;fontSize=16;" target="slash" value="Association">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r_wb_mod" edge="1" parent="1" source="wb" style="endArrow=open;html=1;strokeColor=#000000;dashed=1;fontSize=16;" target="mod" value="Composition">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r_kill_mod" edge="1" parent="1" source="mod_kill" style="endArrow=block;endFill=0;html=1;strokeColor=#000000;fontSize=16;" target="mod" value="Inheritance">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r_rate1_mod" edge="1" parent="1" source="mod_rate1" style="endArrow=block;endFill=0;html=1;strokeColor=#000000;fontSize=16;" target="mod" value="Inheritance">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r_ice_mod" edge="1" parent="1" source="mod_ice" style="endArrow=block;endFill=0;html=1;strokeColor=#000000;fontSize=16;" target="mod" value="Inheritance">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r_pistol_pinfo" edge="1" parent="1" source="pistol" style="endArrow=open;html=1;strokeColor=#000000;fontSize=16;" target="pinfo" value="use">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="3bTTZ8NBKrzwi7Iwpwyw-1" edge="1" parent="1" source="mod_ice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=0;exitDx=0;exitDy=0;entryX=0.203;entryY=0.053;entryDx=0;entryDy=0;entryPerimeter=0;" target="mod_ice">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

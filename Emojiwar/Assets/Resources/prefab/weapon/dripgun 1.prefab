@@ -1,0 +1,93 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &5967329916345008374
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5221378613176127185}
+  - component: {fileID: 8332393869490301443}
+  - component: {fileID: 3416817877584287477}
+  m_Layer: 0
+  m_Name: dripgun 1
+  m_TagString: weapon
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5221378613176127185
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5967329916345008374}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -9.408981, y: -2.1374013, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8332393869490301443
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5967329916345008374}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 337f3c583ebb80945b319875f44d0f5d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Info:
+    weaponId: 
+    weaponName: 
+    description: 
+    prefabPath: 
+    prefab: {fileID: 0}
+    category: 
+    rarity: 0
+    weight: 0
+  weaponName: "\u6C34\u6EF4\u67AA"
+  weaponId: 2
+  damage: 10
+  fireRate:
+    _baseValue: 1
+    add: 0
+    mul: 0
+  range: 10
+  maxAmmo: 30
+  currentAmmo: 0
+  reloadTime: 1
+  firePoint: {fileID: 0}
+  projectilePrefab: {fileID: 3260795666722844940, guid: bf57d7708ddc4f34a8ddcbdf87a93431, type: 3}
+  fireSound: {fileID: 0}
+  reloadSound: {fileID: 0}
+  isReloading: 0
+  lastFireTime: 0
+  modCount: 5
+  MODS: []
+  mods: []
+  image: {fileID: 21300000, guid: 7c3550ccd67f4174db4c606ad594ea87, type: 3}
+  owner: {fileID: 0}
+  bulletSpeed: 15
+  spread: 0.1
+  dartle: 1
+--- !u!114 &3416817877584287477
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5967329916345008374}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 185c6a4efbfcc784d8307fff70764100, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  activeBuffs: []

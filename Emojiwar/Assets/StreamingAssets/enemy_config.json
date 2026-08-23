@@ -1,0 +1,34 @@
+{
+  "enemies": [
+    {
+      "enemyId": "Devil",
+      "enemyName": "基础敌人",
+      "prefabPath": "prefab/Entitypre/Devil",
+      "description": "普通的基础敌人，平衡的属性",
+      "baseStats": {
+        "health": 80.0,
+        "speed": 3.0,
+        "damage": 8.0,
+        "attackRange": 1.5,
+        "defense": 2.0
+      },
+      "difficulty": "Easy",
+      "enemyType": "Normal"
+    },
+    {
+      "enemyId": "Devil1",
+      "enemyName": "基础敌人",
+      "prefabPath": "prefab/Entitypre/Devil1",
+      "description": "普通的基础敌人，平衡的属性",
+      "baseStats": {
+        "health": 80.0,
+        "speed": 3.0,
+        "damage": 8.0,
+        "attackRange": 1.5,
+        "defense": 2.0
+      },
+      "difficulty": "Easy",
+      "enemyType": "Normal"
+    }
+  ]
+}
