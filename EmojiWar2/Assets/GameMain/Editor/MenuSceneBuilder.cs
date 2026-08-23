@@ -31,6 +31,7 @@ namespace EmojiWar.GameMain.Editor
         private const string MenuScenePath = "Assets/GameMain/Scenes/Menu.unity";
         private const string MenuFormPrefabPath = "Assets/GameMain/UI/MenuForm.prefab";
         private const string LobbyFormPrefabPath = "Assets/GameMain/UI/LobbyForm.prefab";
+        private const string GameOverFormPrefabPath = "Assets/GameMain/UI/GameOverForm.prefab";
 
         // 流程类型全名（供 ProcedureComponent 反射创建）
         private static readonly string[] ProcedureTypeNames =
@@ -39,6 +40,7 @@ namespace EmojiWar.GameMain.Editor
             "EmojiWar.GameMain.Procedure.ProcedureMenu",
             "EmojiWar.GameMain.Procedure.ProcedureLobby",
             "EmojiWar.GameMain.Procedure.ProcedureBattle",
+            "EmojiWar.GameMain.Procedure.ProcedureGameOver",
         };
         private const string EntranceProcedureTypeName = "EmojiWar.GameMain.Procedure.ProcedureLaunch";
 
@@ -112,6 +114,14 @@ namespace EmojiWar.GameMain.Editor
             {
                 PrefabUtility.SaveAsPrefabAsset(lobbyFormGo, LobbyFormPrefabPath);
                 Object.DestroyImmediate(lobbyFormGo);
+            }
+
+            // 5.6 生成结算 UI prefab
+            GameObject gameOverFormGo = CreateGameOverForm();
+            if (gameOverFormGo != null)
+            {
+                PrefabUtility.SaveAsPrefabAsset(gameOverFormGo, GameOverFormPrefabPath);
+                Object.DestroyImmediate(gameOverFormGo);
             }
 
             // 6. 保存场景
@@ -208,6 +218,57 @@ namespace EmojiWar.GameMain.Editor
             form.GetType().GetField("m_CreateButton", flags).SetValue(form, createBtn.GetComponent<Button>());
             form.GetType().GetField("m_JoinButton", flags).SetValue(form, joinBtn.GetComponent<Button>());
             form.GetType().GetField("m_BackButton", flags).SetValue(form, backBtn.GetComponent<Button>());
+
+            return root;
+        }
+
+        /// <summary>
+        /// 创建游戏结束 UI（标题 + 结算信息 + 重新开始/返回菜单）。
+        /// </summary>
+        private static GameObject CreateGameOverForm()
+        {
+            EnsureFolder("Assets/GameMain/UI");
+
+            var root = new GameObject("GameOverForm");
+            root.layer = LayerMask.NameToLayer("UI");
+
+            var canvas = root.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = root.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            root.AddComponent<GraphicRaycaster>();
+            root.AddComponent<CanvasGroup>();
+            var form = root.AddComponent<GameOverForm>();
+
+            // 半透明背景
+            var bg = new GameObject("Backdrop");
+            bg.transform.SetParent(root.transform, false);
+            var bgImage = bg.AddComponent<Image>();
+            bgImage.color = new Color(0f, 0f, 0f, 0.8f);
+            var bgRect = bg.GetComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = Vector2.zero;
+            bgRect.offsetMax = Vector2.zero;
+
+            // 标题
+            var title = CreateText("Title", root.transform, "游戏结束", 64, new Vector2(0, 150));
+            title.GetComponent<RectTransform>().sizeDelta = new Vector2(800, 100);
+
+            // 结算信息
+            var stats = CreateText("StatsText", root.transform, "坚持到第 0 波\n金币 0", 36, new Vector2(0, 0));
+            stats.GetComponent<RectTransform>().sizeDelta = new Vector2(800, 120);
+
+            // 按钮
+            var restartBtn = CreateButton("RestartButton", root.transform, "重新开始", new Vector2(-200, -200));
+            var menuBtn = CreateButton("MenuButton", root.transform, "返回菜单", new Vector2(200, -200));
+
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            form.GetType().GetField("m_TitleText", flags).SetValue(form, title.GetComponent<Text>());
+            form.GetType().GetField("m_StatsText", flags).SetValue(form, stats.GetComponent<Text>());
+            form.GetType().GetField("m_RestartButton", flags).SetValue(form, restartBtn.GetComponent<Button>());
+            form.GetType().GetField("m_MenuButton", flags).SetValue(form, menuBtn.GetComponent<Button>());
 
             return root;
         }

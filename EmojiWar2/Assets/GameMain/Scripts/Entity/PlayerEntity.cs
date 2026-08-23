@@ -108,6 +108,9 @@ namespace EmojiWar.GameMain.Entity
             }
         }
 
+        /// <summary>玩家死亡事件（供流程切换）。</summary>
+        public static event System.Action OnPlayerDied;
+
         protected override void OnTakeDamage()
         {
             base.OnTakeDamage();
@@ -117,6 +120,7 @@ namespace EmojiWar.GameMain.Entity
         {
             base.Die();
             Debug.Log("[PlayerEntity] 玩家死亡");
+            OnPlayerDied?.Invoke();
         }
     }
 }

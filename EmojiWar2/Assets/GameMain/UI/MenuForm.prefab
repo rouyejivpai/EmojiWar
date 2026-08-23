@@ -367,6 +367,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 477f6f451f15b6e4385ef52c766d49ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_TransitionDuration: 0.2
   m_StartButton: {fileID: 6058019482872515201}
   m_TitleText: {fileID: 6753638634077964118}
   m_VersionText: {fileID: 1446289238761260185}

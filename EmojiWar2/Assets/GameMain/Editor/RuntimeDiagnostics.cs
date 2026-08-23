@@ -43,6 +43,20 @@ namespace EmojiWar.GameMain.Editor
             EmojiWar.GameMain.UI.LobbyForm.TriggerCreateRoom();
         }
 
+        [MenuItem("EmojiWar/Diagnostics/Kill Player")]
+        public static void KillPlayer()
+        {
+            var players = UnityEngine.Object.FindObjectsOfType<EmojiWar.GameMain.Entity.PlayerEntity>(true);
+            Debug.Log("[Diagnostics] Killing player, found=" + players.Length);
+            foreach (var player in players)
+            {
+                if (player != null && player.IsAlive)
+                {
+                    player.TakeDamage(99999f);
+                }
+            }
+        }
+
         [MenuItem("EmojiWar/Diagnostics/Simulate Start Button")]
         public static void SimulateStartButton()
         {

@@ -29,11 +29,16 @@ namespace EmojiWar.GameMain.Procedure
             base.OnEnter(procedureOwner);
             Log.Info("===== EmojiWar Battle =====");
 
+            CurrentFsm = procedureOwner;
+
             // 订阅场景加载成功事件
             GameEntry.Event.Subscribe(LoadSceneSuccessEventArgs.EventId, OnLoadSceneSuccess);
 
             // 订阅波间商店事件
             Battle.BattleManager.OnShopPhase += OnShopPhase;
+
+            // 订阅玩家死亡事件
+            Entity.PlayerEntity.OnPlayerDied += OnPlayerDied;
 
             if (SceneManager.GetActiveScene().name != "Battle")
             {
@@ -62,6 +67,15 @@ namespace EmojiWar.GameMain.Procedure
 
             GameEntry.UI.OpenUIForm(Constant.UIFormAssetPath.ShopForm, Constant.UIGroup.Default, this);
         }
+
+        private void OnPlayerDied()
+        {
+            Log.Info("[ProcedureBattle] 玩家死亡，进入结算");
+            ChangeState<ProcedureGameOver>(CurrentFsm);
+        }
+
+        /// <summary>当前流程机（事件回调中切换流程用）。</summary>
+        private GameFramework.Fsm.IFsm<GameFramework.Procedure.IProcedureManager> CurrentFsm { get; set; }
 
         private void OnLoadSceneSuccess(object sender, GameEventArgs e)
         {
@@ -121,10 +135,12 @@ namespace EmojiWar.GameMain.Procedure
         protected override void OnLeave(IFsm<IProcedureManager> procedureOwner, bool isShutdown)
         {
             Battle.BattleManager.OnShopPhase -= OnShopPhase;
+            Entity.PlayerEntity.OnPlayerDied -= OnPlayerDied;
             if (GameEntry.Event != null)
             {
                 GameEntry.Event.Unsubscribe(LoadSceneSuccessEventArgs.EventId, OnLoadSceneSuccess);
             }
+            CurrentFsm = null;
             base.OnLeave(procedureOwner, isShutdown);
         }
     }
