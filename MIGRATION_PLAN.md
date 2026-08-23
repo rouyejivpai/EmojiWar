@@ -180,11 +180,12 @@ EmojiWar2/
 - [ ] 同步观感优化（插值/预测）
 
 ### Phase 5 — 打磨与发布 🟡 进行中（2026-08-23）
-- [x] **Windows 打包验证**：`manage_build` 构建 StandaloneWindows64 成功（69.95MB，0 错误，2 个 GameFramework 过时 API 警告）
+- [x] **Windows 打包验证**：StandaloneWindows64 成功（69.95MB，0 错误）
 - [x] 同步观感优化：客户端实体位置插值平滑
-- [ ] 音效/特效接入（旧 emoji GIF 已就位）
-- [ ] UI 动效完善
-- [ ] 双实例联调（Host + Client 真机验证）
+- [x] **音效接入**：SfxManager 程序合成音效（射击/受击/购买），GameEntry 初始化
+- [x] **战斗 HUD**：BattleHudForm（金币/波次/血量实时显示）
+- [ ] UI 动效完善（Form 打开/关闭过渡）
+- [ ] 双实例真机联调（构建 exe 网络对战）
 
 ---
 
