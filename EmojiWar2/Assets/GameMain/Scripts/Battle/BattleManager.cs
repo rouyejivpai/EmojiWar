@@ -42,6 +42,29 @@ namespace EmojiWar.GameMain.Battle
         public bool BattleRunning { get { return m_BattleRunning; } }
         public int WaveIndex { get { return m_WaveIndex; } }
 
+        private void Awake()
+        {
+            // 从全局配置读取波次参数（未配置时用默认值）
+            LoadWaveConfig();
+        }
+
+        /// <summary>
+        /// 从 GameFramework Config 读取波次配置。
+        /// 配置键：Battle.EnemiesPerWave / Battle.SpawnRadius / Battle.WaveInterval
+        /// </summary>
+        private void LoadWaveConfig()
+        {
+            if (GameEntry.Config != null)
+            {
+                m_EnemiesPerWave = GameEntry.Config.GetInt("Battle.EnemiesPerWave", m_EnemiesPerWave);
+                float radius = GameEntry.Config.GetFloat("Battle.SpawnRadius", -1f);
+                if (radius > 0f)
+                {
+                    m_SpawnRadius = radius;
+                }
+            }
+        }
+
         /// <summary>
         /// 开始战斗：生成玩家 + 启动波次协程。
         /// </summary>

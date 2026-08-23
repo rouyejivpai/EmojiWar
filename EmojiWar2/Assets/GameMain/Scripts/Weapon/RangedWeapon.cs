@@ -75,7 +75,7 @@ namespace EmojiWar.GameMain.Weapon
 
                     projectile.Setup(fireDirection, m_BulletSpeed, Damage,
                         Owner != null ? Owner.Team : Entity.EntityTeam.Player, Owner,
-                        freezeSlow, freezeDuration);
+                        freezeSlow, freezeDuration, m_ModComponent);
                 }
             }
 

@@ -25,6 +25,7 @@ namespace EmojiWar.GameMain.Weapon
         private Entity.EntityTeam m_Team = Entity.EntityTeam.Neutral;
         private Entity.EntityBase m_Shooter = null;
         private Rigidbody2D m_Rigidbody = null;
+        private WeaponModComponent m_SourceModComponent = null;   // 发射武器（OnKill 通知）
 
         // Freeze（冰霜）效果：命中时减速敌人
         private float m_FreezeSlowFactor = 0f;
@@ -67,7 +68,7 @@ namespace EmojiWar.GameMain.Weapon
         /// </summary>
         public void Setup(Vector2 direction, float speed, float damage, Entity.EntityTeam team, Entity.EntityBase shooter)
         {
-            Setup(direction, speed, damage, team, shooter, 0f, 0f);
+            Setup(direction, speed, damage, team, shooter, 0f, 0f, null);
         }
 
         /// <summary>
@@ -75,12 +76,21 @@ namespace EmojiWar.GameMain.Weapon
         /// </summary>
         public void Setup(Vector2 direction, float speed, float damage, Entity.EntityTeam team, Entity.EntityBase shooter, float freezeSlowFactor, float freezeDuration)
         {
+            Setup(direction, speed, damage, team, shooter, freezeSlowFactor, freezeDuration, null);
+        }
+
+        /// <summary>
+        /// 初始化子弹（完整参数，含发射武器引用）。
+        /// </summary>
+        public void Setup(Vector2 direction, float speed, float damage, Entity.EntityTeam team, Entity.EntityBase shooter, float freezeSlowFactor, float freezeDuration, WeaponModComponent sourceModComponent)
+        {
             m_Speed = speed;
             m_Damage = damage;
             m_Team = team;
             m_Shooter = shooter;
             m_FreezeSlowFactor = freezeSlowFactor;
             m_FreezeDuration = freezeDuration;
+            m_SourceModComponent = sourceModComponent;
 
             if (m_Rigidbody == null)
             {
@@ -110,7 +120,14 @@ namespace EmojiWar.GameMain.Weapon
                 return;
             }
 
-            entity.TakeDamage(m_Damage, m_Shooter);
+            // 记录击杀前状态
+            bool killed = entity.TakeDamage(m_Damage, m_Shooter);
+
+            // OnKill 效果：击杀敌人后通知发射武器
+            if (killed && !entity.IsAlive && m_SourceModComponent != null)
+            {
+                m_SourceModComponent.NotifyKill();
+            }
 
             // 冰霜减速
             if (m_FreezeDuration > 0f && m_FreezeSlowFactor > 0f)

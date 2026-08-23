@@ -38,6 +38,11 @@ namespace EmojiWar.GameMain.Weapon
     {
         private readonly List<EquippedMod> m_Mods = new List<EquippedMod>();
 
+        // OnKill 临时攻速加成状态
+        private float m_KillFireRateBonus = 0f;
+        private float m_KillBonusRemaining = 0f;
+        private float m_KillBonusDuration = 3f;
+
         /// <summary>已装备 Mod 数量。</summary>
         public int ModCount
         {
@@ -106,7 +111,51 @@ namespace EmojiWar.GameMain.Weapon
                 }
             }
 
+            // OnKill 临时攻速加成
+            if (m_KillFireRateBonus > 0f && m_KillBonusRemaining > 0f)
+            {
+                mul += m_KillFireRateBonus;
+            }
+
             return (add, mul);
+        }
+
+        private void Update()
+        {
+            // 推进 OnKill 临时加成计时
+            if (m_KillBonusRemaining > 0f)
+            {
+                m_KillBonusRemaining -= Time.deltaTime;
+                if (m_KillBonusRemaining <= 0f)
+                {
+                    m_KillFireRateBonus = 0f;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 触发击杀事件（由 Projectile 在击杀敌人时调用）。
+        /// 拥有 OnKill Mod 时获得临时攻速加成。
+        /// </summary>
+        public void NotifyKill()
+        {
+            foreach (var mod in m_Mods)
+            {
+                if (mod.Row != null && GetEffectType(mod.Row.EffectType) == ModEffectType.OnKill)
+                {
+                    // Param1 = 攻速加成比例, Param2 = 持续秒数
+                    m_KillFireRateBonus = mod.Row.Param1;
+                    m_KillBonusDuration = mod.Row.Param2 > 0f ? mod.Row.Param2 : 3f;
+                    m_KillBonusRemaining = m_KillBonusDuration;
+                    return;
+                }
+            }
+        }
+
+        /// <summary>是否正在享受 OnKill 加成。</summary>
+        public bool HasKillBonus
+        {
+            get { return m_KillFireRateBonus > 0f && m_KillBonusRemaining > 0f; }
         }
 
         /// <summary>
