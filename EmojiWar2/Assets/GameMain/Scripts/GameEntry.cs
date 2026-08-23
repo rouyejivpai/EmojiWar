@@ -47,6 +47,7 @@ namespace EmojiWar.GameMain
 
         // ---- 业务组件引用（由 GameEntry 自身创建/挂载）----
         public static Data.DataComponent Data { get; private set; }
+        public static Network.NetworkService NetworkService { get; private set; }
 
         private void Awake()
         {
@@ -93,6 +94,13 @@ namespace EmojiWar.GameMain
                 var dataGo = new GameObject("DataComponent");
                 dataGo.transform.SetParent(transform);
                 Data = dataGo.AddComponent<Data.DataComponent>();
+            }
+
+            if (NetworkService == null)
+            {
+                var netGo = new GameObject("NetworkService");
+                netGo.transform.SetParent(transform);
+                NetworkService = netGo.AddComponent<Network.NetworkService>();
             }
 
             Log.Info("GameEntry initialized. Procedure={0}, UI={1}, DataTable={2}, Scene={3}, Data={4}",

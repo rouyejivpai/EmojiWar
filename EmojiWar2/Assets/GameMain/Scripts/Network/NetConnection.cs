@@ -1,0 +1,178 @@
+//------------------------------------------------------------
+// EmojiWar GameMain - TCP 连接（客户端侧）
+// 封装 TcpClient：连接、收发、拆帧。
+// 主线程轮询驱动（Unity 友好）。
+//------------------------------------------------------------
+
+using System;
+using System.Collections.Generic;
+using System.Net.Sockets;
+using UnityEngine;
+
+namespace EmojiWar.GameMain.Network
+{
+    /// <summary>
+    /// TCP 客户端连接。
+    /// </summary>
+    public class NetConnection
+    {
+        private TcpClient m_Client = null;
+        private NetworkStream m_Stream = null;
+        private readonly List<byte> m_ReceiveBuffer = new List<byte>();
+
+        public bool IsConnected
+        {
+            get { return m_Client != null && m_Client.Connected; }
+        }
+
+        /// <summary>收到消息事件。</summary>
+        public event Action<NetMessage> OnMessage;
+
+        /// <summary>连接断开事件。</summary>
+        public event Action OnDisconnected;
+
+        /// <summary>
+        /// 异步连接服务器。
+        /// </summary>
+        public void Connect(string host, int port)
+        {
+            try
+            {
+                m_Client = new TcpClient();
+                m_Client.BeginConnect(host, port, OnConnectCallback, null);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[NetConnection] Connect failed: " + e.Message);
+            }
+        }
+
+        private void OnConnectCallback(IAsyncResult ar)
+        {
+            try
+            {
+                m_Client.EndConnect(ar);
+                m_Stream = m_Client.GetStream();
+                Debug.Log("[NetConnection] Connected.");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[NetConnection] EndConnect failed: " + e.Message);
+                m_Client = null;
+                OnDisconnected?.Invoke();
+            }
+        }
+
+        /// <summary>
+        /// 发送消息。
+        /// </summary>
+        public void Send(NetMessage message)
+        {
+            if (!IsConnected || m_Stream == null || message == null)
+            {
+                return;
+            }
+
+            try
+            {
+                byte[] frame = NetCodec.Encode(message);
+                m_Stream.Write(frame, 0, frame.Length);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[NetConnection] Send failed: " + e.Message);
+            }
+        }
+
+        /// <summary>
+        /// 每帧轮询：读取数据并拆帧分发。
+        /// </summary>
+        public void Poll()
+        {
+            if (!IsConnected || m_Stream == null || !m_Stream.DataAvailable)
+            {
+                return;
+            }
+
+            try
+            {
+                byte[] buffer = new byte[4096];
+                int read = m_Stream.Read(buffer, 0, buffer.Length);
+                if (read <= 0)
+                {
+                    HandleDisconnect();
+                    return;
+                }
+
+                for (int i = 0; i < read; i++)
+                {
+                    m_ReceiveBuffer.Add(buffer[i]);
+                }
+
+                ProcessBuffer();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[NetConnection] Poll failed: " + e.Message);
+                HandleDisconnect();
+            }
+        }
+
+        /// <summary>
+        /// 拆帧并分发消息。
+        /// </summary>
+        private void ProcessBuffer()
+        {
+            while (m_ReceiveBuffer.Count >= NetCodec.HeaderLength)
+            {
+                int length = m_ReceiveBuffer[2] | (m_ReceiveBuffer[3] << 8);
+                int total = NetCodec.HeaderLength + length;
+
+                if (m_ReceiveBuffer.Count < total)
+                {
+                    break; // 等待完整帧
+                }
+
+                byte[] frame = m_ReceiveBuffer.GetRange(0, total).ToArray();
+                m_ReceiveBuffer.RemoveRange(0, total);
+
+                var message = NetCodec.Decode(frame, 0, total);
+                if (message != null)
+                {
+                    OnMessage?.Invoke(message);
+                }
+            }
+        }
+
+        private void HandleDisconnect()
+        {
+            try
+            {
+                if (m_Stream != null)
+                {
+                    m_Stream.Close();
+                    m_Stream = null;
+                }
+                if (m_Client != null)
+                {
+                    m_Client.Close();
+                    m_Client = null;
+                }
+            }
+            catch
+            {
+            }
+
+            m_ReceiveBuffer.Clear();
+            OnDisconnected?.Invoke();
+        }
+
+        /// <summary>
+        /// 关闭连接。
+        /// </summary>
+        public void Close()
+        {
+            HandleDisconnect();
+        }
+    }
+}

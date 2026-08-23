@@ -148,18 +148,16 @@ EmojiWar2/
   - 关键修复：`GameEntry` 组件引用初始化从 Awake 移到 Start + `[DefaultExecutionOrder(100)]`，
     避免在 GameFramework 组件注册前取到 null 引用
 
-### Phase 2 — 单机核心玩法移植（本地可游玩）🟢 主体完成（2026-08-23）
-- [x] DataTable 管线：Character/Weapon/Mod 表（txt 数据 + DR 行类 + 加载扩展 + DataComponent），实测加载成功
-- [x] 实体系统：EntityData（纯数据，为网络化预留）+ EntityBase + PlayerEntity（WASD 移动 + 鼠标射击）+ EnemyEntity（AI 追逐 + 接触伤害 + 减速）
-- [x] 武器系统：WeaponBase 数据驱动重构 + RangedWeapon（子弹带扩散）+ Projectile（碰撞伤害 + 冰霜减速）
-- [x] Mod 系统：Mod 数据表 + WeaponModComponent（攻速加值/乘区/击杀/冰霜 4 类效果）
-- [x] 商店系统：ShopManager 权重随机抽武器/Mod + RunSession（金币/背包）+ ShopForm UI（购买）
-- [x] 肉鸽循环：战斗 → 波次清完 → 波间商店 → 继续 → 下一波
-- [x] 流程：ProcedureBattle（订阅场景加载完成 + 波间商店事件）
-- [x] 一键搭建：`02 - Build Battle Scene`、`03 - Add Scenes to Build Settings`
-- [x] **实测通过**：Play → 开始 → 第 1 波 5 敌 → 击杀 → 商店打开（3 商品）→ 继续
-- [ ] Buff 系统（冰霜/眩晕等状态效果的统一管理）
-- [ ] 美术资源接入（旧 emoji GIF/动画）
+### Phase 2 — 单机核心玩法移植（本地可游玩）🟢 完成（2026-08-23）
+- [x] DataTable 管线：Character/Weapon/Mod 表
+- [x] 实体系统：EntityData（纯数据）+ EntityBase + PlayerEntity + EnemyEntity
+- [x] 武器系统：WeaponBase 数据驱动 + RangedWeapon + Projectile
+- [x] Mod 系统：WeaponModComponent（攻速/击杀/冰霜）
+- [x] 商店系统：ShopManager + ShopForm + RunSession（金币/背包）
+- [x] 肉鸽循环：战斗 → 波间商店 → 下一波
+- [x] **Buff 系统**：BuffDef/BuffComponent（减速/眩晕/攻速/无敌，接入 EntityBase/EnemyEntity）
+- [x] **美术迁移**：85 个 emoji GIF + 动画 → `Assets/GameMain/Art/`（2D Sprite 导入验证）
+- [x] 实测：战斗 → 击杀 → 商店 → 全链路回归通过
 
 ### Phase 3 — 网络化（多人联机）
 - [ ] 自研协议：消息编解码（头+消息ID+长度+Payload）
