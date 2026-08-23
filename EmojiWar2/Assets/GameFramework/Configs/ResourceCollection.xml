@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<UnityGameFramework>
+  <ResourceCollection>
+    <Resources>
+      <Resource Name="game" LoadType="0" Packed="False" />
+    </Resources>
+    <Assets>
+      <Asset Guid="75704016679d7cc4f8d1de63427e609a" ResourceName="game" />
+      <Asset Guid="b58461de0cd6725409f7d2fe7368447a" ResourceName="game" />
+      <Asset Guid="21beaacb010438248901dd7d2eeb0eff" ResourceName="game" />
+      <Asset Guid="1ec349f9bf77950448ea066497c2932c" ResourceName="game" />
+      <Asset Guid="41186d94825fb1543b455ebc8c55de71" ResourceName="game" />
+      <Asset Guid="e1a52f432216d3a428b5b1df0906f13d" ResourceName="game" />
+      <Asset Guid="6ce0355f179e7ab4f8218c99c2524747" ResourceName="game" />
+      <Asset Guid="f8e1652814a48494ea94793aebd85a97" ResourceName="game" />
+    </Assets>
+  </ResourceCollection>
+</UnityGameFramework>

@@ -3,6 +3,7 @@
     "rootNamespace": "EmojiWar.GameMain.Editor",
     "references": [
         "UnityGameFramework.Runtime",
+        "UnityGameFramework.Editor",
         "EmojiWar.GameMain"
     ],
     "includePlatforms": [

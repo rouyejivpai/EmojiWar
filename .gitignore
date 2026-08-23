@@ -44,6 +44,7 @@ desktop.ini
 _tmp/
 *.log
 node_modules/
+BuildRes/
 
 # ==============================
 # 覆盖 Unity 默认（保留 meta）

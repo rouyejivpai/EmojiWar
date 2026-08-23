@@ -17,8 +17,8 @@ namespace EmojiWar.GameMain.Battle
     /// </summary>
     public class BattleManager : MonoBehaviour
     {
-        private const string PlayerPrefabPath = "Assets/GameMain/Entities/Player.prefab";
-        private const string EnemyPrefabPath = "Assets/GameMain/Entities/Enemy.prefab";
+        private const string PlayerPrefabPath = "Assets/GameMain/Resources/Entities/Player.prefab";
+        private const string EnemyPrefabPath = "Assets/GameMain/Resources/Entities/Enemy.prefab";
 
         [Header("波次配置")]
         [SerializeField]
@@ -254,7 +254,12 @@ namespace EmojiWar.GameMain.Battle
 #if UNITY_EDITOR
             return UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
 #else
-            return null;
+            // 运行时：从 Resources 目录按相对路径加载（去掉 "Assets/.../Resources/" 前缀）
+            const string resourcesMarker = "Resources/";
+            int index = path.IndexOf(resourcesMarker, System.StringComparison.Ordinal);
+            string resourcesPath = index >= 0 ? path.Substring(index + resourcesMarker.Length) : path;
+            resourcesPath = resourcesPath.Substring(0, resourcesPath.Length - ".prefab".Length);
+            return Resources.Load<GameObject>(resourcesPath);
 #endif
         }
 

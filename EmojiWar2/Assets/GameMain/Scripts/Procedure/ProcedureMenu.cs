@@ -7,6 +7,7 @@
 using GameFramework.Event;
 using GameFramework.Fsm;
 using GameFramework.Procedure;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityGameFramework.Runtime;
 
@@ -83,6 +84,17 @@ namespace EmojiWar.GameMain.Procedure
 
             // 打开主菜单界面（编辑器模式：资源名为 Assets 相对路径）
             GameEntry.UI.OpenUIForm(Constant.UIFormAssetPath.MenuForm, Constant.UIGroup.Default, this);
+
+            // 运行时探针：验证构建版菜单 UI 打开
+            try
+            {
+                string path = System.IO.Path.Combine(Application.dataPath, "../Logs/runtime_probe.txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, "[menu] MenuForm open requested\n");
+            }
+            catch
+            {
+            }
         }
 
         protected override void OnLeave(IFsm<IProcedureManager> procedureOwner, bool isShutdown)

@@ -204,6 +204,12 @@ EmojiWar2/
   - 客户端空闲自动绕圈改为测试开关 `m_AutoMoveWhenIdle`（真实联机由流程关闭）
   - 实测全循环：菜单→大厅→创建房间→战斗→死亡→结算→**重新开始**→战斗→死亡→**返回菜单**→再次开局，加载场景恒为 2、框架单实例、窗体无堆积 ✅
 - [x] **最终打包 v2**：StandaloneWindows64 成功（69.96MB，0 错误，`Builds/EmojiWar2_final.exe`，含重开/重连/窗体修复）
+- [x] **构建版资源加载修复（实测：构建 exe 之前只有蓝色背景、无 UI）**：
+  - 根因：编辑器走 `EditorResourceComponent`（AssetDatabase），构建版走 **Package 模式（AssetBundle）**，但项目从未构建 AssetBundle，且 `ProcedureLaunch` 未调用 `ResourceComponent.InitResources()`（异步初始化）→ 所有资源 `NotExist`，流程中断
+  - 修复 1：新增 `EmojiWar/Tools/Build Runtime AssetBundles`（`GameResourceBuilder.cs`）——调用官方 `ResourceBuilderController` 构建 UI prefab + 数据表进 `game.dat`，生成 `GameFrameworkVersion.dat`，输出到 `StreamingAssets`（构建版 exe 已内置）
+  - 修复 2：`ProcedureLaunch` 在构建模式先 `GameEntry.Resource.InitResources()` 再加载数据表进菜单（编辑器模式直接跳过）
+  - 修复 3：实体 prefab 与 emoji 美术移入 `Assets/GameMain/Resources/`，`LoadPrefab`/`ArtManager` 运行时走 `Resources.Load`（原构建分支返回 null / 路径错误）
+  - 验证：构建版 exe 运行探针 `Builds/Logs/runtime_probe.txt` → `[launch] resources init complete` + `[menu] MenuForm open requested`，日志 0 错误 ✅
 - [ ] 双实例真机联调（构建 exe 网络对战，需人工在 Unity 外操作；完整指引见 **PLAYTEST.md**）
 
 ---

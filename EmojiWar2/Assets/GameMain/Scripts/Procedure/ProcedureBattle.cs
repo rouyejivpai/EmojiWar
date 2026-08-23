@@ -19,7 +19,7 @@ namespace EmojiWar.GameMain.Procedure
     public class ProcedureBattle : ProcedureBase
     {
         private const string BattleSceneAssetName = "Assets/GameMain/Scenes/Battle.unity";
-        private const string BattleManagerPrefabPath = "Assets/GameMain/Entities/BattleManager.prefab";
+        private const string BattleManagerPrefabPath = "Assets/GameMain/Resources/Entities/BattleManager.prefab";
 
         // 通过 userData 传入的角色 ID（Phase 2 固定为 1，后续接选角）
         private int m_CharacterId = 1;
@@ -239,7 +239,12 @@ namespace EmojiWar.GameMain.Procedure
 #if UNITY_EDITOR
             return UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
 #else
-            return Resources.Load<GameObject>(path);
+            // 运行时：从 Resources 目录按相对路径加载（去掉 "Assets/.../Resources/" 前缀）
+            const string resourcesMarker = "Resources/";
+            int index = path.IndexOf(resourcesMarker, System.StringComparison.Ordinal);
+            string resourcesPath = index >= 0 ? path.Substring(index + resourcesMarker.Length) : path;
+            resourcesPath = resourcesPath.Substring(0, resourcesPath.Length - ".prefab".Length);
+            return Resources.Load<GameObject>(resourcesPath);
 #endif
         }
 

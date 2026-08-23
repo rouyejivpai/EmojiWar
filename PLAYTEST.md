@@ -1,8 +1,19 @@
 # EmojiWar2 多人联机实测指南（双实例真机）
 
-> 适用版本：`Builds/EmojiWar2_final.exe`（StandaloneWindows64）
+> 适用版本：`Builds/EmojiWar2_final.exe`（StandaloneWindows64，70.68MB，含 AssetBundle 运行时资源）
 > 网络架构：**Host 权威**（房主进程同时是服务器与 1 号玩家），客户端 TCP 直连，自研二进制协议（端口默认 **7777**）。
 > 本指南验证的是**真实进程间网络对战** —— 这是自动化测试无法覆盖的最后一项（沙箱无法操作 exe 的 GUI 交互）。
+
+---
+
+## 0. 构建版资源说明（2026-08-23 已修复）
+
+- 构建版使用 **GameFramework Package 模式**（AssetBundle）：UI 窗体与数据表打包进 `game.dat`（StreamingAssets），
+  实体 prefab 与 emoji 美术走 Unity 原生 `Resources/`。
+- 若修改了 UI/数据表后重新出包，先运行 Unity 菜单 **EmojiWar → Tools → Build Runtime AssetBundles**
+  再 Build Player（工具会自动更新 `Assets/StreamingAssets/`）。
+- 运行时探针：`Builds/Logs/runtime_probe.txt`（正常应包含 `[launch] resources init complete` 与
+  `[menu] MenuForm open requested`），用于确认构建版流程走到主菜单。
 
 ---
 
