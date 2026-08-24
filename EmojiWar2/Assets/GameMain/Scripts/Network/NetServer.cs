@@ -199,12 +199,29 @@ namespace EmojiWar.GameMain.Network
                 m_Listener.Start();
                 IsRunning = true;
                 Debug.Log("[NetServer] Listening on " + m_Listener.LocalEndpoint);
+                WriteProbe("[net-host] NetServer listening on " + m_Listener.LocalEndpoint);
                 return true;
             }
             catch (Exception e)
             {
                 Debug.LogError("[NetServer] Start failed: " + e.Message);
+                WriteProbe("[net-host] NetServer Start FAILED: " + e.Message);
                 return false;
+            }
+        }
+
+        /// <summary>运行时探针（按进程分文件）。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath,
+                    "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
             }
         }
 

@@ -52,12 +52,11 @@ namespace EmojiWar.GameMain.Network
         private string m_ServerIp = "127.0.0.1";
         private int m_ServerPort = NetworkService.DefaultPort;
 
-        // 重连状态
+        // 重连状态：服务器未就绪时持续重试（间隔 2s），不设死上限（用户可能先开加入者后开房主）
         private bool m_Reconnecting = false;
-        private float m_ReconnectDelay = 1f;
+        private float m_ReconnectDelay = 2f;
         private float m_ReconnectTimer = 0f;
         private int m_ReconnectAttempts = 0;
-        private const int MaxReconnectAttempts = 15;
 
         /// <summary>重连状态变化事件（参数：是否重连中）。</summary>
         public event System.Action<bool> OnReconnectStateChanged;
@@ -218,15 +217,11 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
-            // 重连次数上限：避免服务器不可达时无限重连刷屏
+            // 无限重试（服务器未就绪时持续等）；每 20 次在 probe 里记录一次，避免刷屏
             m_ReconnectAttempts++;
-            if (m_ReconnectAttempts >= MaxReconnectAttempts)
+            if (m_ReconnectAttempts % 20 == 0)
             {
-                m_Reconnecting = false;
-                m_ReconnectAttempts = 0;
-                WriteProbe("[net] 重连次数达到上限，停止自动重连");
-                Debug.Log("[NetClientLogic] 重连次数达到上限，停止自动重连");
-                return;
+                WriteProbe("[net] 持续重连中... 第 " + m_ReconnectAttempts + " 次");
             }
 
             // 重连

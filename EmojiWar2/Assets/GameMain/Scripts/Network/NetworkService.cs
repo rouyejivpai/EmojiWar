@@ -68,6 +68,7 @@ namespace EmojiWar.GameMain.Network
         /// </summary>
         public bool StartHost(int port = DefaultPort)
         {
+            WriteProbe("[net-host] StartHost called port=" + port);
             Shutdown();
 
             m_Server = new NetServer();
@@ -78,12 +79,14 @@ namespace EmojiWar.GameMain.Network
             if (!m_Server.Start(port))
             {
                 m_Server = null;
+                WriteProbe("[net-host] StartHost FAILED port=" + port);
                 return false;
             }
 
             m_Mode = NetMode.Host;
             OnModeChanged?.Invoke(m_Mode);
             Debug.Log("[NetworkService] Host started on port " + port);
+            WriteProbe("[net-host] StartHost OK, mode=Host port=" + port);
             return true;
         }
 
@@ -174,6 +177,8 @@ namespace EmojiWar.GameMain.Network
         /// </summary>
         public void Shutdown()
         {
+            WriteProbe("[net-host] Shutdown (server=" + (m_Server != null && m_Server.IsRunning) +
+                " conn=" + (m_Connection != null && m_Connection.IsConnected) + ")");
             if (m_Server != null)
             {
                 m_Server.Stop();
@@ -187,6 +192,21 @@ namespace EmojiWar.GameMain.Network
             }
 
             m_Mode = NetMode.Offline;
+        }
+
+        /// <summary>运行时探针（按进程分文件）。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath,
+                    "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
+            }
         }
 
         private void OnDestroy()
