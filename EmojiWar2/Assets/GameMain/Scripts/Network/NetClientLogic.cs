@@ -56,6 +56,8 @@ namespace EmojiWar.GameMain.Network
         private bool m_Reconnecting = false;
         private float m_ReconnectDelay = 1f;
         private float m_ReconnectTimer = 0f;
+        private int m_ReconnectAttempts = 0;
+        private const int MaxReconnectAttempts = 15;
 
         /// <summary>重连状态变化事件（参数：是否重连中）。</summary>
         public event System.Action<bool> OnReconnectStateChanged;
@@ -216,6 +218,17 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
+            // 重连次数上限：避免服务器不可达时无限重连刷屏
+            m_ReconnectAttempts++;
+            if (m_ReconnectAttempts >= MaxReconnectAttempts)
+            {
+                m_Reconnecting = false;
+                m_ReconnectAttempts = 0;
+                WriteProbe("[net] 重连次数达到上限，停止自动重连");
+                Debug.Log("[NetClientLogic] 重连次数达到上限，停止自动重连");
+                return;
+            }
+
             // 重连
             if (m_Service != null)
             {
@@ -239,6 +252,7 @@ namespace EmojiWar.GameMain.Network
             if (m_Service != null && m_Service.IsConnected)
             {
                 Debug.Log("[NetClientLogic] 重连成功，重新加入房间");
+                m_ReconnectAttempts = 0;
                 m_JoinSent = true;
                 m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName });
                 m_Reconnecting = false;

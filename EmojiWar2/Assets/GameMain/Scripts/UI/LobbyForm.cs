@@ -131,7 +131,22 @@ namespace EmojiWar.GameMain.UI
             {
                 ip = "127.0.0.1";
             }
-            OnJoinRoomRequested?.Invoke(name, ip, Network.NetworkService.DefaultPort);
+
+            // 防御：IP 输入框可能带端口（"127.0.0.1:7777"），拆出端口
+            int port = Network.NetworkService.DefaultPort;
+            int colon = ip.LastIndexOf(':');
+            if (colon > 0)
+            {
+                string maybePort = ip.Substring(colon + 1);
+                int parsedPort;
+                if (int.TryParse(maybePort, out parsedPort) && parsedPort > 0 && parsedPort < 65536)
+                {
+                    port = parsedPort;
+                    ip = ip.Substring(0, colon);
+                }
+            }
+
+            OnJoinRoomRequested?.Invoke(name, ip, port);
         }
 
         private void OnBackClick()

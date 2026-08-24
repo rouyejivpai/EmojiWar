@@ -38,6 +38,20 @@ namespace EmojiWar.GameMain.Network
         {
             try
             {
+                // 防御：host 可能带端口（如 "127.0.0.1:7777" 被用户直接填入 IP 框），拆出端口避免 DNS 解析失败
+                int colon = host.LastIndexOf(':');
+                if (colon > 0)
+                {
+                    string maybePort = host.Substring(colon + 1);
+                    int parsedPort;
+                    if (int.TryParse(maybePort, out parsedPort) && parsedPort > 0 && parsedPort < 65536)
+                    {
+                        port = parsedPort;
+                        host = host.Substring(0, colon);
+                        Debug.Log("[NetConnection] 从 host 解析端口: host=" + host + " port=" + port);
+                    }
+                }
+
                 m_Client = new TcpClient();
                 m_Client.BeginConnect(host, port, OnConnectCallback, null);
             }
