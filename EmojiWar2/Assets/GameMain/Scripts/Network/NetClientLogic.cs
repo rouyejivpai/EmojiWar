@@ -104,9 +104,11 @@ namespace EmojiWar.GameMain.Network
 
         private void OnModeChanged(NetMode mode)
         {
+            WriteProbe("[net] OnModeChanged -> " + mode + " joined=" + m_Joined + " intentionalLeave=" + m_IntentionalLeave);
             if (mode == NetMode.Offline && m_Joined && !m_IntentionalLeave)
             {
                 Debug.Log("[NetClientLogic] 连接断开，启动重连");
+                WriteProbe("[net] 连接断开，启动重连");
                 StartReconnect();
             }
         }
@@ -128,6 +130,7 @@ namespace EmojiWar.GameMain.Network
 
             m_Joined = true;
             m_JoinSent = false;
+            WriteProbe("[net] JoinRoom 排队: " + m_PlayerName + " @ " + m_ServerIp + ":" + m_ServerPort);
             Debug.Log("[NetClientLogic] 加入房间请求已排队，连接建立后发送: " + m_PlayerName);
         }
 
@@ -163,6 +166,7 @@ namespace EmojiWar.GameMain.Network
             {
                 m_JoinSent = true;
                 m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName });
+                WriteProbe("[net] 发送 C2SJoinRoom: " + m_PlayerName);
                 Debug.Log("[NetClientLogic] 发送加入房间请求: " + m_PlayerName);
             }
 
@@ -303,6 +307,7 @@ namespace EmojiWar.GameMain.Network
                     if (my != null)
                     {
                         m_MyEntityId = my.EntityId;
+                        WriteProbe("[net] 收到 S2CMyEntity, 我的实体ID=" + m_MyEntityId);
                         // 兜底：若自己的实体已被渲染（消息时序竞争），移除，避免误当其他玩家
                         if (m_LocalEntities.TryGetValue(m_MyEntityId, out var self))
                         {
@@ -378,9 +383,12 @@ namespace EmojiWar.GameMain.Network
             // 不渲染自己的网络实体（本地玩家已代表自己，避免同屏多个"玩家"）
             if (spawn.Type == 0 && spawn.EntityId == m_MyEntityId)
             {
+                WriteProbe("[net] 跳过渲染自己实体 " + spawn.EntityId);
                 Debug.Log("[NetClientLogic] 跳过渲染自己的实体 " + spawn.EntityId);
                 return;
             }
+
+            WriteProbe("[net] 渲染网络实体 id=" + spawn.EntityId + " type=" + spawn.Type + " (my=" + m_MyEntityId + ")");
 
             // 生成本地表现对象：SpriteRenderer + 旧项目迁移的 emoji 美术
             // （玩家=黄色笑脸 1f603，敌人=红色恶魔 1f47f；替代原占位方块，
@@ -468,6 +476,21 @@ namespace EmojiWar.GameMain.Network
         public int LocalEntityCount
         {
             get { return m_LocalEntities.Count; }
+        }
+
+        /// <summary>运行时探针（按进程分文件）。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath,
+                    "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
+            }
         }
 
         /// <summary>是否正在重连。</summary>

@@ -54,12 +54,29 @@ namespace EmojiWar.GameMain.Network
                 m_Client.EndConnect(ar);
                 m_Stream = m_Client.GetStream();
                 Debug.Log("[NetConnection] Connected to " + m_Client.Client.RemoteEndPoint);
+                WriteProbe("[net] TCP 连接建立成功: " + m_Client.Client.RemoteEndPoint);
             }
             catch (Exception e)
             {
                 Debug.LogError("[NetConnection] EndConnect failed: " + e.Message);
+                WriteProbe("[net] TCP 连接失败: " + e.Message);
                 m_Client = null;
                 OnDisconnected?.Invoke();
+            }
+        }
+
+        /// <summary>运行时探针（按进程分文件）。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath,
+                    "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
             }
         }
 
