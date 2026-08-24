@@ -62,6 +62,12 @@ namespace EmojiWar.GameMain.UI
 
             if (m_RestartButton != null)
             {
+                // 多人语义：重新开始 = 返回房间，全部准备后开始下一局
+                var label = m_RestartButton.GetComponentInChildren<Text>();
+                if (label != null)
+                {
+                    label.text = "返回房间";
+                }
                 m_RestartButton.onClick.RemoveAllListeners();
                 m_RestartButton.onClick.AddListener(() => GameOverEvents.RequestRestart());
             }

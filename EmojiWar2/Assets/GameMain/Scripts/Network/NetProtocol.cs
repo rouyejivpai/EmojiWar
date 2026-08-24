@@ -19,6 +19,7 @@ namespace EmojiWar.GameMain.Network
         PlayerInput = 1101,     // 输入上行 { inputX, inputY, aimX, aimY, firePrimary, fireSecondary }
         BuyItem = 1201,         // 购买 { shopItemIndex }
         EquipMod = 1202,        // 装备 Mod { modId }
+        ReadyChange = 1103,     // 准备/取消准备 { ready }
 
         // ---- S2C ----
         RoomState = 2001,       // 房间状态 { roomId, players[] }
@@ -33,6 +34,8 @@ namespace EmojiWar.GameMain.Network
         GameOver = 2999,        // 游戏结束 { win, waveIndex }
         RunRestart = 2105,      // S2C: host restarts the run for a new round
         MyEntity = 2106,        // S2C: host tells a joiner its own entity id { entityId }
+        PlayerList = 2203,      // S2C: 房间玩家列表（名字+准备状态）{ players }
+        RoomClosed = 2204,      // S2C: 房间解散（房主退出）
 
         // ---- 心跳 ----
         Heartbeat = 9001,

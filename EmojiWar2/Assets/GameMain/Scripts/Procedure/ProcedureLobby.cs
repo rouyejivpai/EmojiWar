@@ -76,7 +76,7 @@ namespace EmojiWar.GameMain.Procedure
             var hostLogic = GetOrAddHostLogic();
             hostLogic.JoinLocal(m_PlayerName);
 
-            GoBattle();
+            GoRoom();
         }
 
         private void OnJoinRoomRequested(string playerName, string ip, int port)
@@ -93,7 +93,14 @@ namespace EmojiWar.GameMain.Procedure
                 clientLogic.JoinRoom(playerName, ip, port);
             }
 
-            GoBattle();
+            GoRoom();
+        }
+
+        private void GoRoom()
+        {
+            WriteProbe("[lobby] 进入房间流程（不再直接进战斗）");
+            Log.Info("[ProcedureLobby] 进入房间");
+            ChangeState<ProcedureRoom>(m_ProcedureFsm);
         }
 
         private void OnBackRequested()
@@ -114,18 +121,6 @@ namespace EmojiWar.GameMain.Procedure
             ChangeState<ProcedureMenu>(m_ProcedureFsm);
         }
 
-        private void GoBattle()
-        {
-            s_GoBattleCount++;
-            WriteProbe(string.Format("[lobby] GoBattle called #{0}\n{1}",
-                s_GoBattleCount,
-                System.Environment.StackTrace.Substring(0, System.Math.Min(800, System.Environment.StackTrace.Length))));
-            Log.Info("[ProcedureLobby] 进入战斗");
-            ChangeState<ProcedureBattle>(m_ProcedureFsm);
-        }
-
-        private static int s_GoBattleCount = 0;
-
         private Network.NetClientLogic GetOrAddClientLogic()
         {
             var instance = GameEntry.Instance;
@@ -134,7 +129,7 @@ namespace EmojiWar.GameMain.Procedure
                 return null;
             }
 
-            var existing = instance.GetComponent<Network.NetClientLogic>();
+            var existing = instance.GetComponentInChildren<Network.NetClientLogic>();
             if (existing != null)
             {
                 return existing;
@@ -157,7 +152,7 @@ namespace EmojiWar.GameMain.Procedure
                 return null;
             }
 
-            var existing = instance.GetComponent<Network.NetHostLogic>();
+            var existing = instance.GetComponentInChildren<Network.NetHostLogic>();
             if (existing != null)
             {
                 return existing;

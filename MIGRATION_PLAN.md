@@ -220,6 +220,14 @@ EmojiWar2/
   - 根因 2：**重复加入**——同一连接多次 `JoinRoom`（客户端重连/多实例）→ Host 每次生成新实体且旧实体不清理 → 修复：`NetHostLogic.HandleJoin` 幂等（同 session 重复加入先移除旧实体并广播 RemoveEntity）
   - 根因 3：**自己重复渲染**——客户端既有本地玩家（黄笑脸）又渲染自己的网络实体（同样黄笑脸）→ 同屏多个"自己" → 修复：新增 `S2CMyEntity` 消息，Host 告知加入者自己的实体 ID，客户端跳过渲染自己（网络实体只显示其他玩家与敌人）
   - 验证：`-autocreate` → 一次 OnEnter/一次 StartBattle/一次 SpawnPlayer、`players=1 enemies=5`、0 错误；Net Restart Test 回归通过（实体计数符合"跳过自己"预期）
+- [x] **联机大厅 + 准备机制（2026-08-25）**：
+  - **不再直接进战斗**：创建/加入房间后进入独立 **ProcedureRoom + RoomForm**（房间名、玩家列表（名字+准备✓/✗）、准备按钮、离开按钮）
+  - **准备机制**：每玩家点"准备"切换（Host 本地 `SetLocalReady` / 客户端 `C2SReadyChange`）；**全部准备后自动开始**（Host 广播 `S2CBattleStart` → 所有端同时进战斗），服务端同步启动波次
+  - **房间状态广播**：`S2CPlayerList`（"名字:1;名字:0"）加入/离开/准备实时刷新；人数上限 4
+  - **结算后回房间**：GameOver"返回房间"→ Host `ResetRoom()`（清敌/波次/准备复位）→ 全员回房间准备下一局；"返回菜单"解散（全员自动回大厅）
+  - **原版射击手感**：弹药/装弹/散射数据表化（Weapon.txt 增 BulletSpeed/Spread 列，DRWeapon + RangedWeapon.InitRanged 驱动）
+  - 修复：`GameEntry.Instance.GetComponent` 查不到子对象组件 → 全改 `GetComponentInChildren`（NetHostLogic/NetClientLogic 挂在 GameEntry 子对象上）
+  - **双实例自动化验证**（`-autocreate` + `-autojoin` 自动准备）：创建/加入 → 房间列表同步（房主:1;玩家:1）→ 全部准备自动开始 → 双端进战斗（1 玩家+敌人+网络实体）→ 死亡 → 结算 → 返回房间（列表重置）✅
 - [ ] 双实例真机联调（构建 exe 网络对战，需人工在 Unity 外操作；完整指引见 **PLAYTEST.md**）
 
 ---

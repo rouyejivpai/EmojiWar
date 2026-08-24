@@ -32,9 +32,11 @@ namespace EmojiWar.GameMain.Data
         public float Range { get; private set; }
         public int MaxAmmo { get; private set; }
         public float ReloadTime { get; private set; }
+        public float BulletSpeed { get; private set; }
+        public float Spread { get; private set; }
 
         /// <summary>
-        /// 列顺序：Id, WeaponName, Description, PrefabPath, Category, Rarity, Weight, Damage, FireRate, Range, MaxAmmo, ReloadTime
+        /// 列顺序：Id, WeaponName, Description, PrefabPath, Category, Rarity, Weight, Damage, FireRate, Range, MaxAmmo, ReloadTime, BulletSpeed, Spread
         /// </summary>
         public bool ParseDataRow(string dataRowText, object userData)
         {
@@ -53,6 +55,8 @@ namespace EmojiWar.GameMain.Data
             Range = float.Parse(split[index++]);
             MaxAmmo = int.Parse(split[index++]);
             ReloadTime = float.Parse(split[index++]);
+            BulletSpeed = float.Parse(split[index++]);
+            Spread = float.Parse(split[index++]);
 
             return true;
         }

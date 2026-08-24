@@ -25,7 +25,9 @@ namespace EmojiWar.GameMain.Network
             Register<C2SJoinRoom>();
             Register<C2SPlayerInput>();
             Register<C2SBuyItem>();
+            Register<C2SReadyChange>();
             Register<S2CRoomState>();
+            Register<S2CBattleStart>();
             Register<S2CPlayerJoined>();
             Register<S2CPlayerLeft>();
             Register<S2CSpawnEntity>();
@@ -36,6 +38,8 @@ namespace EmojiWar.GameMain.Network
             Register<S2CGameOver>();
             Register<S2CRunRestart>();
             Register<S2CMyEntity>();
+            Register<S2CPlayerList>();
+            Register<S2CRoomClosed>();
             Register<NetHeartbeat>();
         }
 

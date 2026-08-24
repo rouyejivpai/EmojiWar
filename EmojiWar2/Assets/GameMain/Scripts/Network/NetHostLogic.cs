@@ -24,6 +24,8 @@ namespace EmojiWar.GameMain.Network
             public int EntityId;
             public Vector2 Position;
             public float Hp = 100f;
+            public string PlayerName = "";
+            public bool Ready = false;
         }
 
         // 敌人权威状态
@@ -128,6 +130,7 @@ namespace EmojiWar.GameMain.Network
                 SessionId = 0,
                 EntityId = m_NextEntityId++,
                 Position = Vector2.zero,
+                PlayerName = playerName,
             };
             m_Players[0] = state;
             Debug.Log("[NetHostLogic] 房主 " + playerName + " 本机加入，实体 " + state.EntityId);
@@ -143,11 +146,25 @@ namespace EmojiWar.GameMain.Network
             };
             m_Service?.BroadcastToClients(spawn);
 
-            // 启动波次
-            if (m_Players.Count >= 1 && m_WaveCoroutine == null)
+            // 广播房间玩家列表
+            BroadcastPlayerList();
+
+            // 启动波次（房间等待准备，战斗开始后才真正开波；这里不自动开）
+        }
+
+        /// <summary>Host 本机设置准备状态（不走网络）。</summary>
+        public void SetLocalReady(bool ready)
+        {
+            if (m_Players.TryGetValue(0, out var state))
             {
-                m_WaveCoroutine = StartCoroutine(WaveLoop());
+                HandleReadyChange(0, new C2SReadyChange { Ready = ready });
             }
+        }
+
+        /// <summary>Host 本机当前准备状态。</summary>
+        public bool IsLocalReady
+        {
+            get { return m_Players.TryGetValue(0, out var s) && s.Ready; }
         }
 
         /// <summary>
@@ -184,7 +201,110 @@ namespace EmojiWar.GameMain.Network
                 case MsgId.LeaveRoom:
                     HandleLeave(sessionId);
                     break;
+
+                case MsgId.ReadyChange:
+                    HandleReadyChange(sessionId, message as C2SReadyChange);
+                    break;
             }
+        }
+
+        /// <summary>房间内全部准备后触发（Host 本地切流程用）。</summary>
+        public static event System.Action OnBattleStartRequested;
+
+        private bool m_BattleStartBroadcasted = false;
+
+        /// <summary>
+        /// 处理准备/取消准备：更新状态 → 广播玩家列表 → 检测全部准备后广播战斗开始。
+        /// </summary>
+        private void HandleReadyChange(int sessionId, C2SReadyChange ready)
+        {
+            WriteProbe("[net-host] HandleReadyChange session=" + sessionId + " ready=" + (ready != null ? ready.Ready.ToString() : "null-msg"));
+            if (ready == null || !m_Players.TryGetValue(sessionId, out var state))
+            {
+                WriteProbe("[net-host] HandleReadyChange ignored (no player state)");
+                return;
+            }
+
+            if (m_BattleStartBroadcasted)
+            {
+                WriteProbe("[net-host] HandleReadyChange ignored (battle already started)");
+                return;    // 已开始，忽略后续准备操作
+            }
+
+            state.Ready = ready.Ready;
+            Debug.Log("[NetHostLogic] 玩家 " + sessionId + "(" + state.PlayerName + ") 准备=" + state.Ready);
+            BroadcastPlayerList();
+
+            // 全部准备 → 广播战斗开始（仅一次）
+            if (m_Players.Count >= 1 && AllReady())
+            {
+                m_BattleStartBroadcasted = true;
+                m_Service.BroadcastToClients(new S2CBattleStart { Seed = Random.Range(0, 100000) });
+                Debug.Log("[NetHostLogic] 全部玩家已准备，广播战斗开始");
+                WriteProbe("[net-host] 全部准备，广播 BattleStart + 触发 OnBattleStartRequested");
+                OnBattleStartRequested?.Invoke();
+
+                // 战斗开始：启动服务器权威波次
+                if (m_WaveCoroutine == null)
+                {
+                    m_WaveCoroutine = StartCoroutine(WaveLoop());
+                }
+            }
+        }
+
+        /// <summary>
+        /// 回到房间（一局结束后）：重置准备状态与波次，等待下一局。
+        /// </summary>
+        public void ResetRoom()
+        {
+            m_BattleStartBroadcasted = false;
+            foreach (var p in m_Players.Values)
+            {
+                p.Ready = false;
+                p.Hp = 100f;
+            }
+            StopWave();
+            m_WaveIndex = 0;
+            BroadcastPlayerList();
+            Debug.Log("[NetHostLogic] 房间已重置，等待下一局");
+        }
+
+        private bool AllReady()
+        {
+            foreach (var p in m_Players.Values)
+            {
+                if (!p.Ready)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// 广播房间玩家列表（"名字:准备;..."）。
+        /// </summary>
+        private void BroadcastPlayerList()
+        {
+            if (m_Service == null)
+            {
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            foreach (var p in m_Players.Values)
+            {
+                if (sb.Length > 0)
+                {
+                    sb.Append(';');
+                }
+                sb.Append(p.PlayerName).Append(':').Append(p.Ready ? "1" : "0");
+            }
+
+            var msg = new S2CPlayerList { Count = m_Players.Count, Players = sb.ToString() };
+            m_Service.BroadcastToClients(msg);
+            WriteProbe("[net-host] 广播玩家列表: " + msg.Players);
+            Debug.Log("[NetHostLogic] 广播玩家列表: " + msg.Players);
         }
 
         /// <summary>
@@ -209,6 +329,13 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
+            // 人数上限 4
+            if (m_Players.Count >= 4)
+            {
+                Debug.Log("[NetHostLogic] 房间已满，拒绝 " + join.PlayerName);
+                return;
+            }
+
             // 幂等：同一连接重复加入时，先移除旧实体并广播删除，避免残留多个玩家实体
             if (m_Players.TryGetValue(sessionId, out var oldState))
             {
@@ -222,6 +349,7 @@ namespace EmojiWar.GameMain.Network
                 SessionId = sessionId,
                 EntityId = m_NextEntityId++,
                 Position = new Vector2(Random.Range(-2f, 2f), Random.Range(-2f, 2f)),
+                PlayerName = join.PlayerName ?? "玩家",
             };
             m_Players[sessionId] = state;
 
@@ -264,6 +392,9 @@ namespace EmojiWar.GameMain.Network
             var room = new S2CRoomState { RoomId = "ROOM-001", PlayerCount = m_Players.Count };
             m_Service.BroadcastToClients(room);
 
+            // 广播房间玩家列表（含新加入者）
+            BroadcastPlayerList();
+
             Debug.Log(string.Format("[NetHostLogic] 玩家 {0}({1}) 加入，生成实体 {2}",
                 join.PlayerName, sessionId, state.EntityId));
 
@@ -303,6 +434,7 @@ namespace EmojiWar.GameMain.Network
                 m_Service.BroadcastToClients(new S2CPlayerLeft { PlayerId = sessionId });
                 m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = state.EntityId });
                 Debug.Log("[NetHostLogic] 玩家 " + sessionId + " 离开，实体 " + state.EntityId + " 移除，广播已发送");
+                BroadcastPlayerList();
             }
         }
 
@@ -616,6 +748,21 @@ namespace EmojiWar.GameMain.Network
         private void OnDestroy()
         {
             StopWave();
+        }
+
+        /// <summary>运行时探针（按进程分文件）。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath,
+                    "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
+            }
         }
     }
 }

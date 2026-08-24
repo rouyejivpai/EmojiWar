@@ -45,7 +45,7 @@ namespace EmojiWar.GameMain
             StartCoroutine(s_IsJoiner ? AutoJoinFlow() : AutoFlow());
         }
 
-        /// <summary>加入者自动流程：开始游戏 → 加入 127.0.0.1:7777 → 验证网络实体。</summary>
+        /// <summary>加入者自动流程：开始游戏 → 加入 → 房间自动准备 → 全部准备后自动开始。</summary>
         private IEnumerator AutoJoinFlow()
         {
             WriteProbe("[auto] join flow started");
@@ -58,10 +58,17 @@ namespace EmojiWar.GameMain
             WriteProbe("[auto] trigger join 127.0.0.1:7777");
             UI.LobbyForm.TriggerJoinRoom("127.0.0.1", Network.NetworkService.DefaultPort);
 
-            // 等待连接/加入/战斗
-            yield return new WaitForSeconds(20f);
+            // 进入房间后自动准备
+            yield return new WaitForSeconds(3f);
+            WriteProbe("[auto] joiner trigger ready");
+            UI.RoomFormEvents.RequestReady();
 
-            // 统计网络实体（LocalEntityCount = 渲染的网络实体数，不含本地玩家与"自己"）
+            // 等待战斗开始（全部准备 → 自动开始）
+            yield return new WaitForSeconds(12f);
+            var battleScene = UnityEngine.SceneManagement.SceneManager.GetSceneByName("Battle");
+            WriteProbe("[auto] joiner battleSceneLoaded=" + battleScene.isLoaded);
+
+            // 统计网络实体
             var netLogics = Object.FindObjectsOfType<Network.NetClientLogic>();
             int total = 0;
             foreach (var n in netLogics)
@@ -85,8 +92,13 @@ namespace EmojiWar.GameMain
             WriteProbe("[auto] trigger create room");
             UI.LobbyForm.TriggerCreateRoom();
 
+            // 进入房间后自动准备（延迟等待其他玩家加入；全部准备后自动开始）
+            yield return new WaitForSeconds(20f);
+            WriteProbe("[auto] host trigger ready");
+            UI.RoomFormEvents.RequestReady();
+
             // 等待战斗开始（BattleManager 会写入 SpawnPlayer/SpawnEnemy 探针）
-            yield return new WaitForSeconds(8f);
+            yield return new WaitForSeconds(10f);
 
             // 统计场景中实际渲染的 SpriteRenderer（验证美术是否生效）
             var renderers = Object.FindObjectsOfType<SpriteRenderer>();

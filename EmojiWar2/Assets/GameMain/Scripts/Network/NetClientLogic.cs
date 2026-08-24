@@ -113,12 +113,16 @@ namespace EmojiWar.GameMain.Network
             WriteProbe("[net] OnModeChanged -> " + mode + " joined=" + m_Joined + " intentionalLeave=" + m_IntentionalLeave);
             if (mode == NetMode.Offline && m_Joined && !m_IntentionalLeave)
             {
-                Debug.Log("[NetClientLogic] 连接断开，启动重连");
-                WriteProbe("[net] 连接断开，启动重连");
-                StartReconnect();
+                // 连接断开（房主退出/网络中断）：通知流程返回大厅，停止重连
+                Debug.Log("[NetClientLogic] 连接断开（房主退出），返回大厅");
+                WriteProbe("[net] 连接断开，返回大厅");
+                m_IntentionalLeave = true;
+                m_Joined = false;
+                m_Reconnecting = false;
+                ClearLocalEntities();
+                UI.RoomEvents.RoomClosed();
             }
         }
-
         /// <summary>
         /// 加入房间（连接建立后调用）。
         /// </summary>
@@ -138,6 +142,18 @@ namespace EmojiWar.GameMain.Network
             m_JoinSent = false;
             WriteProbe("[net] JoinRoom 排队: " + m_PlayerName + " @ " + m_ServerIp + ":" + m_ServerPort);
             Debug.Log("[NetClientLogic] 加入房间请求已排队，连接建立后发送: " + m_PlayerName);
+        }
+
+        /// <summary>
+        /// 发送准备/取消准备请求。
+        /// </summary>
+        public void SendReady(bool ready)
+        {
+            if (m_Service != null)
+            {
+                m_Service.Send(new C2SReadyChange { Ready = ready });
+                WriteProbe("[net] 发送准备状态: " + ready);
+            }
         }
 
         /// <summary>
@@ -326,14 +342,36 @@ namespace EmojiWar.GameMain.Network
                     HandleRunRestart();
                     break;
 
+                case MsgId.PlayerList:
+                    var pl = message as S2CPlayerList;
+                    if (pl != null)
+                    {
+                        WriteProbe("[net] 收到玩家列表: " + pl.Players);
+                        UI.RoomEvents.PlayerListUpdated(pl.Players);
+                    }
+                    break;
+
+                case MsgId.BattleStart:
+                    WriteProbe("[net] 收到战斗开始广播");
+                    UI.RoomEvents.BattleStart();
+                    break;
+
+                case MsgId.RoomClosed:
+                    WriteProbe("[net] 收到房间解散广播");
+                    m_IntentionalLeave = true;
+                    m_Joined = false;
+                    m_Reconnecting = false;
+                    ClearLocalEntities();
+                    UI.RoomEvents.RoomClosed();
+                    break;
+
                 case MsgId.MyEntity:
                     var my = message as S2CMyEntity;
                     if (my != null)
                     {
                         m_MyEntityId = my.EntityId;
                         m_JoinConfirmed = true;    // 收到加入确认
-                        WriteProbe("[net] 收到 S2CMyEntity, 我的实体ID=" + m_MyEntityId + "（加入成功）");
-                        // 兜底：若自己的实体已被渲染（消息时序竞争），移除，避免误当其他玩家
+                        WriteProbe("[net] 收到 S2CMyEntity, 我的实体ID=" + m_MyEntityId + "（加入成功）");                        // 兜底：若自己的实体已被渲染（消息时序竞争），移除，避免误当其他玩家
                         if (m_LocalEntities.TryGetValue(m_MyEntityId, out var self))
                         {
                             if (self != null && self.Transform != null)

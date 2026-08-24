@@ -21,6 +21,22 @@ namespace EmojiWar.GameMain.Weapon
         [SerializeField]
         private GameObject m_ProjectilePrefab = null;
 
+        /// <summary>
+        /// 从数据行配置远程参数（子弹速度/散射）。
+        /// </summary>
+        public void InitRanged(Data.DRWeapon row)
+        {
+            if (row == null)
+            {
+                return;
+            }
+            if (row.BulletSpeed > 0f)
+            {
+                m_BulletSpeed = row.BulletSpeed;
+            }
+            m_Spread = row.Spread;
+        }
+
         protected override bool Fire(Vector2 target)
         {
             if (m_ProjectilePrefab == null || m_FirePoint == null)

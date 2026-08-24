@@ -78,6 +78,24 @@ namespace EmojiWar.GameMain.Network
         }
     }
 
+    /// <summary>准备/取消准备。</summary>
+    public sealed class C2SReadyChange : NetMessage
+    {
+        public bool Ready;
+
+        public override MsgId Id { get { return MsgId.ReadyChange; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(Ready);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            Ready = reader.ReadBoolean();
+        }
+    }
+
     // ==================== S2C ====================
 
     /// <summary>房间状态。</summary>
@@ -300,6 +318,59 @@ namespace EmojiWar.GameMain.Network
         public override void Deserialize(BinaryReader reader)
         {
             Seed = reader.ReadInt32();
+        }
+    }
+
+    /// <summary>S2C: 战斗开始（房间内全部准备后广播）。</summary>
+    public sealed class S2CBattleStart : NetMessage
+    {
+        public int Seed;
+
+        public override MsgId Id { get { return MsgId.BattleStart; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(Seed);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            Seed = reader.ReadInt32();
+        }
+    }
+
+    /// <summary>S2C: 房间玩家列表（名字+准备状态，";"分隔 "name:ready;name:ready"）。</summary>
+    public sealed class S2CPlayerList : NetMessage
+    {
+        public int Count;
+        public string Players;    // "name:ready;name:ready;..."
+
+        public override MsgId Id { get { return MsgId.PlayerList; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(Count);
+            writer.Write(Players ?? string.Empty);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            Count = reader.ReadInt32();
+            Players = reader.ReadString();
+        }
+    }
+
+    /// <summary>S2C: 房间解散（房主退出/离开）。</summary>
+    public sealed class S2CRoomClosed : NetMessage
+    {
+        public override MsgId Id { get { return MsgId.RoomClosed; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
         }
     }
 

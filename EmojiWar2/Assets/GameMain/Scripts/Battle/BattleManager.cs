@@ -156,6 +156,11 @@ namespace EmojiWar.GameMain.Battle
 
             weapon.Configure(weaponRow);
             weapon.SetOwner(player);
+            var ranged = weapon as Weapon.RangedWeapon;
+            if (ranged != null)
+            {
+                ranged.InitRanged(weaponRow);
+            }
             player.PrimaryWeapon = weapon;
         }
 

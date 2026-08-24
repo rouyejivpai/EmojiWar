@@ -51,27 +51,27 @@ namespace EmojiWar.GameMain.Procedure
 
         private void OnRestartRequested()
         {
-            Log.Info("[ProcedureGameOver] 重新开始");
-            WriteProbe("[gameover] RestartRequested");
+            Log.Info("[ProcedureGameOver] 返回房间，准备下一局");
+            WriteProbe("[gameover] RestartRequested (return to room)");
 
             // 关闭当前战斗 HUD、结算与商店 UI
             CloseBattleForms();
 
-            // Host 模式：重置服务器权威状态（清敌、波次归零、重置 HP）并广播 S2CRunRestart
+            // Host：重置服务器房间状态（清敌、波次归零、玩家准备复位）
             var net = GameEntry.NetworkService;
             if (net != null && net.Mode == Network.NetMode.Host)
             {
                 var hostLogic = GameEntry.Instance != null
-                    ? GameEntry.Instance.GetComponent<Network.NetHostLogic>()
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetHostLogic>()
                     : null;
                 if (hostLogic != null)
                 {
-                    hostLogic.ResetRunAndBroadcast();
+                    hostLogic.ResetRoom();
                 }
             }
 
-            // 进入战斗流程：由 ProcedureBattle 清理旧实体后重新开局（不重载场景，避免破坏框架）
-            ChangeState<ProcedureBattle>(m_ProcedureFsm);
+            // 返回房间流程：全部准备后开始下一局
+            ChangeState<ProcedureRoom>(m_ProcedureFsm);
         }
 
         private void OnMenuRequested()
@@ -85,7 +85,7 @@ namespace EmojiWar.GameMain.Procedure
                 GameEntry.NetworkService.Shutdown();
             }
             var clientLogic = GameEntry.Instance != null
-                ? GameEntry.Instance.GetComponent<Network.NetClientLogic>()
+                ? GameEntry.Instance.GetComponentInChildren<Network.NetClientLogic>()
                 : null;
             if (clientLogic != null)
             {
