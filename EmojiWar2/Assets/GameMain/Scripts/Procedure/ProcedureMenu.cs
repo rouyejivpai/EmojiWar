@@ -97,7 +97,7 @@ namespace EmojiWar.GameMain.Procedure
             // 运行时探针：验证构建版菜单 UI 打开
             try
             {
-                string path = System.IO.Path.Combine(Application.dataPath, "../Logs/runtime_probe.txt");
+                string path = System.IO.Path.Combine(Application.dataPath, "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
                 System.IO.File.AppendAllText(path, "[menu] MenuForm open requested\n");
             }
@@ -127,7 +127,7 @@ namespace EmojiWar.GameMain.Procedure
         {
             try
             {
-                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe.txt");
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
                 System.IO.File.AppendAllText(path, message + "\n");
             }

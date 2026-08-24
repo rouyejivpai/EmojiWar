@@ -381,6 +381,13 @@ namespace EmojiWar.GameMain.Network
             spriteRenderer.sprite = sprite;
             spriteRenderer.sortingOrder = spawn.Type == 0 ? 10 : 5;
 
+            // 玩家实体按 EntityId 着色（黄金比例色相分布）：联机时多个玩家可区分
+            if (spawn.Type == 0)
+            {
+                float hue = (spawn.EntityId * 0.61803398875f) % 1f;
+                spriteRenderer.color = Color.HSVToRGB(hue, 0.55f, 1f);
+            }
+
             Vector3 spawnPos = new Vector3(spawn.X, spawn.Y, 0f);
             go.transform.position = spawnPos;
 

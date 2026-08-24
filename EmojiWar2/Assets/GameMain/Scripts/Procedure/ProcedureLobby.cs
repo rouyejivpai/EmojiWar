@@ -116,9 +116,15 @@ namespace EmojiWar.GameMain.Procedure
 
         private void GoBattle()
         {
+            s_GoBattleCount++;
+            WriteProbe(string.Format("[lobby] GoBattle called #{0}\n{1}",
+                s_GoBattleCount,
+                System.Environment.StackTrace.Substring(0, System.Math.Min(800, System.Environment.StackTrace.Length))));
             Log.Info("[ProcedureLobby] 进入战斗");
             ChangeState<ProcedureBattle>(m_ProcedureFsm);
         }
+
+        private static int s_GoBattleCount = 0;
 
         private Network.NetClientLogic GetOrAddClientLogic()
         {
@@ -183,7 +189,7 @@ namespace EmojiWar.GameMain.Procedure
         {
             try
             {
-                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe.txt");
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
                 System.IO.File.AppendAllText(path, message + "\n");
             }

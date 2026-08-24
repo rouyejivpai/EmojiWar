@@ -95,7 +95,7 @@ namespace EmojiWar.GameMain
         {
             try
             {
-                string path = System.IO.Path.Combine(Application.dataPath, "../Logs/runtime_probe.txt");
+                string path = System.IO.Path.Combine(Application.dataPath, "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
                 System.IO.File.AppendAllText(path, message + "\n");
             }

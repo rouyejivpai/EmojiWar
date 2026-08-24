@@ -58,8 +58,10 @@ namespace EmojiWar.GameMain.Procedure
             s_BattleSession = true;
             Current = this;
             m_BattleStartedThisEnter = false;
-            WriteProbe("[battle-proc] OnEnter, activeScene=" + UnityEngine.SceneManagement.SceneManager.GetActiveScene().name +
-                " battleSceneLoaded=" + UnityEngine.SceneManagement.SceneManager.GetSceneByName("Battle").isLoaded);
+            s_OnEnterCount++;
+            WriteProbe("[battle-proc] OnEnter#" + s_OnEnterCount + ", activeScene=" + UnityEngine.SceneManagement.SceneManager.GetActiveScene().name +
+                " battleSceneLoaded=" + UnityEngine.SceneManagement.SceneManager.GetSceneByName("Battle").isLoaded +
+                " sceneCount=" + UnityEngine.SceneManagement.SceneManager.sceneCount);
 
             Current = this;
             CurrentFsm = procedureOwner;
@@ -298,16 +300,21 @@ namespace EmojiWar.GameMain.Procedure
             {
                 Current = null;
             }
+            s_OnLeaveCount++;
+            WriteProbe("[battle-proc] OnLeave#" + s_OnLeaveCount);
             CurrentFsm = null;
             base.OnLeave(procedureOwner, isShutdown);
         }
+
+        private static int s_OnEnterCount = 0;
+        private static int s_OnLeaveCount = 0;
 
         /// <summary>运行时探针。</summary>
         private static void WriteProbe(string message)
         {
             try
             {
-                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe.txt");
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
                 System.IO.File.AppendAllText(path, message + "\n");
             }

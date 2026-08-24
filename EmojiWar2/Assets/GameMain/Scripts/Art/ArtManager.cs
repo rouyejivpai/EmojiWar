@@ -39,7 +39,7 @@ namespace EmojiWar.GameMain.Art
                 s_Probed = true;
                 try
                 {
-                    string probePath = System.IO.Path.Combine(Application.dataPath, "../Logs/runtime_probe.txt");
+                    string probePath = System.IO.Path.Combine(Application.dataPath, "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
                     System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(probePath));
                     System.IO.File.AppendAllText(probePath,
                         string.Format("[art] LoadEmoji({0}) -> {1}\n", emojiFile, sprite != null ? "OK" : "NULL"));
