@@ -225,6 +225,9 @@ namespace EmojiWar.GameMain.Network
             };
             m_Players[sessionId] = state;
 
+            // 先告知新加入者"自己的实体 ID"，再广播 spawn —— 否则客户端会先渲染自己（误当成其他玩家）
+            m_Service.SendToClient(sessionId, new S2CMyEntity { EntityId = state.EntityId });
+
             // 通知所有客户端：新玩家加入 + 生成实体
             var joined = new S2CPlayerJoined { PlayerId = sessionId, PlayerName = join.PlayerName };
             m_Service.BroadcastToClients(joined);
@@ -238,9 +241,6 @@ namespace EmojiWar.GameMain.Network
                 Y = state.Position.y,
             };
             m_Service.BroadcastToClients(spawn);
-
-            // 告知新加入者"自己的实体 ID"（客户端跳过渲染自己，避免与本地玩家重复）
-            m_Service.SendToClient(sessionId, new S2CMyEntity { EntityId = state.EntityId });
 
             // 广播已有玩家实体给新加入者（含房主），保证晚进客户端的可见性
             foreach (var kv in m_Players)

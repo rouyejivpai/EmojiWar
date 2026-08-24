@@ -303,6 +303,16 @@ namespace EmojiWar.GameMain.Network
                     if (my != null)
                     {
                         m_MyEntityId = my.EntityId;
+                        // 兜底：若自己的实体已被渲染（消息时序竞争），移除，避免误当其他玩家
+                        if (m_LocalEntities.TryGetValue(m_MyEntityId, out var self))
+                        {
+                            if (self != null && self.Transform != null)
+                            {
+                                Destroy(self.Transform.gameObject);
+                            }
+                            m_LocalEntities.Remove(m_MyEntityId);
+                            Debug.Log("[NetClientLogic] 移除已误渲染的自己实体 " + m_MyEntityId);
+                        }
                         Debug.Log("[NetClientLogic] 我的实体 ID = " + m_MyEntityId + "（客户端不渲染自己）");
                     }
                     break;
