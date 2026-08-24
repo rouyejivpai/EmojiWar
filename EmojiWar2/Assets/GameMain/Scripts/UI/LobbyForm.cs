@@ -119,6 +119,14 @@ namespace EmojiWar.GameMain.UI
             OnCreateRoomRequested?.Invoke("房主");
         }
 
+        /// <summary>
+        /// 触发加入房间（公开：供测试/流程驱动调用）。
+        /// </summary>
+        public static void TriggerJoinRoom(string ip = "127.0.0.1", int port = Network.NetworkService.DefaultPort)
+        {
+            OnJoinRoomRequested?.Invoke("玩家", ip, port);
+        }
+
         private void OnJoinClick()
         {
             string name = m_NameInput != null ? m_NameInput.text : "玩家";

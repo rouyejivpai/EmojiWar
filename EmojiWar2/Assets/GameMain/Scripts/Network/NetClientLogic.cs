@@ -46,6 +46,11 @@ namespace EmojiWar.GameMain.Network
         private bool m_JoinSent = false;
         private bool m_IntentionalLeave = false;
 
+        /// <summary>加入确认（收到 S2CMyEntity 视为加入成功）；超时未确认则重发 JoinRoom。</summary>
+        private bool m_JoinConfirmed = false;
+        private float m_JoinSendTime = 0f;
+        private const float JoinConfirmTimeout = 3f;
+
         /// <summary>自己的网络实体 ID（Host 告知；客户端不渲染自己，避免与本地玩家重复）。</summary>
         private int m_MyEntityId = -1;
         private string m_PlayerName = "玩家";
@@ -166,9 +171,19 @@ namespace EmojiWar.GameMain.Network
             if (!m_JoinSent && m_Service.IsConnected)
             {
                 m_JoinSent = true;
+                m_JoinConfirmed = false;
+                m_JoinSendTime = Time.realtimeSinceStartup;
                 m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName });
                 WriteProbe("[net] 发送 C2SJoinRoom: " + m_PlayerName);
                 Debug.Log("[NetClientLogic] 发送加入房间请求: " + m_PlayerName);
+            }
+
+            // 加入未确认（可能被连接时序丢弃）：3 秒后重发
+            if (m_JoinSent && !m_JoinConfirmed && Time.realtimeSinceStartup - m_JoinSendTime > JoinConfirmTimeout)
+            {
+                m_JoinSent = false;
+                WriteProbe("[net] JoinRoom 3 秒未确认，重发");
+                Debug.Log("[NetClientLogic] JoinRoom 未确认，重发");
             }
 
             // 上行输入（测试：自动移动；正式：读取真实输入）
@@ -316,7 +331,8 @@ namespace EmojiWar.GameMain.Network
                     if (my != null)
                     {
                         m_MyEntityId = my.EntityId;
-                        WriteProbe("[net] 收到 S2CMyEntity, 我的实体ID=" + m_MyEntityId);
+                        m_JoinConfirmed = true;    // 收到加入确认
+                        WriteProbe("[net] 收到 S2CMyEntity, 我的实体ID=" + m_MyEntityId + "（加入成功）");
                         // 兜底：若自己的实体已被渲染（消息时序竞争），移除，避免误当其他玩家
                         if (m_LocalEntities.TryGetValue(m_MyEntityId, out var self))
                         {

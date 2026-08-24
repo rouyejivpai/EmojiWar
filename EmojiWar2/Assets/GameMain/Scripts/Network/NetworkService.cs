@@ -31,7 +31,7 @@ namespace EmojiWar.GameMain.Network
         private NetMode m_Mode = NetMode.Offline;
 
         public NetMode Mode { get { return m_Mode; } }
-        public bool IsConnected { get { return m_Connection != null && m_Connection.IsConnected; } }
+        public bool IsConnected { get { return m_Connection != null && m_Connection.IsReady; } }
         public bool IsHosting { get { return m_Server != null && m_Server.IsRunning; } }
         public int ConnectedClients { get { return m_Server != null ? m_Server.SessionCount : 0; } }
 

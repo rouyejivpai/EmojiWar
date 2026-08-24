@@ -16,6 +16,7 @@ namespace EmojiWar.GameMain
     public class AutoPlay : MonoBehaviour
     {
         private static bool s_Started = false;
+        private static bool s_IsJoiner = false;
 
         public static void TryStart()
         {
@@ -27,12 +28,13 @@ namespace EmojiWar.GameMain
             var args = System.Environment.GetCommandLineArgs();
             foreach (var arg in args)
             {
-                if (arg == "-autocreate")
+                if (arg == "-autocreate" || arg == "-autojoin")
                 {
                     s_Started = true;
+                    s_IsJoiner = arg == "-autojoin";
                     var go = new GameObject("AutoPlay");
                     go.AddComponent<AutoPlay>();
-                    Debug.Log("[AutoPlay] -autocreate 参数检测到，启动自动流程");
+                    Debug.Log("[AutoPlay] " + arg + " 参数检测到，启动自动流程");
                     return;
                 }
             }
@@ -40,7 +42,34 @@ namespace EmojiWar.GameMain
 
         private void Start()
         {
-            StartCoroutine(AutoFlow());
+            StartCoroutine(s_IsJoiner ? AutoJoinFlow() : AutoFlow());
+        }
+
+        /// <summary>加入者自动流程：开始游戏 → 加入 127.0.0.1:7777 → 验证网络实体。</summary>
+        private IEnumerator AutoJoinFlow()
+        {
+            WriteProbe("[auto] join flow started");
+
+            yield return new WaitForSeconds(4f);
+            WriteProbe("[auto] trigger start game");
+            UI.MenuForm.TriggerStartGame();
+
+            yield return new WaitForSeconds(2f);
+            WriteProbe("[auto] trigger join 127.0.0.1:7777");
+            UI.LobbyForm.TriggerJoinRoom("127.0.0.1", Network.NetworkService.DefaultPort);
+
+            // 等待连接/加入/战斗
+            yield return new WaitForSeconds(20f);
+
+            // 统计网络实体（LocalEntityCount = 渲染的网络实体数，不含本地玩家与"自己"）
+            var netLogics = Object.FindObjectsOfType<Network.NetClientLogic>();
+            int total = 0;
+            foreach (var n in netLogics)
+            {
+                total += n.LocalEntityCount;
+            }
+            WriteProbe("[auto] joiner net-entities=" + total + " (expect >=1 = host entity)");
+            Debug.Log("[AutoPlay] 加入者网络实体数=" + total);
         }
 
         private IEnumerator AutoFlow()

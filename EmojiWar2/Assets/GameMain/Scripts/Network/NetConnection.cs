@@ -25,6 +25,15 @@ namespace EmojiWar.GameMain.Network
             get { return m_Client != null && m_Client.Connected; }
         }
 
+        /// <summary>
+        /// 是否真正可收发（流已就绪）。TcpClient.Connected 在握手完成即 true，
+        /// 但 m_Stream 需等异步回调赋值 —— 在此之前 Send 会丢弃消息（JoinRoom 丢失根因）。
+        /// </summary>
+        public bool IsReady
+        {
+            get { return m_Client != null && m_Client.Connected && m_Stream != null; }
+        }
+
         /// <summary>收到消息事件。</summary>
         public event Action<NetMessage> OnMessage;
 
