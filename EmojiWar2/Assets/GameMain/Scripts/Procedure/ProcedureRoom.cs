@@ -158,6 +158,10 @@ namespace EmojiWar.GameMain.Procedure
             {
                 Network.NetHostLogic.OnBattleStartRequested -= OnBattleStart;
             }
+
+            // 离开房间流程时关闭房间 UI（避免遮挡战斗场景）
+            UI.UIFormCloser.CloseByName("RoomForm(Clone)");
+
             m_Entered = false;
             m_ProcedureFsm = null;
             base.OnLeave(procedureOwner, isShutdown);

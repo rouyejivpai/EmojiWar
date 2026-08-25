@@ -157,6 +157,22 @@ namespace EmojiWar.GameMain.Network
         }
 
         /// <summary>
+        /// 把本地网络实体迁移到指定场景（战斗场景加载后调用，
+        /// 避免实体留在 Menu 场景被战斗相机 clear 遮挡而"缺玩家"）。
+        /// </summary>
+        public void MoveEntitiesToScene(UnityEngine.SceneManagement.Scene scene)
+        {
+            foreach (var kv in m_LocalEntities)
+            {
+                if (kv.Value != null && kv.Value.Transform != null)
+                {
+                    UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(kv.Value.Transform.gameObject, scene);
+                }
+            }
+            Debug.Log("[NetClientLogic] 迁移网络实体到场景 " + scene.name + "，数量 " + m_LocalEntities.Count);
+        }
+
+        /// <summary>
         /// 主动离开房间：停止重连并清理本地实体。
         /// </summary>
         public void LeaveRoom()

@@ -131,12 +131,22 @@ namespace EmojiWar.GameMain
                 }
             }
 
+            // 玩家类精灵（网络/远程玩家 sortingOrder>=10；本地玩家 sortingOrder=0）
+            int playerSprites = 0;
+            foreach (var r in renderers)
+            {
+                if (r != null && r.sortingOrder >= 10)
+                {
+                    playerSprites++;
+                }
+            }
+
             var players = Object.FindObjectsOfType<Entity.PlayerEntity>();
             var enemies = Object.FindObjectsOfType<Entity.EnemyEntity>();
-            WriteProbe(string.Format("[auto] SpriteRenderers={0} withSprite={1} players={2} enemies={3} hostRemotePlayers={4}",
-                renderers.Length, withSprite, players.Length, enemies.Length, remotePlayers));
-            Debug.Log(string.Format("[AutoPlay] 战斗实体统计: SpriteRenderers={0} withSprite={1} players={2} enemies={3} hostRemotePlayers={4}",
-                renderers.Length, withSprite, players.Length, enemies.Length, remotePlayers));
+            WriteProbe(string.Format("[auto] SpriteRenderers={0} players={1} enemies={2} hostRemotePlayers={3} playerSprites(order>=10)={4}",
+                renderers.Length, players.Length, enemies.Length, remotePlayers, playerSprites));
+            Debug.Log(string.Format("[AutoPlay] 实体统计: players={0} enemies={1} remote={2} playerSprites={3}",
+                players.Length, enemies.Length, remotePlayers, playerSprites));
 
             // 等玩家被敌人打死 → 结算界面 → 模拟点"重新开始"，验证重开路径不产生多玩家
             yield return new WaitForSeconds(15f);

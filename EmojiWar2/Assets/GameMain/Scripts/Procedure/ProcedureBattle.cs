@@ -92,7 +92,34 @@ namespace EmojiWar.GameMain.Procedure
                 }
                 // 场景已在战斗（重开/远端重开）：先清理旧实体与旧管理器，再重新开局
                 CleanupBattleScene();
+                MigrateNetworkEntitiesToBattleScene();
                 StartBattle();
+            }
+        }
+
+        /// <summary>迁移网络实体/远程玩家表现到战斗场景（避免被战斗相机 clear 遮挡）。</summary>
+        private void MigrateNetworkEntitiesToBattleScene()
+        {
+            var battleScene = UnityEngine.SceneManagement.SceneManager.GetSceneByName("Battle");
+            if (!battleScene.IsValid())
+            {
+                return;
+            }
+
+            var clientLogic = GameEntry.Instance != null
+                ? GameEntry.Instance.GetComponentInChildren<Network.NetClientLogic>()
+                : null;
+            if (clientLogic != null)
+            {
+                clientLogic.MoveEntitiesToScene(battleScene);
+            }
+
+            var hostLogic = GameEntry.Instance != null
+                ? GameEntry.Instance.GetComponentInChildren<Network.NetHostLogic>()
+                : null;
+            if (hostLogic != null)
+            {
+                hostLogic.MoveRemotePlayersToScene(battleScene);
             }
         }
 
@@ -135,6 +162,10 @@ namespace EmojiWar.GameMain.Procedure
 
             Log.Info("[ProcedureBattle] 战斗场景加载完成: {0}", args.SceneAssetName);
             WriteProbe("[battle-proc] LoadSceneSuccess: " + args.SceneAssetName);
+
+            // 迁移网络实体/远程玩家表现到战斗场景（避免被战斗相机 clear 遮挡而"缺玩家"）
+            MigrateNetworkEntitiesToBattleScene();
+
             StartBattle();
         }
 

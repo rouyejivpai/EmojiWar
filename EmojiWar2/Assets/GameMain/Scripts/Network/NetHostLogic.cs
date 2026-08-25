@@ -125,6 +125,22 @@ namespace EmojiWar.GameMain.Network
             }
         }
 
+        /// <summary>
+        /// 把房主本地"其他玩家"表现迁移到指定场景（战斗场景加载后调用，
+        /// 避免留在 Menu 场景被战斗相机 clear 遮挡而"缺玩家"）。
+        /// </summary>
+        public void MoveRemotePlayersToScene(UnityEngine.SceneManagement.Scene scene)
+        {
+            foreach (var kv in m_LocalRemotePlayers)
+            {
+                if (kv.Value != null)
+                {
+                    UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(kv.Value.gameObject, scene);
+                }
+            }
+            Debug.Log("[NetHostLogic] 迁移远程玩家表现到场景 " + scene.name + "，数量 " + m_LocalRemotePlayers.Count);
+        }
+
         /// <summary>清理 Host 本地对其他玩家的表现对象。</summary>
         private void ClearRemotePlayerVisuals()
         {
@@ -387,6 +403,8 @@ namespace EmojiWar.GameMain.Network
 
             var msg = new S2CPlayerList { Count = m_Players.Count, Players = sb.ToString() };
             m_Service.BroadcastToClients(msg);
+            // 房主本地无网络客户端，收不到自己的广播 → 直接触发本地 UI 刷新（房间页玩家列表/准备状态）
+            UI.RoomEvents.PlayerListUpdated(msg.Players);
             WriteProbe("[net-host] 广播玩家列表: " + msg.Players);
             Debug.Log("[NetHostLogic] 广播玩家列表: " + msg.Players);
         }
