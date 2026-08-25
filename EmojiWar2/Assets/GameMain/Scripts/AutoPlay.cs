@@ -54,6 +54,11 @@ namespace EmojiWar.GameMain
             WriteProbe("[auto] trigger start game");
             UI.MenuForm.TriggerStartGame();
 
+            // 角色选择：自动选 1 号角色
+            yield return new WaitForSeconds(3f);
+            WriteProbe("[auto] select character 1");
+            UI.CharacterSelectEvents.Select(1);
+
             yield return new WaitForSeconds(2f);
             WriteProbe("[auto] trigger join 127.0.0.1:7777");
             UI.LobbyForm.TriggerJoinRoom("127.0.0.1", Network.NetworkService.DefaultPort);
@@ -88,12 +93,17 @@ namespace EmojiWar.GameMain
             WriteProbe("[auto] trigger start game");
             UI.MenuForm.TriggerStartGame();
 
+            // 角色选择：自动选 1 号角色
+            yield return new WaitForSeconds(3f);
+            WriteProbe("[auto] select character 1");
+            UI.CharacterSelectEvents.Select(1);
+
             yield return new WaitForSeconds(2f);
             WriteProbe("[auto] trigger create room");
             UI.LobbyForm.TriggerCreateRoom();
 
             // 进入房间后自动准备（延迟等待其他玩家加入；全部准备后自动开始）
-            yield return new WaitForSeconds(20f);
+            yield return new WaitForSeconds(30f);
             WriteProbe("[auto] host trigger ready");
             UI.RoomFormEvents.RequestReady();
 

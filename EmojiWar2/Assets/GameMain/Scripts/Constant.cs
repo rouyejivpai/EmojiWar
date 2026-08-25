@@ -30,6 +30,7 @@ namespace EmojiWar.GameMain
             public const string BattleHudForm = "Assets/GameMain/UI/BattleHudForm.prefab";
             public const string GameOverForm = "Assets/GameMain/UI/GameOverForm.prefab";
             public const string RoomForm = "Assets/GameMain/UI/RoomForm.prefab";
+            public const string CharacterSelectForm = "Assets/GameMain/UI/CharacterSelectForm.prefab";
         }
     }
 }

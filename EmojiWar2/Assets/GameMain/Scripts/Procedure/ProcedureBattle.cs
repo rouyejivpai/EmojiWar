@@ -21,8 +21,11 @@ namespace EmojiWar.GameMain.Procedure
         private const string BattleSceneAssetName = "Assets/GameMain/Scenes/Battle.unity";
         private const string BattleManagerPrefabPath = "Assets/GameMain/Resources/Entities/BattleManager.prefab";
 
-        // 通过 userData 传入的角色 ID（Phase 2 固定为 1，后续接选角）
+        // 通过 userData 传入的角色 ID（角色选择流程设置，默认 1）
         private int m_CharacterId = 1;
+
+        /// <summary>角色选择流程选定的角色 ID（静态，供 Battle 使用）。</summary>
+        public static int SelectedCharacterId = 1;
 
         /// <summary>当前战斗管理器实例（重开时销毁，避免重复波次）。</summary>
         private Battle.BattleManager m_BattleManager = null;
@@ -143,6 +146,9 @@ namespace EmojiWar.GameMain.Procedure
                 return;
             }
             m_BattleStartedThisEnter = true;
+
+            // 使用角色选择流程设定的角色
+            m_CharacterId = SelectedCharacterId;
 
             WriteProbe("[battle-proc] StartBattle called, DataReady=" + (GameEntry.Data != null ? GameEntry.Data.IsReady.ToString() : "DataNULL"));
             if (GameEntry.Data == null || !GameEntry.Data.IsReady)

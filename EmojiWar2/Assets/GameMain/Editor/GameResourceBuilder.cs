@@ -28,7 +28,9 @@ namespace EmojiWar.GameMain.Editor
         private static readonly string[] AssetPaths =
         {
             "Assets/GameMain/UI/MenuForm.prefab",
+            "Assets/GameMain/UI/CharacterSelectForm.prefab",
             "Assets/GameMain/UI/LobbyForm.prefab",
+            "Assets/GameMain/UI/RoomForm.prefab",
             "Assets/GameMain/UI/ShopForm.prefab",
             "Assets/GameMain/UI/BattleHudForm.prefab",
             "Assets/GameMain/UI/GameOverForm.prefab",

@@ -18,18 +18,20 @@ using EmojiWar.GameMain.UI;
 namespace EmojiWar.GameMain.Editor
 {
     /// <summary>
-    /// 联机房间搭建工具。
+    /// 联机房间 + 角色选择搭建工具。
     /// </summary>
     public static class RoomSetupBuilder
     {
         private const string MenuScenePath = "Assets/GameMain/Scenes/Menu.unity";
         private const string RoomFormPrefabPath = "Assets/GameMain/UI/RoomForm.prefab";
+        private const string CharacterSelectFormPrefabPath = "Assets/GameMain/UI/CharacterSelectForm.prefab";
 
-        // 流程类型全名（含 ProcedureRoom）
+        // 流程类型全名（含 ProcedureRoom + ProcedureCharacterSelect）
         private static readonly string[] ProcedureTypeNames =
         {
             "EmojiWar.GameMain.Procedure.ProcedureLaunch",
             "EmojiWar.GameMain.Procedure.ProcedureMenu",
+            "EmojiWar.GameMain.Procedure.ProcedureCharacterSelect",
             "EmojiWar.GameMain.Procedure.ProcedureLobby",
             "EmojiWar.GameMain.Procedure.ProcedureRoom",
             "EmojiWar.GameMain.Procedure.ProcedureBattle",
@@ -41,8 +43,9 @@ namespace EmojiWar.GameMain.Editor
         {
             UpdateProcedureList();
             CreateRoomFormPrefab();
+            CreateCharacterSelectFormPrefab();
             AssetDatabase.SaveAssets();
-            Debug.Log("[RoomSetup] 完成：流程列表已更新 + RoomForm.prefab 已生成");
+            Debug.Log("[RoomSetup] 完成：流程列表已更新 + RoomForm/CharacterSelectForm prefab 已生成");
         }
 
         /// <summary>更新 Menu 场景的 ProcedureComponent 流程列表（加入 ProcedureRoom）。</summary>
@@ -118,6 +121,47 @@ namespace EmojiWar.GameMain.Editor
             PrefabUtility.SaveAsPrefabAsset(root, RoomFormPrefabPath);
             Object.DestroyImmediate(root);
             Debug.Log("[RoomSetup] RoomForm prefab 已生成: " + RoomFormPrefabPath);
+        }
+
+        /// <summary>生成 CharacterSelectForm.prefab（4 个角色按钮）。</summary>
+        private static void CreateCharacterSelectFormPrefab()
+        {
+            EnsureFolder("Assets/GameMain/UI");
+
+            var root = new GameObject("CharacterSelectForm");
+            root.layer = LayerMask.NameToLayer("UI");
+
+            var canvas = root.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = root.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            root.AddComponent<GraphicRaycaster>();
+            root.AddComponent<CanvasGroup>();
+            var form = root.AddComponent<CharacterSelectForm>();
+
+            // 标题
+            var title = CreateText("Title", root.transform, "选择你的角色", 56, new Vector2(0, 400));
+            // 说明
+            var info = CreateText("Info", root.transform, "不同角色拥有不同的生命值与移动速度", 24, new Vector2(0, 320));
+
+            // 4 个角色按钮（两行两列）
+            var char1 = CreateButton("Char1", root.transform, "流汗黄豆", new Vector2(-400, 80));
+            var char2 = CreateButton("Char2", root.transform, "好吃黄豆", new Vector2(400, 80));
+            var char3 = CreateButton("Char3", root.transform, "硬汉黄豆", new Vector2(-400, -120));
+            var char4 = CreateButton("Char4", root.transform, "快枪黄豆", new Vector2(400, -120));
+
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            form.GetType().GetField("m_TitleText", flags).SetValue(form, title.GetComponent<Text>());
+            form.GetType().GetField("m_InfoText", flags).SetValue(form, info.GetComponent<Text>());
+            form.GetType().GetField("m_Char1Button", flags).SetValue(form, char1.GetComponent<Button>());
+            form.GetType().GetField("m_Char2Button", flags).SetValue(form, char2.GetComponent<Button>());
+            form.GetType().GetField("m_Char3Button", flags).SetValue(form, char3.GetComponent<Button>());
+            form.GetType().GetField("m_Char4Button", flags).SetValue(form, char4.GetComponent<Button>());
+
+            PrefabUtility.SaveAsPrefabAsset(root, CharacterSelectFormPrefabPath);
+            Object.DestroyImmediate(root);
+            Debug.Log("[RoomSetup] CharacterSelectForm prefab 已生成: " + CharacterSelectFormPrefabPath);
         }
 
         private static GameObject CreateText(string name, Transform parent, string content, int fontSize, Vector2 anchoredPos)
