@@ -78,7 +78,8 @@ namespace EmojiWar.GameMain.Procedure
             if (player != null)
             {
                 player.MoveSpeed = character != null ? character.MoveSpeed : 5f;
-                player.NetworkEntityId = GetLocalNetworkEntityId();   // 颜色与网络实体统一
+                player.CharacterId = ProcedureBattle.SelectedCharacterId;   // 角色专属美术
+                player.NetworkEntityId = GetLocalNetworkEntityId();
             }
             WriteProbe("[room] 房间玩家已生成（可移动），char=" + ProcedureBattle.SelectedCharacterId);
         }

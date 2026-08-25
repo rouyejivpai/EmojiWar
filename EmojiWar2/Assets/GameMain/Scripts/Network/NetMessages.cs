@@ -13,17 +13,20 @@ namespace EmojiWar.GameMain.Network
     public sealed class C2SJoinRoom : NetMessage
     {
         public string PlayerName;
+        public int CharacterId = 1;
 
         public override MsgId Id { get { return MsgId.JoinRoom; } }
 
         public override void Serialize(BinaryWriter writer)
         {
             writer.Write(PlayerName ?? string.Empty);
+            writer.Write(CharacterId);
         }
 
         public override void Deserialize(BinaryReader reader)
         {
             PlayerName = reader.ReadString();
+            CharacterId = reader.ReadInt32();
         }
     }
 
@@ -175,6 +178,7 @@ namespace EmojiWar.GameMain.Network
         public int Team;        // 1=Player, 2=Enemy
         public float X;
         public float Y;
+        public int CharacterId; // 玩家角色 ID（美术用；敌人为 0）
 
         public override MsgId Id { get { return MsgId.SpawnEntity; } }
 
@@ -185,6 +189,7 @@ namespace EmojiWar.GameMain.Network
             writer.Write(Team);
             writer.Write(X);
             writer.Write(Y);
+            writer.Write(CharacterId);
         }
 
         public override void Deserialize(BinaryReader reader)
@@ -194,6 +199,7 @@ namespace EmojiWar.GameMain.Network
             Team = reader.ReadInt32();
             X = reader.ReadSingle();
             Y = reader.ReadSingle();
+            CharacterId = reader.ReadInt32();
         }
     }
 

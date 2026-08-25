@@ -71,8 +71,13 @@ namespace EmojiWar.GameMain.Data
         public int Coin { get; private set; }
 
         /// <summary>
+        /// 角色美术（emoji 文件名，不含扩展名）。
+        /// </summary>
+        public string Icon { get; private set; }
+
+        /// <summary>
         /// 解析文本数据行（制表符分隔：# 开头为注释行）。
-        /// 列顺序：Id, CharacterId, CharacterName, Description, PrefabPath, DefaultWeaponId, SecondWeaponId, MaxHealth, MoveSpeed, Coin
+        /// 列顺序：Id, CharacterId, CharacterName, Description, PrefabPath, DefaultWeaponId, SecondWeaponId, MaxHealth, MoveSpeed, Coin, Icon
         /// </summary>
         public bool ParseDataRow(string dataRowText, object userData)
         {
@@ -89,6 +94,7 @@ namespace EmojiWar.GameMain.Data
             MaxHealth = int.Parse(split[index++]);
             MoveSpeed = float.Parse(split[index++]);
             Coin = int.Parse(split[index++]);
+            Icon = split[index++];
 
             return true;
         }

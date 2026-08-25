@@ -146,10 +146,10 @@ namespace EmojiWar.GameMain.Editor
             var info = CreateText("Info", root.transform, "不同角色拥有不同的生命值与移动速度", 24, new Vector2(0, 320));
 
             // 4 个角色按钮（两行两列）
-            var char1 = CreateButton("Char1", root.transform, "流汗黄豆", new Vector2(-400, 80));
-            var char2 = CreateButton("Char2", root.transform, "好吃黄豆", new Vector2(400, 80));
-            var char3 = CreateButton("Char3", root.transform, "硬汉黄豆", new Vector2(-400, -120));
-            var char4 = CreateButton("Char4", root.transform, "快枪黄豆", new Vector2(400, -120));
+            var char1 = CreateCharacterCard("Char1", root.transform, "流汗黄豆", "1f605", new Vector2(-400, 80));
+            var char2 = CreateCharacterCard("Char2", root.transform, "好吃黄豆", "1f60b", new Vector2(400, 80));
+            var char3 = CreateCharacterCard("Char3", root.transform, "硬汉黄豆", "1f621", new Vector2(-400, -120));
+            var char4 = CreateCharacterCard("Char4", root.transform, "快枪黄豆", "26a1", new Vector2(400, -120));
 
             var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             form.GetType().GetField("m_TitleText", flags).SetValue(form, title.GetComponent<Text>());
@@ -162,6 +162,39 @@ namespace EmojiWar.GameMain.Editor
             PrefabUtility.SaveAsPrefabAsset(root, CharacterSelectFormPrefabPath);
             Object.DestroyImmediate(root);
             Debug.Log("[RoomSetup] CharacterSelectForm prefab 已生成: " + CharacterSelectFormPrefabPath);
+        }
+
+        /// <summary>创建角色卡片（emoji 图标 + 名字，按钮可点）。</summary>
+        private static GameObject CreateCharacterCard(string name, Transform parent, string label, string icon, Vector2 anchoredPos)
+        {
+            var go = CreateButton(name, parent, label, anchoredPos);
+            go.GetComponent<RectTransform>().sizeDelta = new Vector2(360, 140);
+
+            // 角色 emoji 图标（左侧）
+            var iconGo = new GameObject("Icon");
+            iconGo.transform.SetParent(go.transform, false);
+            var iconRect = iconGo.AddComponent<RectTransform>();
+            iconRect.anchorMin = new Vector2(0f, 0.5f);
+            iconRect.anchorMax = new Vector2(0f, 0.5f);
+            iconRect.pivot = new Vector2(0f, 0.5f);
+            iconRect.anchoredPosition = new Vector2(20, 0);
+            iconRect.sizeDelta = new Vector2(80, 80);
+            var iconImage = iconGo.AddComponent<Image>();
+            iconImage.sprite = EmojiWar.GameMain.Art.ArtManager.GetCharacterSprite(icon);
+
+            // 文字右移
+            var labelText = go.GetComponentInChildren<Text>();
+            if (labelText != null)
+            {
+                var lr = labelText.GetComponent<RectTransform>();
+                lr.anchorMin = new Vector2(1f, 0.5f);
+                lr.anchorMax = new Vector2(1f, 0.5f);
+                lr.pivot = new Vector2(1f, 0.5f);
+                lr.anchoredPosition = new Vector2(-20, 0);
+                lr.sizeDelta = new Vector2(220, 100);
+                labelText.alignment = TextAnchor.MiddleRight;
+            }
+            return go;
         }
 
         private static GameObject CreateText(string name, Transform parent, string content, int fontSize, Vector2 anchoredPos)

@@ -22,6 +22,14 @@ namespace EmojiWar.GameMain.UI
         [SerializeField]
         private Text m_HpText = null;
 
+        [SerializeField]
+        private Text m_WeaponText = null;   // 当前武器名
+
+        [SerializeField]
+        private Text m_AmmoText = null;     // 弹药 / 装弹状态
+
+        private float m_WeaponRefreshTimer = 0f;
+
         protected override void OnInit(object userData)
         {
             base.OnInit(userData);
@@ -53,6 +61,45 @@ namespace EmojiWar.GameMain.UI
             // 每帧刷新波次与血量（简化）
             RefreshWave();
             RefreshHp();
+
+            // 武器信息低频刷新（弹药/装弹）
+            m_WeaponRefreshTimer -= Time.deltaTime;
+            if (m_WeaponRefreshTimer <= 0f)
+            {
+                m_WeaponRefreshTimer = 0.2f;
+                RefreshWeaponInfo();
+            }
+        }
+
+        /// <summary>刷新当前武器信息（名称 + 弹药 + 装弹状态）。</summary>
+        private void RefreshWeaponInfo()
+        {
+            if (m_WeaponText == null && m_AmmoText == null)
+            {
+                return;
+            }
+
+            var player = UnityEngine.Object.FindObjectOfType<Entity.PlayerEntity>();
+            var weapon = player != null ? player.PrimaryWeapon : null;
+
+            if (m_WeaponText != null)
+            {
+                m_WeaponText.text = "武器：" + (weapon != null ? weapon.WeaponName : "无");
+            }
+
+            if (m_AmmoText != null)
+            {
+                if (weapon != null)
+                {
+                    m_AmmoText.text = weapon.IsReloading
+                        ? "装弹中..."
+                        : string.Format("弹药 {0}/{1}", weapon.CurrentAmmo, weapon.MaxAmmo);
+                }
+                else
+                {
+                    m_AmmoText.text = "";
+                }
+            }
         }
 
         private void OnCoinChanged(int coin)

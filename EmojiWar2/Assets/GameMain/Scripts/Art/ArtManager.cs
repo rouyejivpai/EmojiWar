@@ -61,6 +61,18 @@ namespace EmojiWar.GameMain.Art
         }
 
         /// <summary>
+        /// 获取指定角色的美术 Sprite（按数据表 Icon 字段，不同角色不同 emoji）。
+        /// </summary>
+        public static Sprite GetCharacterSprite(string icon)
+        {
+            if (string.IsNullOrEmpty(icon))
+            {
+                return GetPlayerSprite();
+            }
+            return LoadEmoji(icon);
+        }
+
+        /// <summary>
         /// 获取敌人 Sprite（红色恶魔）。
         /// </summary>
         public static Sprite GetEnemySprite()

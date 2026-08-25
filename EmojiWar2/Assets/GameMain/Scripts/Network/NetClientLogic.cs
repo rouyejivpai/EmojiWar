@@ -208,8 +208,8 @@ namespace EmojiWar.GameMain.Network
                 m_JoinSent = true;
                 m_JoinConfirmed = false;
                 m_JoinSendTime = Time.realtimeSinceStartup;
-                m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName });
-                WriteProbe("[net] 发送 C2SJoinRoom: " + m_PlayerName);
+                m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName, CharacterId = GetLocalCharacterId() });
+                WriteProbe("[net] 发送 C2SJoinRoom: " + m_PlayerName + " char=" + GetLocalCharacterId());
                 Debug.Log("[NetClientLogic] 发送加入房间请求: " + m_PlayerName);
             }
 
@@ -271,6 +271,17 @@ namespace EmojiWar.GameMain.Network
             return null;
         }
 
+        /// <summary>本机角色 ID（本地玩家当前角色；无玩家时用上次选择）。</summary>
+        private int GetLocalCharacterId()
+        {
+            var local = FindLocalPlayer();
+            if (local != null && local.CharacterId > 0)
+            {
+                return local.CharacterId;
+            }
+            return Procedure.ProcedureBattle.SelectedCharacterId;
+        }
+
         // ==================== 重连 ====================
 
         private void StartReconnect()
@@ -326,7 +337,7 @@ namespace EmojiWar.GameMain.Network
                 Debug.Log("[NetClientLogic] 重连成功，重新加入房间");
                 m_ReconnectAttempts = 0;
                 m_JoinSent = true;
-                m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName });
+                m_Service.Send(new C2SJoinRoom { PlayerName = m_PlayerName, CharacterId = GetLocalCharacterId() });
                 m_Reconnecting = false;
                 OnReconnectStateChanged?.Invoke(false);
             }
@@ -504,16 +515,28 @@ namespace EmojiWar.GameMain.Network
             //   修复构建版 3D 默认材质 shader 未打包导致的粉色方块）
             var go = new GameObject("NetEntity_" + spawn.EntityId);
             var spriteRenderer = go.AddComponent<SpriteRenderer>();
-            Sprite sprite = spawn.Type == 0 ? Art.ArtManager.GetPlayerSprite() : Art.ArtManager.GetEnemySprite();
-            spriteRenderer.sprite = sprite;
-            spriteRenderer.sortingOrder = spawn.Type == 0 ? 10 : 5;
 
-            // 玩家实体按 EntityId 着色（黄金比例色相分布）：联机时多个玩家可区分
+            // 玩家用角色专属美术（不同角色不同 emoji），敌人用默认敌人美术
+            Sprite sprite;
             if (spawn.Type == 0)
             {
-                float hue = (spawn.EntityId * 0.61803398875f) % 1f;
-                spriteRenderer.color = Color.HSVToRGB(hue, 0.55f, 1f);
+                string icon = null;
+                var character = spawn.CharacterId > 0 && GameEntry.Data != null
+                    ? GameEntry.Data.GetCharacter(spawn.CharacterId)
+                    : null;
+                if (character != null)
+                {
+                    icon = character.Icon;
+                }
+                sprite = Art.ArtManager.GetCharacterSprite(icon);
             }
+            else
+            {
+                sprite = Art.ArtManager.GetEnemySprite();
+            }
+
+            spriteRenderer.sprite = sprite;
+            spriteRenderer.sortingOrder = spawn.Type == 0 ? 10 : 5;
 
             Vector3 spawnPos = new Vector3(spawn.X, spawn.Y, 0f);
             go.transform.position = spawnPos;

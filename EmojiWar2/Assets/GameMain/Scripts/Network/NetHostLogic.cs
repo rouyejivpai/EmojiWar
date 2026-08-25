@@ -26,6 +26,7 @@ namespace EmojiWar.GameMain.Network
             public float Hp = 100f;
             public string PlayerName = "";
             public bool Ready = false;
+            public int CharacterId = 1;
         }
 
         // 敌人权威状态
@@ -157,7 +158,7 @@ namespace EmojiWar.GameMain.Network
         /// <summary>
         /// Host 本机加入（作为 1 号玩家，不走网络连接）。
         /// </summary>
-        public void JoinLocal(string playerName)
+        public void JoinLocal(string playerName, int characterId = 1)
         {
             var state = new PlayerState
             {
@@ -165,6 +166,7 @@ namespace EmojiWar.GameMain.Network
                 EntityId = m_NextEntityId++,
                 Position = Vector2.zero,
                 PlayerName = playerName,
+                CharacterId = characterId,
             };
             m_Players[0] = state;
             Debug.Log("[NetHostLogic] 房主 " + playerName + " 本机加入，实体 " + state.EntityId);
@@ -177,6 +179,7 @@ namespace EmojiWar.GameMain.Network
                 Team = 1,
                 X = state.Position.x,
                 Y = state.Position.y,
+                CharacterId = state.CharacterId,
             };
             m_Service?.BroadcastToClients(spawn);
 
@@ -265,10 +268,19 @@ namespace EmojiWar.GameMain.Network
                 {
                     var go = new GameObject("HostRemotePlayer_" + state.EntityId);
                     var sr = go.AddComponent<SpriteRenderer>();
-                    sr.sprite = Art.ArtManager.GetPlayerSprite();
-                    float hue = (state.EntityId * 0.61803398875f) % 1f;
-                    sr.color = Color.HSVToRGB(hue, 0.55f, 1f);
+
+                    // 玩家用角色专属美术（不同角色不同 emoji）
+                    string icon = null;
+                    var character = state.CharacterId > 0 && GameEntry.Data != null
+                        ? GameEntry.Data.GetCharacter(state.CharacterId)
+                        : null;
+                    if (character != null)
+                    {
+                        icon = character.Icon;
+                    }
+                    sr.sprite = Art.ArtManager.GetCharacterSprite(icon);
                     sr.sortingOrder = 10;
+
                     if (sr.sprite != null)
                     {
                         float w = sr.sprite.bounds.size.x;
@@ -484,6 +496,7 @@ namespace EmojiWar.GameMain.Network
                 EntityId = m_NextEntityId++,
                 Position = new Vector2(Random.Range(-2f, 2f), Random.Range(-2f, 2f)),
                 PlayerName = join.PlayerName ?? "玩家",
+                CharacterId = join.CharacterId > 0 ? join.CharacterId : 1,
             };
             m_Players[sessionId] = state;
 
@@ -501,6 +514,7 @@ namespace EmojiWar.GameMain.Network
                 Team = 1,
                 X = state.Position.x,
                 Y = state.Position.y,
+                CharacterId = state.CharacterId,
             };
             m_Service.BroadcastToClients(spawn);
 
@@ -519,6 +533,7 @@ namespace EmojiWar.GameMain.Network
                     Team = 1,
                     X = p.Position.x,
                     Y = p.Position.y,
+                    CharacterId = p.CharacterId,
                 });
             }
 
@@ -809,6 +824,7 @@ namespace EmojiWar.GameMain.Network
                     Team = 1,
                     X = p.Position.x,
                     Y = p.Position.y,
+                    CharacterId = p.CharacterId,
                 });
             }
 

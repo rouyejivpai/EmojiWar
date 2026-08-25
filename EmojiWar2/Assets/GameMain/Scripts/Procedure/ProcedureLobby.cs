@@ -74,7 +74,7 @@ namespace EmojiWar.GameMain.Procedure
 
             // Host 也需要作为玩家加入（本地加入）
             var hostLogic = GetOrAddHostLogic();
-            hostLogic.JoinLocal(m_PlayerName);
+            hostLogic.JoinLocal(m_PlayerName, ProcedureBattle.SelectedCharacterId);
 
             GoRoom();
         }

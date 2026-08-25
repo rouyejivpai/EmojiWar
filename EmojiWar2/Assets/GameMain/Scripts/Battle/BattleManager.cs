@@ -117,7 +117,8 @@ namespace EmojiWar.GameMain.Battle
             WriteProbe("[battle] SpawnPlayer instantiated, PlayerEntity=" + (player != null ? "OK" : "NULL"));
             if (player != null)
             {
-                // 本机网络实体 ID（用于本地玩家与网络实体颜色统一）
+                // 本机角色 ID（渲染角色专属美术）与网络实体 ID
+                player.CharacterId = characterId;
                 player.NetworkEntityId = GetLocalNetworkEntityId();
 
                 player.Team = Entity.EntityTeam.Player;
