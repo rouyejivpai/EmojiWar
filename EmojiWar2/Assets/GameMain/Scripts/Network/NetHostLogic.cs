@@ -195,6 +195,12 @@ namespace EmojiWar.GameMain.Network
             }
         }
 
+        /// <summary>Host 本机（session 0）的网络实体 ID。</summary>
+        public int GetLocalEntityId()
+        {
+            return m_Players.TryGetValue(0, out var s) ? s.EntityId : -1;
+        }
+
         /// <summary>Host 本机当前准备状态。</summary>
         public bool IsLocalReady
         {
@@ -213,6 +219,32 @@ namespace EmojiWar.GameMain.Network
 
             UpdateEnemies();
             UpdateRemotePlayerVisuals();
+            SyncLocalPlayerPosition();
+        }
+
+        /// <summary>
+        /// 房主本地玩家位置同步：把本地玩家实体的实际位置写入权威状态并广播，
+        /// 使加入者看到的房主位置与房主本地一致。
+        /// </summary>
+        private void SyncLocalPlayerPosition()
+        {
+            if (!m_Players.TryGetValue(0, out var state))
+            {
+                return;
+            }
+
+            var local = UnityEngine.Object.FindObjectOfType<Entity.PlayerEntity>();
+            if (local == null)
+            {
+                return;
+            }
+
+            Vector2 pos = local.transform.position;
+            if (Vector2.Distance(pos, state.Position) > 0.01f)
+            {
+                state.Position = pos;
+                BroadcastEntityState(state.EntityId, state.Position, state.Hp, 1);
+            }
         }
 
         /// <summary>
@@ -514,15 +546,22 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
-            // Host 权威：根据输入更新位置
-            Vector2 moveDir = new Vector2(input.InputX, input.InputY);
-            if (moveDir.sqrMagnitude > 1f)
+            // Host 权威：优先使用客户端上报的实际位置（精确同步），否则按输入模拟
+            if (input.HasPosition)
             {
-                moveDir = moveDir.normalized;
+                state.Position = new Vector2(input.PositionX, input.PositionY);
             }
+            else
+            {
+                Vector2 moveDir = new Vector2(input.InputX, input.InputY);
+                if (moveDir.sqrMagnitude > 1f)
+                {
+                    moveDir = moveDir.normalized;
+                }
 
-            const float speed = 5f;
-            state.Position += moveDir * speed * Time.deltaTime;
+                const float speed = 5f;
+                state.Position += moveDir * speed * Time.deltaTime;
+            }
 
             // 广播玩家状态给所有客户端
             BroadcastEntityState(state.EntityId, state.Position, state.Hp, 1);

@@ -27,7 +27,7 @@ namespace EmojiWar.GameMain.Network
         }
     }
 
-    /// <summary>玩家输入（每帧上行）。</summary>
+    /// <summary>玩家输入（每帧上行，带实际位置用于精确同步）。</summary>
     public sealed class C2SPlayerInput : NetMessage
     {
         public float InputX;
@@ -36,6 +36,9 @@ namespace EmojiWar.GameMain.Network
         public float AimY;
         public bool FirePrimary;
         public bool FireSecondary;
+        public float PositionX;   // 本地玩家实际位置（精确同步用；0 表示未提供）
+        public float PositionY;
+        public bool HasPosition;  // 是否携带位置
 
         public override MsgId Id { get { return MsgId.PlayerInput; } }
 
@@ -47,6 +50,9 @@ namespace EmojiWar.GameMain.Network
             writer.Write(AimY);
             writer.Write(FirePrimary);
             writer.Write(FireSecondary);
+            writer.Write(PositionX);
+            writer.Write(PositionY);
+            writer.Write(HasPosition);
         }
 
         public override void Deserialize(BinaryReader reader)
@@ -57,6 +63,9 @@ namespace EmojiWar.GameMain.Network
             AimY = reader.ReadSingle();
             FirePrimary = reader.ReadBoolean();
             FireSecondary = reader.ReadBoolean();
+            PositionX = reader.ReadSingle();
+            PositionY = reader.ReadSingle();
+            HasPosition = reader.ReadBoolean();
         }
     }
 

@@ -117,6 +117,9 @@ namespace EmojiWar.GameMain.Battle
             WriteProbe("[battle] SpawnPlayer instantiated, PlayerEntity=" + (player != null ? "OK" : "NULL"));
             if (player != null)
             {
+                // 本机网络实体 ID（用于本地玩家与网络实体颜色统一）
+                player.NetworkEntityId = GetLocalNetworkEntityId();
+
                 player.Team = Entity.EntityTeam.Player;
                 player.MoveSpeed = character != null ? character.MoveSpeed : 5f;
 
@@ -138,6 +141,29 @@ namespace EmojiWar.GameMain.Battle
                     }
                 }
             }
+        }
+
+        /// <summary>获取本机网络实体 ID（Host=session0 实体，Client=MyEntityId）。</summary>
+        private int GetLocalNetworkEntityId()
+        {
+            var net = GameEntry.NetworkService;
+            if (net == null)
+            {
+                return -1;
+            }
+
+            if (net.Mode == Network.NetMode.Host)
+            {
+                var hostLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetHostLogic>()
+                    : null;
+                return hostLogic != null ? hostLogic.GetLocalEntityId() : -1;
+            }
+
+            var clientLogic = GameEntry.Instance != null
+                ? GameEntry.Instance.GetComponentInChildren<Network.NetClientLogic>()
+                : null;
+            return clientLogic != null ? clientLogic.MyEntityId : -1;
         }
 
         private void EquipWeapon(Entity.PlayerEntity player, int weaponId, bool isPrimary)

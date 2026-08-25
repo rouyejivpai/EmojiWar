@@ -34,6 +34,9 @@ namespace EmojiWar.GameMain.Entity
             set { m_SecondaryWeapon = value; }
         }
 
+        /// <summary>本机玩家在网络中的实体 ID（用于与网络实体颜色统一）。</summary>
+        public int NetworkEntityId = -1;
+
         protected override void Start()
         {
             base.Start();
@@ -52,6 +55,13 @@ namespace EmojiWar.GameMain.Entity
         protected override void ApplyArtSprite()
         {
             SetSprite(Art.ArtManager.GetPlayerSprite());
+
+            // 颜色与网络实体统一：按 EntityId 着色（两窗口看到同一玩家同色）
+            if (NetworkEntityId >= 0 && m_SpriteRenderer != null)
+            {
+                float hue = (NetworkEntityId * 0.61803398875f) % 1f;
+                m_SpriteRenderer.color = Color.HSVToRGB(hue, 0.55f, 1f);
+            }
         }
 
         private void Update()

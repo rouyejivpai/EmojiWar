@@ -78,8 +78,32 @@ namespace EmojiWar.GameMain.Procedure
             if (player != null)
             {
                 player.MoveSpeed = character != null ? character.MoveSpeed : 5f;
+                player.NetworkEntityId = GetLocalNetworkEntityId();   // 颜色与网络实体统一
             }
             WriteProbe("[room] 房间玩家已生成（可移动），char=" + ProcedureBattle.SelectedCharacterId);
+        }
+
+        /// <summary>获取本机网络实体 ID（Host=session0 实体，Client=MyEntityId）。</summary>
+        private int GetLocalNetworkEntityId()
+        {
+            var net = GameEntry.NetworkService;
+            if (net == null)
+            {
+                return -1;
+            }
+
+            if (net.Mode == Network.NetMode.Host)
+            {
+                var hostLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetHostLogic>()
+                    : null;
+                return hostLogic != null ? hostLogic.GetLocalEntityId() : -1;
+            }
+
+            var clientLogic = GameEntry.Instance != null
+                ? GameEntry.Instance.GetComponentInChildren<Network.NetClientLogic>()
+                : null;
+            return clientLogic != null ? clientLogic.MyEntityId : -1;
         }
 
         /// <summary>销毁房间页玩家（进战斗/离开房间时）。</summary>

@@ -53,6 +53,9 @@ namespace EmojiWar.GameMain.Network
 
         /// <summary>自己的网络实体 ID（Host 告知；客户端不渲染自己，避免与本地玩家重复）。</summary>
         private int m_MyEntityId = -1;
+
+        /// <summary>本机网络实体 ID（供本地玩家颜色统一用）。</summary>
+        public int MyEntityId { get { return m_MyEntityId; } }
         private string m_PlayerName = "玩家";
         private string m_ServerIp = "127.0.0.1";
         private int m_ServerPort = NetworkService.DefaultPort;
@@ -229,6 +232,19 @@ namespace EmojiWar.GameMain.Network
                 inputY = Mathf.Sin(Time.time);
             }
 
+            // 携带本地玩家实际位置（精确同步：Host 优先用上报位置而非模拟）
+            bool hasPos = false;
+            float posX = 0f;
+            float posY = 0f;
+            var localPlayer = FindLocalPlayer();
+            if (localPlayer != null)
+            {
+                hasPos = true;
+                Vector2 p = localPlayer.transform.position;
+                posX = p.x;
+                posY = p.y;
+            }
+
             var input = new C2SPlayerInput
             {
                 InputX = inputX,
@@ -237,8 +253,22 @@ namespace EmojiWar.GameMain.Network
                 AimY = 0f,
                 FirePrimary = false,
                 FireSecondary = false,
+                PositionX = posX,
+                PositionY = posY,
+                HasPosition = hasPos,
             };
             m_Service.Send(input);
+        }
+
+        /// <summary>查找本地玩家（房间页/战斗中的本机玩家实体）。</summary>
+        private Entity.PlayerEntity FindLocalPlayer()
+        {
+            var players = Object.FindObjectsOfType<Entity.PlayerEntity>();
+            if (players != null && players.Length > 0)
+            {
+                return players[0];
+            }
+            return null;
         }
 
         // ==================== 重连 ====================
