@@ -29,6 +29,32 @@ namespace EmojiWar.GameMain.Editor
             }
         }
 
+        [MenuItem("EmojiWar/Diagnostics/Simulate Fire")]
+        public static void SimulateFire()
+        {
+            var players = UnityEngine.Object.FindObjectsOfType<EmojiWar.GameMain.Entity.PlayerEntity>(true);
+            int fired = 0;
+            foreach (var player in players)
+            {
+                var w = player != null ? player.PrimaryWeapon : null;
+                Debug.Log("[Diagnostics] SimulateFire player=" + (player != null ? "OK" : "NULL") +
+                    " weapon=" + (w != null ? w.WeaponName : "NULL") +
+                    " ammo=" + (w != null ? w.CurrentAmmo : -1) +
+                    " canFire=" + (w != null ? w.CanFire.ToString() : "n/a"));
+                if (player != null && w != null)
+                {
+                    Vector2 target = (Vector2)player.transform.position + Vector2.right * 5f;
+                    if (w.TryFire(target))
+                    {
+                        fired++;
+                    }
+                }
+            }
+
+            var projectiles = UnityEngine.Object.FindObjectsOfType<EmojiWar.GameMain.Weapon.Projectile>(true);
+            Debug.Log("[Diagnostics] SimulateFire fired=" + fired + " projectilesInScene=" + projectiles.Length);
+        }
+
         [MenuItem("EmojiWar/Diagnostics/Simulate Create Room")]
         public static void SimulateCreateRoom()
         {
@@ -63,6 +89,14 @@ namespace EmojiWar.GameMain.Editor
             // 触发结算界面的"重新开始"（等价于点击重启按钮）
             EmojiWar.GameMain.UI.GameOverEvents.RequestRestart();
             Debug.Log("[Diagnostics] Simulated restart request");
+        }
+
+        [MenuItem("EmojiWar/Diagnostics/Simulate Ready")]
+        public static void SimulateReady()
+        {
+            // 触发房间准备（房主单人准备 → 全部准备 → 自动开始战斗）
+            EmojiWar.GameMain.UI.RoomFormEvents.RequestReady();
+            Debug.Log("[Diagnostics] Simulated ready request");
         }
 
         [MenuItem("EmojiWar/Diagnostics/Simulate Menu Return")]
