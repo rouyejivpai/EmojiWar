@@ -47,6 +47,10 @@ namespace EmojiWar.GameMain.Network
 
         private readonly Dictionary<int, PlayerState> m_Players = new Dictionary<int, PlayerState>();
         private readonly Dictionary<int, EnemyState> m_Enemies = new Dictionary<int, EnemyState>();
+
+        // Host 本地对其他玩家的表现对象（entityId → Transform）：
+        // 房主没有网络连接，收不到广播，需要直接从权威状态渲染其他玩家
+        private readonly Dictionary<int, Transform> m_LocalRemotePlayers = new Dictionary<int, Transform>();
         private int m_NextEntityId = 1000;
         private int m_WaveIndex = 0;
         private Coroutine m_WaveCoroutine = null;
@@ -116,8 +120,22 @@ namespace EmojiWar.GameMain.Network
                 m_Players.Clear();
                 m_Enemies.Clear();
                 m_WaveIndex = 0;
+                ClearRemotePlayerVisuals();
                 Debug.Log("[NetHostLogic] Host 模式就绪，等待玩家加入");
             }
+        }
+
+        /// <summary>清理 Host 本地对其他玩家的表现对象。</summary>
+        private void ClearRemotePlayerVisuals()
+        {
+            foreach (var kv in m_LocalRemotePlayers)
+            {
+                if (kv.Value != null)
+                {
+                    Destroy(kv.Value.gameObject);
+                }
+            }
+            m_LocalRemotePlayers.Clear();
         }
 
         /// <summary>
@@ -178,6 +196,72 @@ namespace EmojiWar.GameMain.Network
             }
 
             UpdateEnemies();
+            UpdateRemotePlayerVisuals();
+        }
+
+        /// <summary>
+        /// 渲染并同步其他玩家的本地表现（Host 端可见队友）。
+        /// </summary>
+        private void UpdateRemotePlayerVisuals()
+        {
+            // 生成/同步其他玩家的表现对象
+            foreach (var kv in m_Players)
+            {
+                if (kv.Key == 0)
+                {
+                    continue;    // 房主自己由本地战斗层表现
+                }
+
+                var state = kv.Value;
+                if (!m_LocalRemotePlayers.TryGetValue(state.EntityId, out var tf))
+                {
+                    var go = new GameObject("HostRemotePlayer_" + state.EntityId);
+                    var sr = go.AddComponent<SpriteRenderer>();
+                    sr.sprite = Art.ArtManager.GetPlayerSprite();
+                    float hue = (state.EntityId * 0.61803398875f) % 1f;
+                    sr.color = Color.HSVToRGB(hue, 0.55f, 1f);
+                    sr.sortingOrder = 10;
+                    if (sr.sprite != null)
+                    {
+                        float w = sr.sprite.bounds.size.x;
+                        if (w > 0.01f)
+                        {
+                            go.transform.localScale = Vector3.one * (1f / w);
+                        }
+                    }
+                    tf = go.transform;
+                    m_LocalRemotePlayers[state.EntityId] = tf;
+                }
+
+                tf.position = state.Position;
+            }
+
+            // 移除已离开玩家的表现对象
+            var toRemove = new System.Collections.Generic.List<int>();
+            foreach (var kv in m_LocalRemotePlayers)
+            {
+                bool exists = false;
+                foreach (var p in m_Players.Values)
+                {
+                    if (p.EntityId == kv.Key && p.SessionId != 0)
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists)
+                {
+                    toRemove.Add(kv.Key);
+                }
+            }
+            foreach (var id in toRemove)
+            {
+                if (m_LocalRemotePlayers[id] != null)
+                {
+                    Destroy(m_LocalRemotePlayers[id].gameObject);
+                }
+                m_LocalRemotePlayers.Remove(id);
+            }
         }
 
         // ==================== 消息处理 ====================
@@ -499,7 +583,7 @@ namespace EmojiWar.GameMain.Network
             {
                 // 50% 武器(0) / 50% Mod(1)
                 int type = Random.value < 0.5f ? 0 : 1;
-                int id = type == 0 ? Random.Range(1, 3) : Random.Range(1, 5);
+                int id = type == 0 ? Random.Range(1, 6) : Random.Range(1, 9);
                 int price = type == 0 ? 80 : 60;
 
                 if (i > 0)
@@ -748,6 +832,7 @@ namespace EmojiWar.GameMain.Network
         private void OnDestroy()
         {
             StopWave();
+            ClearRemotePlayerVisuals();
         }
 
         /// <summary>运行时探针（按进程分文件）。</summary>

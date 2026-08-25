@@ -4,3 +4,5 @@
 #------------------------------------------------------------
 1	player1	流汗黄豆	黄豆世界的第一个勇者	Assets/GameMain/Entities/Player.prefab	1	2	150	5	300
 2	player2	好吃黄豆	一个抽象的黄豆	Assets/GameMain/Entities/Player.prefab	1	2	150	5	300
+3	player3	硬汉黄豆	皮糙肉厚，手持霰弹	Assets/GameMain/Entities/Player.prefab	5	3	200	4	300
+4	player4	快枪黄豆	身法灵活，速射大师	Assets/GameMain/Entities/Player.prefab	4	1	120	6	300

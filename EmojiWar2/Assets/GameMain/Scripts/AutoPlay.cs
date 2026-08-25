@@ -111,12 +111,22 @@ namespace EmojiWar.GameMain
                 }
             }
 
+            // 统计房主看到的其他玩家表现（HostRemotePlayer_*）
+            int remotePlayers = 0;
+            foreach (var go in Object.FindObjectsOfType<GameObject>(true))
+            {
+                if (go != null && go.name.StartsWith("HostRemotePlayer_"))
+                {
+                    remotePlayers++;
+                }
+            }
+
             var players = Object.FindObjectsOfType<Entity.PlayerEntity>();
             var enemies = Object.FindObjectsOfType<Entity.EnemyEntity>();
-            WriteProbe(string.Format("[auto] SpriteRenderers={0} withSprite={1} players={2} enemies={3}",
-                renderers.Length, withSprite, players.Length, enemies.Length));
-            Debug.Log(string.Format("[AutoPlay] 战斗实体统计: SpriteRenderers={0} withSprite={1} players={2} enemies={3}",
-                renderers.Length, withSprite, players.Length, enemies.Length));
+            WriteProbe(string.Format("[auto] SpriteRenderers={0} withSprite={1} players={2} enemies={3} hostRemotePlayers={4}",
+                renderers.Length, withSprite, players.Length, enemies.Length, remotePlayers));
+            Debug.Log(string.Format("[AutoPlay] 战斗实体统计: SpriteRenderers={0} withSprite={1} players={2} enemies={3} hostRemotePlayers={4}",
+                renderers.Length, withSprite, players.Length, enemies.Length, remotePlayers));
 
             // 等玩家被敌人打死 → 结算界面 → 模拟点"重新开始"，验证重开路径不产生多玩家
             yield return new WaitForSeconds(15f);

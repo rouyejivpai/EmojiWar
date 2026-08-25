@@ -9,3 +9,5 @@
 4	ice_mod	雪花	子弹触碰敌人时使其减速	武器	2	1.5	Freeze	0.3	2
 5	flash_mod	散射水滴	一次发射三颗小水滴	武器	3	1.2	Spread	3	0
 6	damage_mod	伤害强化	提升武器伤害	武器	3	1.2	DamageUp	5	0
+7	ice2_mod	极寒	更强的冰霜减速	武器	3	1	Freeze	0.5	3
+8	damage2_mod	破坏	大幅提升武器伤害	武器	4	0.8	DamageUp	10	0
