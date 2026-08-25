@@ -40,6 +40,9 @@ namespace EmojiWar.GameMain.Procedure
             m_ProcedureFsm = procedureOwner;
             UI.MenuForm.OnStartGameRequested += OnStartGameRequested;
 
+            // 菜单/大厅/房间共用 Menu 场景：激活 + 启用对应相机
+            SceneCameraHelper.ActivateScene("Menu");
+
             // 订阅场景加载成功事件（从战斗返回时打开菜单 UI）
             GameEntry.Event.Subscribe(LoadSceneSuccessEventArgs.EventId, OnLoadSceneSuccess);
 

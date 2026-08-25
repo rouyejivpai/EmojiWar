@@ -25,6 +25,9 @@ namespace EmojiWar.GameMain.Procedure
             Log.Info("===== EmojiWar Game Over =====");
             WriteProbe("[gameover] OnEnter, activeScene=" + SceneManager.GetActiveScene().name);
 
+            // 结算界面显示在战斗场景
+            SceneCameraHelper.ActivateScene("Battle");
+
             m_ProcedureFsm = procedureOwner;
 
             UI.GameOverEvents.OnRestartRequested += OnRestartRequested;

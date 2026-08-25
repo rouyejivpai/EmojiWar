@@ -91,6 +91,7 @@ namespace EmojiWar.GameMain.Procedure
                     SceneManager.SetActiveScene(battleScene);
                 }
                 // 场景已在战斗（重开/远端重开）：先清理旧实体与旧管理器，再重新开局
+                SceneCameraHelper.ActivateScene("Battle");
                 CleanupBattleScene();
                 MigrateNetworkEntitiesToBattleScene();
                 StartBattle();
@@ -162,6 +163,9 @@ namespace EmojiWar.GameMain.Procedure
 
             Log.Info("[ProcedureBattle] 战斗场景加载完成: {0}", args.SceneAssetName);
             WriteProbe("[battle-proc] LoadSceneSuccess: " + args.SceneAssetName);
+
+            // 激活战斗场景 + 只启用战斗相机（避免被 Menu 相机遮挡/看不到本地玩家）
+            SceneCameraHelper.ActivateScene("Battle");
 
             // 迁移网络实体/远程玩家表现到战斗场景（避免被战斗相机 clear 遮挡而"缺玩家"）
             MigrateNetworkEntitiesToBattleScene();

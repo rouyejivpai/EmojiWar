@@ -21,6 +21,7 @@ namespace EmojiWar.GameMain.Procedure
         private bool m_Entered = false;
         private bool m_LocalReady = false;
         private bool m_IsHost = false;
+        private GameObject m_RoomPlayer = null;
 
         protected override void OnEnter(IFsm<IProcedureManager> procedureOwner)
         {
@@ -40,6 +41,10 @@ namespace EmojiWar.GameMain.Procedure
             m_IsHost = GameEntry.NetworkService != null && GameEntry.NetworkService.Mode == Network.NetMode.Host;
             m_LocalReady = false;
 
+            // 房间页：激活菜单场景 + 启用菜单相机（展示可移动的房间玩家）
+            SceneCameraHelper.ActivateScene("Menu");
+            SpawnRoomPlayer();
+
             // 订阅事件
             UI.RoomFormEvents.OnReadyRequested += OnReadyRequested;
             UI.RoomFormEvents.OnLeaveRequested += OnLeaveRequested;
@@ -51,6 +56,53 @@ namespace EmojiWar.GameMain.Procedure
             }
 
             OpenRoomForm();
+        }
+
+        /// <summary>
+        /// 房间页生成本地玩家（可 WASD 移动，等待期间自由活动）。
+        /// </summary>
+        private void SpawnRoomPlayer()
+        {
+            GameObject prefab = LoadPrefab("Assets/GameMain/Resources/Entities/Player.prefab");
+            if (prefab == null)
+            {
+                WriteProbe("[room] SpawnRoomPlayer prefab=NULL");
+                return;
+            }
+
+            m_RoomPlayer = Object.Instantiate(prefab, Vector3.zero, Quaternion.identity);
+            var player = m_RoomPlayer.GetComponent<Entity.PlayerEntity>();
+            var character = GameEntry.Data != null
+                ? GameEntry.Data.GetCharacter(ProcedureBattle.SelectedCharacterId)
+                : null;
+            if (player != null)
+            {
+                player.MoveSpeed = character != null ? character.MoveSpeed : 5f;
+            }
+            WriteProbe("[room] 房间玩家已生成（可移动），char=" + ProcedureBattle.SelectedCharacterId);
+        }
+
+        /// <summary>销毁房间页玩家（进战斗/离开房间时）。</summary>
+        private void DestroyRoomPlayer()
+        {
+            if (m_RoomPlayer != null)
+            {
+                Object.Destroy(m_RoomPlayer);
+                m_RoomPlayer = null;
+            }
+        }
+
+        private GameObject LoadPrefab(string path)
+        {
+#if UNITY_EDITOR
+            return UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
+#else
+            const string resourcesMarker = "Resources/";
+            int index = path.IndexOf(resourcesMarker, System.StringComparison.Ordinal);
+            string resourcesPath = index >= 0 ? path.Substring(index + resourcesMarker.Length) : path;
+            resourcesPath = resourcesPath.Substring(0, resourcesPath.Length - ".prefab".Length);
+            return Resources.Load<GameObject>(resourcesPath);
+#endif
         }
 
         private void OpenRoomForm()
@@ -139,6 +191,8 @@ namespace EmojiWar.GameMain.Procedure
             Log.Info("[ProcedureRoom] 房间解散/断开，返回大厅");
             WriteProbe("[room] RoomClosed -> 返回大厅");
 
+            DestroyRoomPlayer();
+
             if (m_Entered)
             {
                 m_Entered = false;
@@ -161,6 +215,7 @@ namespace EmojiWar.GameMain.Procedure
 
             // 离开房间流程时关闭房间 UI（避免遮挡战斗场景）
             UI.UIFormCloser.CloseByName("RoomForm(Clone)");
+            DestroyRoomPlayer();
 
             m_Entered = false;
             m_ProcedureFsm = null;
