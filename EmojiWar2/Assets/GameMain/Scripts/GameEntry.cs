@@ -48,6 +48,7 @@ namespace EmojiWar.GameMain
         // ---- 业务组件引用（由 GameEntry 自身创建/挂载）----
         public static Data.DataComponent Data { get; private set; }
         public static Network.NetworkService NetworkService { get; private set; }
+        public static Simulation.SimView SimView { get; private set; }
 
         private void Awake()
         {
@@ -101,6 +102,14 @@ namespace EmojiWar.GameMain
                 var netGo = new GameObject("NetworkService");
                 netGo.transform.SetParent(transform);
                 NetworkService = netGo.AddComponent<Network.NetworkService>();
+            }
+
+            // 确定性模拟表现层（常驻；由网络逻辑绑定模拟）
+            if (SimView == null)
+            {
+                var viewGo = new GameObject("SimView");
+                viewGo.transform.SetParent(transform);
+                SimView = viewGo.AddComponent<Simulation.SimView>();
             }
 
             // 初始化音效管理器

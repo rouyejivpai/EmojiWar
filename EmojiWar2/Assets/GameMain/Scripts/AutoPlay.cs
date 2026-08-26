@@ -18,6 +18,12 @@ namespace EmojiWar.GameMain
         private static bool s_Started = false;
         private static bool s_IsJoiner = false;
 
+        /// <summary>AutoPlay 是否激活（流程据此决定是否保留自动移动，用于回环测试）。</summary>
+        public static bool IsActive
+        {
+            get { return s_Started; }
+        }
+
         public static void TryStart()
         {
             if (s_Started)
@@ -73,15 +79,18 @@ namespace EmojiWar.GameMain
             var battleScene = UnityEngine.SceneManagement.SceneManager.GetSceneByName("Battle");
             WriteProbe("[auto] joiner battleSceneLoaded=" + battleScene.isLoaded);
 
-            // 统计网络实体
+            // 统计网络实体（确定性模拟玩家）
             var netLogics = Object.FindObjectsOfType<Network.NetClientLogic>();
             int total = 0;
             foreach (var n in netLogics)
             {
-                total += n.LocalEntityCount;
+                if (n.Simulation != null)
+                {
+                    total += n.Simulation.Players.Count;
+                }
             }
-            WriteProbe("[auto] joiner net-entities=" + total + " (expect >=1 = host entity)");
-            Debug.Log("[AutoPlay] 加入者网络实体数=" + total);
+            WriteProbe("[auto] joiner net-players=" + total + " (expect >=1 = host entity)");
+            Debug.Log("[AutoPlay] 加入者模拟玩家数=" + total);
         }
 
         private IEnumerator AutoFlow()
@@ -107,7 +116,7 @@ namespace EmojiWar.GameMain
             WriteProbe("[auto] host trigger ready");
             UI.RoomFormEvents.RequestReady();
 
-            // 等待战斗开始（BattleManager 会写入 SpawnPlayer/SpawnEnemy 探针）
+            // 等待战斗开始（模拟驱动：SimView 渲染玩家/敌人/子弹）
             yield return new WaitForSeconds(10f);
 
             // 统计场景中实际渲染的 SpriteRenderer（验证美术是否生效）
@@ -121,32 +130,55 @@ namespace EmojiWar.GameMain
                 }
             }
 
-            // 统计房主看到的其他玩家表现（HostRemotePlayer_*）
-            int remotePlayers = 0;
+            // 统计确定性模拟实体（SimView 渲染 SimPlayer_/SimEnemy_/SimBullet_）
+            int simPlayers = 0;
+            int simEnemies = 0;
+            int simBullets = 0;
             foreach (var go in Object.FindObjectsOfType<GameObject>(true))
             {
-                if (go != null && go.name.StartsWith("HostRemotePlayer_"))
+                if (go == null)
                 {
-                    remotePlayers++;
+                    continue;
+                }
+                if (go.name.StartsWith("SimPlayer_"))
+                {
+                    simPlayers++;
+                }
+                else if (go.name.StartsWith("SimEnemy_"))
+                {
+                    simEnemies++;
+                }
+                else if (go.name.StartsWith("SimBullet_"))
+                {
+                    simBullets++;
                 }
             }
 
-            // 玩家类精灵（网络/远程玩家 sortingOrder>=10；本地玩家 sortingOrder=0）
-            int playerSprites = 0;
-            foreach (var r in renderers)
+            // 读取本地确定性模拟状态（帧号/玩家位置/敌人数，供双实例一致性对比）
+            var sim = GameEntry.SimView != null ? GameEntry.SimView.Simulation : null;
+            string simState = "no-sim";
+            if (sim != null)
             {
-                if (r != null && r.sortingOrder >= 10)
+                var sb = new System.Text.StringBuilder();
+                sb.Append("frame=").Append(sim.FrameIndex)
+                  .Append(" wave=").Append(sim.WaveIndex)
+                  .Append(" players=").Append(sim.Players.Count)
+                  .Append(" enemies=").Append(sim.Enemies.Count)
+                  .Append(" bullets=").Append(sim.Bullets.Count);
+                foreach (var p in sim.Players)
                 {
-                    playerSprites++;
+                    sb.Append(" P").Append(p.SessionId).Append(":(").Append(p.Position.x.ToString("F2"))
+                      .Append(",").Append(p.Position.y.ToString("F2")).Append(")");
                 }
+                simState = sb.ToString();
             }
 
             var players = Object.FindObjectsOfType<Entity.PlayerEntity>();
             var enemies = Object.FindObjectsOfType<Entity.EnemyEntity>();
-            WriteProbe(string.Format("[auto] SpriteRenderers={0} players={1} enemies={2} hostRemotePlayers={3} playerSprites(order>=10)={4}",
-                renderers.Length, players.Length, enemies.Length, remotePlayers, playerSprites));
-            Debug.Log(string.Format("[AutoPlay] 实体统计: players={0} enemies={1} remote={2} playerSprites={3}",
-                players.Length, enemies.Length, remotePlayers, playerSprites));
+            WriteProbe(string.Format("[auto] SpriteRenderers={0} simPlayers={1} simEnemies={2} simBullets={3} simState={4}",
+                renderers.Length, simPlayers, simEnemies, simBullets, simState));
+            Debug.Log(string.Format("[AutoPlay] 模拟实体统计: simPlayers={0} simEnemies={1} simBullets={2} simState={3}",
+                simPlayers, simEnemies, simBullets, simState));
 
             // 等玩家被敌人打死 → 结算界面 → 模拟点"重新开始"，验证重开路径不产生多玩家
             yield return new WaitForSeconds(15f);
@@ -156,9 +188,9 @@ namespace EmojiWar.GameMain
 
             var players2 = Object.FindObjectsOfType<Entity.PlayerEntity>();
             var enemies2 = Object.FindObjectsOfType<Entity.EnemyEntity>();
-            WriteProbe(string.Format("[auto] after-restart: players={0} enemies={1}",
+            WriteProbe(string.Format("[auto] after-restart: legacyPlayers={0} legacyEnemies={1}",
                 players2.Length, enemies2.Length));
-            Debug.Log(string.Format("[AutoPlay] 重开后: players={0} enemies={1}",
+            Debug.Log(string.Format("[AutoPlay] 重开后: legacyPlayers={0} legacyEnemies={1}",
                 players2.Length, enemies2.Length));
         }
 

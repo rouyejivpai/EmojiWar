@@ -318,3 +318,68 @@ S2C: RoomState / SpawnEntity / EntityState(位置/血量) / SpawnProjectile /
 2. 在 EmojiWar2 导入 GameFramework 包，跑通 `GameEntry` + 主菜单
 3. 完成 UnityMCP 安装与验证（§6）
 4. 从 Phase 1 开始逐阶段实施（每阶段结束可运行、可验证）
+
+## 10. 架构演进：状态同步 → 确定性帧同步（Lockstep）
+
+> 日期：2026-08-26
+> 背景：多人对战（移动/子弹/敌人/波次）要求各端推演一致；原「Host 权威 + 客户端上报位置 + 插值」属于状态同步，
+> 依赖网络延迟、无固定逻辑 tick、时间与随机不确定，无法保证一致性。经确认改为**确定性帧同步（Lockstep）**。
+
+### 10.1 选型（用户确认）
+
+| 项 | 选择 | 说明 |
+|---|---|---|
+| 帧同步模型 | **Lockstep 严格等待** | 每逻辑 tick 等所有玩家输入齐了才推进；4 人合作 PvE 场景，实现简单可靠、天然防作弊 |
+| 逻辑帧率 | **20Hz（50ms/tick）** | 带宽小、容错好；渲染插值后视觉流畅 |
+| Host 职责 | **仅收集输入广播 + 掉线托管** | Host 不权威计算战斗结果；掉线玩家由各端同一规则托管（空输入） |
+
+### 10.2 核心变化
+
+| 层 | 之前（状态同步） | 现在（确定性帧同步） |
+|---|---|---|
+| 上行协议 | `C2SPlayerInput` 携带**实际位置**（PositionX/Y/HasPosition） | 只传**意图**（方向/瞄准/射击/装弹），不含位置结果 |
+| 下行协议 | `S2CEntityState` 位置/HP 广播 + 客户端 Lerp 插值 | `S2CInputFrame`（帧号+各玩家意图）广播，各端本地推进同一模拟 |
+| 战斗模拟 | Host 用 `Time.deltaTime`/`WaitForSeconds`/`UnityEngine.Random` | `LockstepSimulation`：固定 0.05s tick + `SimRandom`（xorshift32 种子） |
+| 随机数 | `UnityEngine.Random`（各端不一致） | `SimRandom` 同种子同序列（敌人位置/散射/商店商品） |
+| 时间 | `Time.deltaTime`（帧率相关） | 固定 tick 计数（`TickInterval=0.05`） |
+| 玩家实体 | 客户端本地上报位置 | 位置由模拟计算（`SimPlayer.Position`），表现层 SimView 渲染 |
+| 敌人/子弹 | Host 生成并广播 | 模拟内确定性生成（波次/散射/命中距离判定） |
+| 商店 | Host 随机生成广播 S2CShopOffer | 模拟内确定性生成（同种子同商品），ShopForm 直接读模拟 |
+| 表现层 | NetHostLogic/NetClientLogic 各自渲染远程玩家 | `SimView` 统一从模拟状态渲染（玩家 emoji/敌人/子弹） |
+
+### 10.3 新增/改动文件
+
+**新增（Simulation 模块，纯 C# 确定性模拟）**
+- `Scripts/Simulation/SimRandom.cs`：xorshift32 确定性随机
+- `Scripts/Simulation/LockstepSimulation.cs`：世界模拟（玩家移动/射击/装弹、子弹飞行+命中、敌人 AI、波次状态机、商店生成），`Tick(inputs)` 以 entityId 为 key
+- `Scripts/Simulation/SimView.cs`：模拟状态 → SpriteRenderer 表现（SimPlayer_/SimEnemy_/SimBullet_）
+
+**协议层**
+- `NetProtocol.cs`：新增 `MsgId.InputFrame = 2107`
+- `NetMessages.cs`：`C2SPlayerInput` 去掉位置字段；新增 `S2CInputFrame{FrameIndex, EntityIds[], 意图数组}`
+- `NetCodec.cs`：注册 S2CInputFrame
+
+**网络层**
+- `NetHostLogic.cs`：房间管理保留；战斗改为 20Hz tick 收集所有玩家意图 → 广播 InputFrame → 本地推进同一模拟；掉线玩家空输入托管；`ResetRoom()` 回房间重置模拟（seed=0）并广播 S2CRunRestart
+- `NetClientLogic.cs`：上行纯意图；收 InputFrame 推进本地模拟；房间阶段（seed=0）/战斗阶段（广播 seed）建立模拟；S2CRunRestart → 重建房间模拟
+
+**流程/UI**
+- `ProcedureBattle.cs`：网络模式由模拟驱动（SimView 渲染，不再实例化 BattleManager）；订阅模拟 OnShopOpened/OnBattleEnded
+- `ProcedureRoom.cs`：房间玩家由模拟+SimView 渲染（移除 PlayerEntity 本地移动）
+- `BattleHudForm/GameOverForm/ShopForm`：从模拟读状态（HP/波次/武器弹药/商店商品）
+- `GameEntry.cs`：常驻 SimView 组件
+
+**编辑器诊断适配帧同步**：NetBattleSimDiagnostics / NetCoopDiagnostics / NetRestartDiagnostics / NetShopDiagnostics / NetworkSyncDiagnostics（验证 InputFrame 驱动模拟推进）
+
+### 10.4 确定性约束（重要）
+
+- 禁用 `Time.deltaTime`、`UnityEngine.Random`、协程 `WaitForSeconds` 于模拟路径
+- 输入 key 用 **EntityId**（客户端只知道 MyEntityId，不知道 SessionId）
+- 波次/商店/散射/敌人出生点全部来自 `SimRandom`（种子广播）
+- 表现层（SimView）只读模拟状态，不反向影响逻辑
+- 跨平台浮点一致性：本阶段面向 Windows 双实例（同平台同指令集），严格跨平台需定点数（后续可演进）
+
+### 10.5 测试
+
+- 编辑器 Play 模式：Simulate Start → 角色选择 → 创建房间 → ProcedureRoom + 模拟运行（FrameIndex 增长）+ SimView 绑定 ✅
+- 双实例构建版：-autocreate / -autojoin → 各自建立模拟 → 输入帧驱动推进（待重新打包 AssetBundle 后验证）

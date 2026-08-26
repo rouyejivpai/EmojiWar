@@ -41,9 +41,9 @@ namespace EmojiWar.GameMain.Procedure
             m_IsHost = GameEntry.NetworkService != null && GameEntry.NetworkService.Mode == Network.NetMode.Host;
             m_LocalReady = false;
 
-            // 房间页：激活菜单场景 + 启用菜单相机（展示可移动的房间玩家）
+            // 房间页：激活菜单场景 + 启用菜单相机（玩家由确定性模拟 + SimView 渲染，
+            // 移动由模拟驱动，多端位置天然一致）
             SceneCameraHelper.ActivateScene("Menu");
-            SpawnRoomPlayer();
 
             // 订阅事件
             UI.RoomFormEvents.OnReadyRequested += OnReadyRequested;
@@ -59,29 +59,11 @@ namespace EmojiWar.GameMain.Procedure
         }
 
         /// <summary>
-        /// 房间页生成本地玩家（可 WASD 移动，等待期间自由活动）。
+        /// 房间页玩家由确定性模拟 + SimView 渲染（原 PlayerEntity 本地移动已移除）。
+        /// 保留空方法占位，避免外部引用编译错误。
         /// </summary>
         private void SpawnRoomPlayer()
         {
-            GameObject prefab = LoadPrefab("Assets/GameMain/Resources/Entities/Player.prefab");
-            if (prefab == null)
-            {
-                WriteProbe("[room] SpawnRoomPlayer prefab=NULL");
-                return;
-            }
-
-            m_RoomPlayer = Object.Instantiate(prefab, Vector3.zero, Quaternion.identity);
-            var player = m_RoomPlayer.GetComponent<Entity.PlayerEntity>();
-            var character = GameEntry.Data != null
-                ? GameEntry.Data.GetCharacter(ProcedureBattle.SelectedCharacterId)
-                : null;
-            if (player != null)
-            {
-                player.MoveSpeed = character != null ? character.MoveSpeed : 5f;
-                player.CharacterId = ProcedureBattle.SelectedCharacterId;   // 角色专属美术
-                player.NetworkEntityId = GetLocalNetworkEntityId();
-            }
-            WriteProbe("[room] 房间玩家已生成（可移动），char=" + ProcedureBattle.SelectedCharacterId);
         }
 
         /// <summary>获取本机网络实体 ID（Host=session0 实体，Client=MyEntityId）。</summary>

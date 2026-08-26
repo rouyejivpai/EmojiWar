@@ -139,7 +139,11 @@ namespace EmojiWar.GameMain.Procedure
             go.transform.SetParent(instance.transform);
             var logic = go.AddComponent<Network.NetClientLogic>();
             logic.Bind(GameEntry.NetworkService);
-            logic.DisableAutoMove();    // 真实联机：静止时不上行绕圈移动
+            // 真实联机：静止时不上行绕圈移动（AutoPlay 回环测试保留自动移动以验证帧同步）
+            if (!AutoPlay.IsActive)
+            {
+                logic.DisableAutoMove();
+            }
             return logic;
         }
 
@@ -162,6 +166,11 @@ namespace EmojiWar.GameMain.Procedure
             go.transform.SetParent(instance.transform);
             var logic = go.AddComponent<Network.NetHostLogic>();
             logic.Bind(GameEntry.NetworkService);
+            // 真实联机：Host 静止时不上行绕圈移动（AutoPlay 回环测试保留自动移动以验证帧同步）
+            if (!AutoPlay.IsActive)
+            {
+                logic.DisableLocalAutoMove();
+            }
             return logic;
         }
 

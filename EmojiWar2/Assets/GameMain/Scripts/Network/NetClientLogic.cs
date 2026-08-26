@@ -1,45 +1,30 @@
 //------------------------------------------------------------
-// EmojiWar GameMain - 客户端同步逻辑
-// 每帧上行输入（C2SPlayerInput），应用下行状态（S2CEntityState）。
-// 支持：实体移除、玩家离开、断线自动重连。
-// 客户端只负责输入与表现，权威状态在 Host。
+// EmojiWar GameMain - 客户端同步逻辑（确定性帧同步 / Lockstep）
+// 职责：
+//   1. 每帧上行输入意图（C2SPlayerInput，不含位置结果）
+//   2. 接收 Host 广播的输入帧（S2CInputFrame）→ 推进本地 LockstepSimulation
+//   3. 表现层（SimView）从模拟状态渲染，本地不再自己模拟战斗结果
+// 支持：断线重连、房间解散返回大厅。
 //------------------------------------------------------------
 
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using LockstepSim = EmojiWar.GameMain.Simulation.LockstepSimulation;
+using SimIntent = EmojiWar.GameMain.Simulation.PlayerIntent;
 
 namespace EmojiWar.GameMain.Network
 {
     /// <summary>
-    /// 客户端同步：输入上行 + 状态应用 + 重连。
-    /// 实体位置使用插值平滑（减少网络抖动）。
+    /// 客户端：输入意图上行 + 输入帧驱动本地确定性模拟。
     /// </summary>
     public class NetClientLogic : MonoBehaviour
     {
-        // 本地实体表现
-        private sealed class LocalEntity
-        {
-            public Transform Transform;
-            public Vector3 TargetPosition;
-        }
+        /// <summary>本地确定性模拟（由输入帧驱动）。</summary>
+        public Simulation.LockstepSimulation Simulation { get; private set; }
 
-        private readonly Dictionary<int, LocalEntity> m_LocalEntities = new Dictionary<int, LocalEntity>();
-
-        [SerializeField]
-        private float m_InterpolationSpeed = 12f;   // 插值速度（越高越快跟随）
-
-        /// <summary>
-        /// 无输入时是否自动绕圈移动（回环测试用；正式联机时由流程关闭）。
-        /// </summary>
-        [SerializeField]
-        private bool m_AutoMoveWhenIdle = true;
-
-        /// <summary>关闭空闲自动移动（真实联机玩家静止时不应绕圈）。</summary>
-        public void DisableAutoMove()
-        {
-            m_AutoMoveWhenIdle = false;
-        }
+        /// <summary>表现层（绑定到本地模拟）。</summary>
+        public Simulation.SimView View { get; private set; }
 
         private NetworkService m_Service = null;
         private bool m_Joined = false;
@@ -51,16 +36,20 @@ namespace EmojiWar.GameMain.Network
         private float m_JoinSendTime = 0f;
         private const float JoinConfirmTimeout = 3f;
 
-        /// <summary>自己的网络实体 ID（Host 告知；客户端不渲染自己，避免与本地玩家重复）。</summary>
+        /// <summary>自己的网络实体 ID（Host 告知）。</summary>
         private int m_MyEntityId = -1;
 
-        /// <summary>本机网络实体 ID（供本地玩家颜色统一用）。</summary>
+        /// <summary>本机网络实体 ID。</summary>
         public int MyEntityId { get { return m_MyEntityId; } }
+
         private string m_PlayerName = "玩家";
         private string m_ServerIp = "127.0.0.1";
         private int m_ServerPort = NetworkService.DefaultPort;
 
-        // 重连状态：服务器未就绪时持续重试（间隔 2s），不设死上限（用户可能先开加入者后开房主）
+        // 玩家名册（entityId → characterId；从 S2CSpawnEntity 收集，战斗模拟重建用）
+        private readonly Dictionary<int, int> m_Roster = new Dictionary<int, int>();
+
+        // 重连状态
         private bool m_Reconnecting = false;
         private float m_ReconnectDelay = 2f;
         private float m_ReconnectTimer = 0f;
@@ -69,15 +58,22 @@ namespace EmojiWar.GameMain.Network
         /// <summary>重连状态变化事件（参数：是否重连中）。</summary>
         public event System.Action<bool> OnReconnectStateChanged;
 
+        /// <summary>无输入时自动转圈（回环验证用；真实联机由 DisableAutoMove 关闭）。</summary>
+        [SerializeField]
+        private bool m_AutoMoveWhenIdle = true;
+
+        /// <summary>关闭空闲自动移动（真实联机玩家静止时不应绕圈）。</summary>
+        public void DisableAutoMove()
+        {
+            m_AutoMoveWhenIdle = false;
+        }
+
         private void Awake()
         {
-            // 默认绑定 GameEntry 的服务；测试可通过 Bind 覆盖
             m_Service = GameEntry.NetworkService;
         }
 
-        /// <summary>
-        /// 绑定网络服务（测试/多实例场景使用）。
-        /// </summary>
+        /// <summary>绑定网络服务（测试/多实例场景使用）。</summary>
         public void Bind(NetworkService service)
         {
             if (m_Service != null)
@@ -116,19 +112,17 @@ namespace EmojiWar.GameMain.Network
             WriteProbe("[net] OnModeChanged -> " + mode + " joined=" + m_Joined + " intentionalLeave=" + m_IntentionalLeave);
             if (mode == NetMode.Offline && m_Joined && !m_IntentionalLeave)
             {
-                // 连接断开（房主退出/网络中断）：通知流程返回大厅，停止重连
                 Debug.Log("[NetClientLogic] 连接断开（房主退出），返回大厅");
                 WriteProbe("[net] 连接断开，返回大厅");
                 m_IntentionalLeave = true;
                 m_Joined = false;
                 m_Reconnecting = false;
-                ClearLocalEntities();
+                ClearSimulation();
                 UI.RoomEvents.RoomClosed();
             }
         }
-        /// <summary>
-        /// 加入房间（连接建立后调用）。
-        /// </summary>
+
+        /// <summary>加入房间（连接建立后调用）。</summary>
         public void JoinRoom(string playerName, string serverIp = null, int port = -1)
         {
             m_PlayerName = playerName;
@@ -147,9 +141,7 @@ namespace EmojiWar.GameMain.Network
             Debug.Log("[NetClientLogic] 加入房间请求已排队，连接建立后发送: " + m_PlayerName);
         }
 
-        /// <summary>
-        /// 发送准备/取消准备请求。
-        /// </summary>
+        /// <summary>发送准备/取消准备请求。</summary>
         public void SendReady(bool ready)
         {
             if (m_Service != null)
@@ -159,32 +151,24 @@ namespace EmojiWar.GameMain.Network
             }
         }
 
-        /// <summary>
-        /// 把本地网络实体迁移到指定场景（战斗场景加载后调用，
-        /// 避免实体留在 Menu 场景被战斗相机 clear 遮挡而"缺玩家"）。
-        /// </summary>
-        public void MoveEntitiesToScene(UnityEngine.SceneManagement.Scene scene)
-        {
-            foreach (var kv in m_LocalEntities)
-            {
-                if (kv.Value != null && kv.Value.Transform != null)
-                {
-                    UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(kv.Value.Transform.gameObject, scene);
-                }
-            }
-            Debug.Log("[NetClientLogic] 迁移网络实体到场景 " + scene.name + "，数量 " + m_LocalEntities.Count);
-        }
-
-        /// <summary>
-        /// 主动离开房间：停止重连并清理本地实体。
-        /// </summary>
+        /// <summary>主动离开房间：停止重连并清理。</summary>
         public void LeaveRoom()
         {
             m_IntentionalLeave = true;
             m_Joined = false;
             m_Reconnecting = false;
-            ClearLocalEntities();
+            ClearSimulation();
             Debug.Log("[NetClientLogic] 主动离开房间");
+        }
+
+        /// <summary>清理本地模拟与表现（离开/断开/重开时）。</summary>
+        public void ClearSimulation()
+        {
+            if (View != null)
+            {
+                View.ClearAllViews();
+            }
+            Simulation = null;
         }
 
         private void Update()
@@ -193,9 +177,6 @@ namespace EmojiWar.GameMain.Network
             {
                 UpdateReconnect();
             }
-
-            // 插值平滑所有实体（每帧向目标位置移动）
-            UpdateInterpolation();
 
             if (!m_Joined || m_Service == null || m_Service.Mode != NetMode.Client)
             {
@@ -221,43 +202,74 @@ namespace EmojiWar.GameMain.Network
                 Debug.Log("[NetClientLogic] JoinRoom 未确认，重发");
             }
 
-            // 上行输入（测试：自动移动；正式：读取真实输入）
+            // 上行输入意图（只传意图，不传位置结果 —— 帧同步）
             float inputX = Input.GetAxisRaw("Horizontal");
             float inputY = Input.GetAxisRaw("Vertical");
 
             // 无键盘输入时自动转圈（回环验证用；真实联机由 DisableAutoMove 关闭）
             if (m_AutoMoveWhenIdle && inputX == 0f && inputY == 0f)
             {
-                inputX = Mathf.Cos(Time.time);
-                inputY = Mathf.Sin(Time.time);
+                // 确定性自动转圈（用本地模拟帧号而非 Time.time，保证输入序列确定）
+                float frame = Simulation != null ? Simulation.FrameIndex : Time.frameCount;
+                inputX = Mathf.Cos(frame * 0.05f);
+                inputY = Mathf.Sin(frame * 0.05f);
             }
 
-            // 携带本地玩家实际位置（精确同步：Host 优先用上报位置而非模拟）
-            bool hasPos = false;
-            float posX = 0f;
-            float posY = 0f;
-            var localPlayer = FindLocalPlayer();
-            if (localPlayer != null)
+            // 鼠标瞄准（世界坐标方向）
+            Vector3 mouseWorld = Vector3.zero;
+            var mainCam = Camera.main;
+            if (mainCam != null)
             {
-                hasPos = true;
-                Vector2 p = localPlayer.transform.position;
-                posX = p.x;
-                posY = p.y;
+                mouseWorld = mainCam.ScreenToWorldPoint(Input.mousePosition);
             }
 
             var input = new C2SPlayerInput
             {
                 InputX = inputX,
                 InputY = inputY,
-                AimX = 1f,
-                AimY = 0f,
-                FirePrimary = false,
-                FireSecondary = false,
-                PositionX = posX,
-                PositionY = posY,
-                HasPosition = hasPos,
+                AimX = mouseWorld.x,
+                AimY = mouseWorld.y,
+                FirePrimary = Input.GetMouseButton(0),
+                FireSecondary = Input.GetMouseButton(1),
+                Reload = Input.GetKeyDown(KeyCode.R),
             };
             m_Service.Send(input);
+
+            // 帧同步一致性探针（每 2 秒记录一次模拟状态，供双实例对比）
+            m_ProbeTimer -= Time.deltaTime;
+            if (m_ProbeTimer <= 0f)
+            {
+                m_ProbeTimer = 2f;
+                if (Simulation != null)
+                {
+                    var sb = new System.Text.StringBuilder();
+                    sb.Append("[sim] CLIENT frame=").Append(Simulation.FrameIndex)
+                      .Append(" wave=").Append(Simulation.WaveIndex)
+                      .Append(" players=").Append(Simulation.Players.Count)
+                      .Append(" enemies=").Append(Simulation.Enemies.Count)
+                      .Append(" bullets=").Append(Simulation.Bullets.Count);
+                    foreach (var p in Simulation.Players)
+                    {
+                        sb.Append(" E").Append(p.EntityId).Append(":(")
+                          .Append(p.Position.x.ToString("F2")).Append(",")
+                          .Append(p.Position.y.ToString("F2")).Append(")");
+                    }
+                    WriteProbe(sb.ToString());
+                }
+            }
+        }
+
+        private float m_ProbeTimer = 2f;
+
+        /// <summary>本机角色 ID（本地玩家当前角色；无玩家时用上次选择）。</summary>
+        private int GetLocalCharacterId()
+        {
+            var local = FindLocalPlayer();
+            if (local != null && local.CharacterId > 0)
+            {
+                return local.CharacterId;
+            }
+            return Procedure.ProcedureBattle.SelectedCharacterId;
         }
 
         /// <summary>查找本地玩家（房间页/战斗中的本机玩家实体）。</summary>
@@ -271,17 +283,6 @@ namespace EmojiWar.GameMain.Network
             return null;
         }
 
-        /// <summary>本机角色 ID（本地玩家当前角色；无玩家时用上次选择）。</summary>
-        private int GetLocalCharacterId()
-        {
-            var local = FindLocalPlayer();
-            if (local != null && local.CharacterId > 0)
-            {
-                return local.CharacterId;
-            }
-            return Procedure.ProcedureBattle.SelectedCharacterId;
-        }
-
         // ==================== 重连 ====================
 
         private void StartReconnect()
@@ -292,7 +293,7 @@ namespace EmojiWar.GameMain.Network
             }
             m_Reconnecting = true;
             m_ReconnectTimer = m_ReconnectDelay;
-            ClearLocalEntities();
+            ClearSimulation();
             OnReconnectStateChanged?.Invoke(true);
             Debug.Log("[NetClientLogic] 2 秒后自动重连 " + m_ServerIp + ":" + m_ServerPort);
         }
@@ -305,20 +306,16 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
-            // 无限重试（服务器未就绪时持续等）；每 20 次在 probe 里记录一次，避免刷屏
             m_ReconnectAttempts++;
             if (m_ReconnectAttempts % 20 == 0)
             {
                 WriteProbe("[net] 持续重连中... 第 " + m_ReconnectAttempts + " 次");
             }
 
-            // 重连
             if (m_Service != null)
             {
                 m_Service.ConnectToServer(m_ServerIp, m_ServerPort);
                 m_ReconnectTimer = m_ReconnectDelay;
-
-                // 短暂等待连接后重新加入
                 StartCoroutine(RejoinAfterConnect());
             }
         }
@@ -341,21 +338,6 @@ namespace EmojiWar.GameMain.Network
                 m_Reconnecting = false;
                 OnReconnectStateChanged?.Invoke(false);
             }
-        }
-
-        /// <summary>
-        /// 清理本地实体（重连/离开时）。
-        /// </summary>
-        public void ClearLocalEntities()
-        {
-            foreach (var kv in m_LocalEntities)
-            {
-                if (kv.Value.Transform != null)
-                {
-                    Destroy(kv.Value.Transform.gameObject);
-                }
-            }
-            m_LocalEntities.Clear();
         }
 
         // ==================== 消息处理 ====================
@@ -383,12 +365,12 @@ namespace EmojiWar.GameMain.Network
                     HandleSpawn(message as S2CSpawnEntity);
                     break;
 
-                case MsgId.EntityState:
-                    HandleEntityState(message as S2CEntityState);
-                    break;
-
                 case MsgId.RemoveEntity:
-                    HandleRemoveEntity(message as S2CRemoveEntity);
+                    var rm = message as S2CRemoveEntity;
+                    if (rm != null && Simulation != null)
+                    {
+                        Simulation.RemovePlayer(rm.EntityId);
+                    }
                     break;
 
                 case MsgId.ShopOffer:
@@ -409,8 +391,17 @@ namespace EmojiWar.GameMain.Network
                     break;
 
                 case MsgId.BattleStart:
-                    WriteProbe("[net] 收到战斗开始广播");
+                    var bs = message as S2CBattleStart;
+                    WriteProbe("[net] 收到战斗开始广播 seed=" + (bs != null ? bs.Seed.ToString() : "null"));
+                    if (bs != null)
+                    {
+                        InitializeBattleSimulation(bs.Seed);
+                    }
                     UI.RoomEvents.BattleStart();
+                    break;
+
+                case MsgId.InputFrame:
+                    HandleInputFrame(message as S2CInputFrame);
                     break;
 
                 case MsgId.RoomClosed:
@@ -418,7 +409,7 @@ namespace EmojiWar.GameMain.Network
                     m_IntentionalLeave = true;
                     m_Joined = false;
                     m_Reconnecting = false;
-                    ClearLocalEntities();
+                    ClearSimulation();
                     UI.RoomEvents.RoomClosed();
                     break;
 
@@ -427,20 +418,142 @@ namespace EmojiWar.GameMain.Network
                     if (my != null)
                     {
                         m_MyEntityId = my.EntityId;
-                        m_JoinConfirmed = true;    // 收到加入确认
-                        WriteProbe("[net] 收到 S2CMyEntity, 我的实体ID=" + m_MyEntityId + "（加入成功）");                        // 兜底：若自己的实体已被渲染（消息时序竞争），移除，避免误当其他玩家
-                        if (m_LocalEntities.TryGetValue(m_MyEntityId, out var self))
-                        {
-                            if (self != null && self.Transform != null)
-                            {
-                                Destroy(self.Transform.gameObject);
-                            }
-                            m_LocalEntities.Remove(m_MyEntityId);
-                            Debug.Log("[NetClientLogic] 移除已误渲染的自己实体 " + m_MyEntityId);
-                        }
-                        Debug.Log("[NetClientLogic] 我的实体 ID = " + m_MyEntityId + "（客户端不渲染自己）");
+                        m_JoinConfirmed = true;
+                        WriteProbe("[net] 收到 S2CMyEntity, 我的实体ID=" + m_MyEntityId + "（加入成功）");
+                        Debug.Log("[NetClientLogic] 我的实体 ID = " + m_MyEntityId);
+
+                        // 房间阶段模拟（seed=0，与 Host 一致）：加入自己，玩家移动由模拟同步
+                        EnsureRoomSimulation();
                     }
                     break;
+            }
+        }
+
+        /// <summary>处理输入帧：推进本地确定性模拟（表现层自动从模拟渲染）。</summary>
+        private void HandleInputFrame(S2CInputFrame frame)
+        {
+            if (frame == null || Simulation == null)
+            {
+                return;
+            }
+
+            var inputs = new Dictionary<int, SimIntent>();
+            for (int i = 0; i < frame.Count; i++)
+            {
+                int entityId = frame.EntityIds[i];
+                inputs[entityId] = new SimIntent
+                {
+                    MoveX = frame.InputXs[i],
+                    MoveY = frame.InputYs[i],
+                    AimX = frame.AimXs[i],
+                    AimY = frame.AimYs[i],
+                    FirePrimary = frame.FirePrimaries[i],
+                    FireSecondary = frame.FireSecondaries[i],
+                    Reload = frame.Reloads[i],
+                };
+            }
+
+            Simulation.Tick(inputs);
+        }
+
+        /// <summary>处理实体生成：玩家进名册并加入本地模拟（玩家位置由模拟驱动）。</summary>
+        private void HandleSpawn(S2CSpawnEntity spawn)
+        {
+            if (spawn == null || spawn.Type != 0)
+            {
+                return;    // 只关心玩家（敌人由模拟生成）
+            }
+
+            if (!m_Roster.ContainsKey(spawn.EntityId))
+            {
+                m_Roster[spawn.EntityId] = spawn.CharacterId;
+            }
+
+            if (Simulation != null && Simulation.GetPlayerByEntityId(spawn.EntityId) == null)
+            {
+                Simulation.AddPlayer(BuildPlayerConfig(spawn.EntityId, spawn.CharacterId));
+            }
+        }
+
+        /// <summary>从数据表构建确定性玩家配置（与 Host 相同规则）。</summary>
+        private Simulation.SimPlayerConfig BuildPlayerConfig(int entityId, int characterId)
+        {
+            var config = new Simulation.SimPlayerConfig
+            {
+                SessionId = -1,
+                EntityId = entityId,
+                CharacterId = characterId,
+                StartPosition = Vector2.zero,
+            };
+
+            if (GameEntry.Data != null)
+            {
+                var character = GameEntry.Data.GetCharacter(characterId);
+                if (character != null)
+                {
+                    config.MoveSpeed = character.MoveSpeed;
+                    var weapon = GameEntry.Data.GetWeapon(character.DefaultWeaponId);
+                    if (weapon != null)
+                    {
+                        config.WeaponDamage = weapon.Damage;
+                        config.FireRate = weapon.FireRate;
+                        config.MaxAmmo = weapon.MaxAmmo;
+                        config.ReloadTime = weapon.ReloadTime;
+                        config.BulletSpeed = weapon.BulletSpeed;
+                        config.Spread = weapon.Spread;
+                    }
+                }
+            }
+            return config;
+        }
+
+        /// <summary>
+        /// 战斗开始：用广播种子重建本地确定性模拟（与 Host 一致）并开启波次。
+        /// </summary>
+        private void InitializeBattleSimulation(int seed)
+        {
+            Simulation = new Simulation.LockstepSimulation();
+
+            var configs = new List<Simulation.SimPlayerConfig>();
+            foreach (var kv in m_Roster)
+            {
+                configs.Add(BuildPlayerConfig(kv.Key, kv.Value));
+            }
+            // 兜底：若自己尚未进入名册（时序竞争），补上
+            if (m_MyEntityId >= 0 && !m_Roster.ContainsKey(m_MyEntityId))
+            {
+                configs.Add(BuildPlayerConfig(m_MyEntityId, GetLocalCharacterId()));
+            }
+
+            Simulation.Initialize(seed, configs);
+            Simulation.StartWave(1);
+            WriteProbe("[net] 战斗模拟初始化 seed=" + seed + " players=" + configs.Count);
+            Debug.Log("[NetClientLogic] 战斗确定性模拟已初始化，玩家数 " + configs.Count);
+
+            if (GameEntry.SimView != null)
+            {
+                GameEntry.SimView.SetSimulation(Simulation, m_MyEntityId);
+            }
+        }
+
+        /// <summary>房间阶段确定性模拟（seed=0，与 Host 一致；无敌人，仅玩家移动）。</summary>
+        private void EnsureRoomSimulation()
+        {
+            if (Simulation != null)
+            {
+                return;
+            }
+            Simulation = new Simulation.LockstepSimulation();
+            Simulation.Initialize(0, null);
+            if (m_MyEntityId >= 0)
+            {
+                Simulation.AddPlayer(BuildPlayerConfig(m_MyEntityId, GetLocalCharacterId()));
+                m_Roster[m_MyEntityId] = GetLocalCharacterId();
+            }
+            WriteProbe("[net] 房间模拟已启动（seed=0）");
+            if (GameEntry.SimView != null)
+            {
+                GameEntry.SimView.SetSimulation(Simulation, m_MyEntityId);
             }
         }
 
@@ -456,34 +569,21 @@ namespace EmojiWar.GameMain.Network
             {
                 return;
             }
-
             LastShopOffer = offer.Items;
             GotShopOffer = true;
             Debug.Log("[NetClientLogic] 收到商店商品: " + offer.Items);
         }
 
-        /// <summary>
-        /// 处理房主重开指令：清理远端实体并重启本地战斗。
-        /// 若本机正处于结算流程，则直接触发结算界面的重开按钮逻辑。
-        /// </summary>
+        /// <summary>处理房主回房间指令：重置本地模拟到房间阶段（seed=0）。</summary>
         private void HandleRunRestart()
         {
-            Debug.Log("[NetClientLogic] 收到房主重开指令 S2CRunRestart");
-            ClearLocalEntities();
-
-            if (Procedure.ProcedureBattle.Current != null)
-            {
-                Procedure.ProcedureBattle.Current.RestartRunLocally();
-            }
-            else
-            {
-                UI.GameOverEvents.RequestRestart();
-            }
+            Debug.Log("[NetClientLogic] 收到房主回房间指令 S2CRunRestart");
+            ClearSimulation();
+            EnsureRoomSimulation();
+            WriteProbe("[net] RunRestart -> 重建房间模拟");
         }
 
-        /// <summary>
-        /// 发送购买请求。
-        /// </summary>
+        /// <summary>发送购买请求。</summary>
         public void RequestBuy(int shopItemIndex)
         {
             if (m_Service != null)
@@ -491,123 +591,6 @@ namespace EmojiWar.GameMain.Network
                 m_Service.Send(new C2SBuyItem { ShopItemIndex = shopItemIndex });
                 Debug.Log("[NetClientLogic] 发送购买请求: " + shopItemIndex);
             }
-        }
-
-        private void HandleSpawn(S2CSpawnEntity spawn)
-        {
-            if (spawn == null || m_LocalEntities.ContainsKey(spawn.EntityId))
-            {
-                return;
-            }
-
-            // 不渲染自己的网络实体（本地玩家已代表自己，避免同屏多个"玩家"）
-            if (spawn.Type == 0 && spawn.EntityId == m_MyEntityId)
-            {
-                WriteProbe("[net] 跳过渲染自己实体 " + spawn.EntityId);
-                Debug.Log("[NetClientLogic] 跳过渲染自己的实体 " + spawn.EntityId);
-                return;
-            }
-
-            WriteProbe("[net] 渲染网络实体 id=" + spawn.EntityId + " type=" + spawn.Type + " (my=" + m_MyEntityId + ")");
-
-            // 生成本地表现对象：SpriteRenderer + 旧项目迁移的 emoji 美术
-            // （玩家=黄色笑脸 1f603，敌人=红色恶魔 1f47f；替代原占位方块，
-            //   修复构建版 3D 默认材质 shader 未打包导致的粉色方块）
-            var go = new GameObject("NetEntity_" + spawn.EntityId);
-            var spriteRenderer = go.AddComponent<SpriteRenderer>();
-
-            // 玩家用角色专属美术（不同角色不同 emoji），敌人用默认敌人美术
-            Sprite sprite;
-            if (spawn.Type == 0)
-            {
-                string icon = null;
-                var character = spawn.CharacterId > 0 && GameEntry.Data != null
-                    ? GameEntry.Data.GetCharacter(spawn.CharacterId)
-                    : null;
-                if (character != null)
-                {
-                    icon = character.Icon;
-                }
-                sprite = Art.ArtManager.GetCharacterSprite(icon);
-            }
-            else
-            {
-                sprite = Art.ArtManager.GetEnemySprite();
-            }
-
-            spriteRenderer.sprite = sprite;
-            spriteRenderer.sortingOrder = spawn.Type == 0 ? 10 : 5;
-
-            Vector3 spawnPos = new Vector3(spawn.X, spawn.Y, 0f);
-            go.transform.position = spawnPos;
-
-            // 按精灵尺寸缩放（与本地实体视觉大小一致）
-            if (sprite != null)
-            {
-                float spriteWidth = sprite.bounds.size.x;
-                if (spriteWidth > 0.01f)
-                {
-                    go.transform.localScale = Vector3.one * (1f / spriteWidth);
-                }
-            }
-
-            m_LocalEntities[spawn.EntityId] = new LocalEntity { Transform = go.transform, TargetPosition = spawnPos };
-
-            Debug.Log(string.Format("[NetClientLogic] 生成实体 {0} type={1} 于 ({2:F1},{3:F1}) sprite={4}",
-                spawn.EntityId, spawn.Type, spawn.X, spawn.Y, sprite != null ? "OK" : "NULL"));
-        }
-
-        private void HandleEntityState(S2CEntityState state)
-        {
-            if (state == null || !m_LocalEntities.TryGetValue(state.EntityId, out var entity))
-            {
-                return;
-            }
-
-            // 更新目标位置（由 UpdateInterpolation 平滑跟随）
-            entity.TargetPosition = new Vector3(state.X, state.Y, 0f);
-        }
-
-        private void HandleRemoveEntity(S2CRemoveEntity remove)
-        {
-            if (remove == null)
-            {
-                return;
-            }
-
-            if (m_LocalEntities.TryGetValue(remove.EntityId, out var entity))
-            {
-                if (entity.Transform != null)
-                {
-                    Destroy(entity.Transform.gameObject);
-                }
-                m_LocalEntities.Remove(remove.EntityId);
-                Debug.Log("[NetClientLogic] 实体 " + remove.EntityId + " 移除");
-            }
-        }
-
-        /// <summary>
-        /// 插值平滑所有实体位置。
-        /// </summary>
-        private void UpdateInterpolation()
-        {
-            float t = m_InterpolationSpeed * Time.deltaTime;
-            foreach (var kv in m_LocalEntities)
-            {
-                var entity = kv.Value;
-                if (entity == null || entity.Transform == null)
-                {
-                    continue;
-                }
-
-                entity.Transform.position = Vector3.Lerp(entity.Transform.position, entity.TargetPosition, t);
-            }
-        }
-
-        /// <summary>当前实体数量（测试用）。</summary>
-        public int LocalEntityCount
-        {
-            get { return m_LocalEntities.Count; }
         }
 
         /// <summary>运行时探针（按进程分文件）。</summary>

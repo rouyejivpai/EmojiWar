@@ -84,6 +84,56 @@ namespace EmojiWar.GameMain.Shop
         }
 
         /// <summary>
+        /// 解析确定性模拟生成的商品字符串（"type:id:price;..."）。
+        /// </summary>
+        public static List<ShopItem> ParseOfferings(string offer)
+        {
+            var items = new List<ShopItem>();
+            var data = GameEntry.Data;
+            if (data == null || string.IsNullOrEmpty(offer))
+            {
+                return items;
+            }
+
+            string[] entries = offer.Split(';');
+            foreach (var entry in entries)
+            {
+                if (string.IsNullOrEmpty(entry))
+                {
+                    continue;
+                }
+                string[] kv = entry.Split(':');
+                if (kv.Length < 3)
+                {
+                    continue;
+                }
+                int type = 0, id = 0, price = 0;
+                if (!int.TryParse(kv[0], out type) || !int.TryParse(kv[1], out id) || !int.TryParse(kv[2], out price))
+                {
+                    continue;
+                }
+
+                if (type == 0)
+                {
+                    var weapon = data.GetWeapon(id);
+                    if (weapon != null)
+                    {
+                        items.Add(new ShopItem(ShopItemType.Weapon, weapon.Id, weapon.WeaponName, weapon.Description, price));
+                    }
+                }
+                else
+                {
+                    var mod = data.GetMod(id);
+                    if (mod != null)
+                    {
+                        items.Add(new ShopItem(ShopItemType.Mod, mod.Id, mod.ModName, mod.Description, price));
+                    }
+                }
+            }
+            return items;
+        }
+
+        /// <summary>
         /// 权重随机抽取武器。
         /// </summary>
         private static Data.DRWeapon RollWeapon()

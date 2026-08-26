@@ -30,7 +30,7 @@ namespace EmojiWar.GameMain.Network
         }
     }
 
-    /// <summary>玩家输入（每帧上行，带实际位置用于精确同步）。</summary>
+    /// <summary>玩家输入（帧同步意图上行：只传意图，不传位置结果）。</summary>
     public sealed class C2SPlayerInput : NetMessage
     {
         public float InputX;
@@ -39,9 +39,7 @@ namespace EmojiWar.GameMain.Network
         public float AimY;
         public bool FirePrimary;
         public bool FireSecondary;
-        public float PositionX;   // 本地玩家实际位置（精确同步用；0 表示未提供）
-        public float PositionY;
-        public bool HasPosition;  // 是否携带位置
+        public bool Reload;
 
         public override MsgId Id { get { return MsgId.PlayerInput; } }
 
@@ -53,9 +51,7 @@ namespace EmojiWar.GameMain.Network
             writer.Write(AimY);
             writer.Write(FirePrimary);
             writer.Write(FireSecondary);
-            writer.Write(PositionX);
-            writer.Write(PositionY);
-            writer.Write(HasPosition);
+            writer.Write(Reload);
         }
 
         public override void Deserialize(BinaryReader reader)
@@ -66,9 +62,66 @@ namespace EmojiWar.GameMain.Network
             AimY = reader.ReadSingle();
             FirePrimary = reader.ReadBoolean();
             FireSecondary = reader.ReadBoolean();
-            PositionX = reader.ReadSingle();
-            PositionY = reader.ReadSingle();
-            HasPosition = reader.ReadBoolean();
+            Reload = reader.ReadBoolean();
+        }
+    }
+
+    /// <summary>输入帧广播（Host 每 tick 收齐所有玩家意图后广播，各端据此推进确定性模拟）。</summary>
+    public sealed class S2CInputFrame : NetMessage
+    {
+        public int FrameIndex;
+        public int Count;
+        public int[] EntityIds;
+        public float[] InputXs;
+        public float[] InputYs;
+        public float[] AimXs;
+        public float[] AimYs;
+        public bool[] FirePrimaries;
+        public bool[] FireSecondaries;
+        public bool[] Reloads;
+
+        public override MsgId Id { get { return MsgId.InputFrame; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(FrameIndex);
+            writer.Write(Count);
+            for (int i = 0; i < Count; i++)
+            {
+                writer.Write(EntityIds[i]);
+                writer.Write(InputXs[i]);
+                writer.Write(InputYs[i]);
+                writer.Write(AimXs[i]);
+                writer.Write(AimYs[i]);
+                writer.Write(FirePrimaries[i]);
+                writer.Write(FireSecondaries[i]);
+                writer.Write(Reloads[i]);
+            }
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            FrameIndex = reader.ReadInt32();
+            Count = reader.ReadInt32();
+            EntityIds = new int[Count];
+            InputXs = new float[Count];
+            InputYs = new float[Count];
+            AimXs = new float[Count];
+            AimYs = new float[Count];
+            FirePrimaries = new bool[Count];
+            FireSecondaries = new bool[Count];
+            Reloads = new bool[Count];
+            for (int i = 0; i < Count; i++)
+            {
+                EntityIds[i] = reader.ReadInt32();
+                InputXs[i] = reader.ReadSingle();
+                InputYs[i] = reader.ReadSingle();
+                AimXs[i] = reader.ReadSingle();
+                AimYs[i] = reader.ReadSingle();
+                FirePrimaries[i] = reader.ReadBoolean();
+                FireSecondaries[i] = reader.ReadBoolean();
+                Reloads[i] = reader.ReadBoolean();
+            }
         }
     }
 

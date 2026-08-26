@@ -78,6 +78,13 @@ namespace EmojiWar.GameMain.Procedure
             // 订阅玩家死亡事件
             Entity.PlayerEntity.OnPlayerDied += OnPlayerDied;
 
+            // 网络模式：订阅确定性模拟事件（商店开放/战斗结束）
+            var net = GameEntry.NetworkService;
+            if (net != null && net.Mode != Network.NetMode.Offline)
+            {
+                SubscribeNetworkSimulationEvents();
+            }
+
             // 战斗场景：叠加加载架构下场景常驻 —— 已加载则复用并激活，避免重复加载
             var battleScene = SceneManager.GetSceneByName("Battle");
             if (!battleScene.isLoaded)
@@ -98,30 +105,17 @@ namespace EmojiWar.GameMain.Procedure
             }
         }
 
-        /// <summary>迁移网络实体/远程玩家表现到战斗场景（避免被战斗相机 clear 遮挡）。</summary>
+        /// <summary>
+        /// 迁移网络模拟表现到战斗场景。
+        /// SimView 挂在 GameEntry（DontDestroyOnLoad，跨场景常驻），其渲染的实体
+        /// （SimPlayer_/SimEnemy_/SimBullet_）随 SimView 自动跨场景，无需迁移。
+        /// 此方法保留为空实现（原状态同步时代的实体迁移已废弃）。
+        /// </summary>
         private void MigrateNetworkEntitiesToBattleScene()
         {
-            var battleScene = UnityEngine.SceneManagement.SceneManager.GetSceneByName("Battle");
-            if (!battleScene.IsValid())
-            {
-                return;
-            }
-
-            var clientLogic = GameEntry.Instance != null
-                ? GameEntry.Instance.GetComponentInChildren<Network.NetClientLogic>()
-                : null;
-            if (clientLogic != null)
-            {
-                clientLogic.MoveEntitiesToScene(battleScene);
-            }
-
-            var hostLogic = GameEntry.Instance != null
-                ? GameEntry.Instance.GetComponentInChildren<Network.NetHostLogic>()
-                : null;
-            if (hostLogic != null)
-            {
-                hostLogic.MoveRemotePlayersToScene(battleScene);
-            }
+            // 确定性帧同步：表现由 SimView 常驻渲染，无需移动实体到战斗场景。
+            // （战斗相机 ActivateScene 后即可看到；避免 MoveGameObjectToScene 对
+            //   非根物体抛 ArgumentException）
         }
 
         private void OnShopPhase(int waveIndex)
@@ -140,6 +134,81 @@ namespace EmojiWar.GameMain.Procedure
             }
 
             GameEntry.UI.OpenUIForm(Constant.UIFormAssetPath.ShopForm, Constant.UIGroup.Default, this);
+        }
+
+        /// <summary>网络模式：订阅确定性模拟事件（商店开放 → 开商店；战斗结束 → 结算）。</summary>
+        private void SubscribeNetworkSimulationEvents()
+        {
+            var net = GameEntry.NetworkService;
+            if (net == null)
+            {
+                return;
+            }
+
+            if (net.Mode == Network.NetMode.Host)
+            {
+                var hostLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetHostLogic>()
+                    : null;
+                if (hostLogic != null && hostLogic.Simulation != null)
+                {
+                    hostLogic.Simulation.OnShopOpened += OnShopPhase;
+                    hostLogic.Simulation.OnBattleEnded += OnSimulationBattleEnded;
+                }
+            }
+            else if (net.Mode == Network.NetMode.Client)
+            {
+                var clientLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetClientLogic>()
+                    : null;
+                if (clientLogic != null && clientLogic.Simulation != null)
+                {
+                    clientLogic.Simulation.OnShopOpened += OnShopPhase;
+                    clientLogic.Simulation.OnBattleEnded += OnSimulationBattleEnded;
+                }
+            }
+        }
+
+        /// <summary>确定性模拟战斗结束（全部玩家死亡）→ 结算。</summary>
+        private void OnSimulationBattleEnded()
+        {
+            Log.Info("[ProcedureBattle] 确定性模拟战斗结束，进入结算");
+            WriteProbe("[battle-proc] SimulationBattleEnded");
+            s_BattleSession = false;
+            ChangeState<ProcedureGameOver>(CurrentFsm);
+        }
+
+        /// <summary>取消网络模拟事件订阅。</summary>
+        private void UnsubscribeNetworkSimulationEvents()
+        {
+            var net = GameEntry.NetworkService;
+            if (net == null)
+            {
+                return;
+            }
+
+            if (net.Mode == Network.NetMode.Host)
+            {
+                var hostLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetHostLogic>()
+                    : null;
+                if (hostLogic != null && hostLogic.Simulation != null)
+                {
+                    hostLogic.Simulation.OnShopOpened -= OnShopPhase;
+                    hostLogic.Simulation.OnBattleEnded -= OnSimulationBattleEnded;
+                }
+            }
+            else if (net.Mode == Network.NetMode.Client)
+            {
+                var clientLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetClientLogic>()
+                    : null;
+                if (clientLogic != null && clientLogic.Simulation != null)
+                {
+                    clientLogic.Simulation.OnShopOpened -= OnShopPhase;
+                    clientLogic.Simulation.OnBattleEnded -= OnSimulationBattleEnded;
+                }
+            }
         }
 
         private void OnPlayerDied()
@@ -192,6 +261,18 @@ namespace EmojiWar.GameMain.Procedure
                 return;
             }
 
+            // 网络模式（Host/Client）：战斗由确定性帧同步模拟驱动（SimView 渲染），
+            // 不再实例化 BattleManager（避免重复生成本地玩家/波次）。
+            var net = GameEntry.NetworkService;
+            if (net != null && net.Mode != Network.NetMode.Offline)
+            {
+                EnsureNetworkSimulationBound();
+                OpenBattleHud();
+                WriteProbe("[battle-proc] 网络模式：确定性模拟驱动，绑定 SimView");
+                return;
+            }
+
+            // 单机模式（离线）：保留本地 BattleManager 战斗
             GameObject managerPrefab = LoadPrefab(BattleManagerPrefabPath);
             WriteProbe("[battle-proc] BattleManager prefab=" + (managerPrefab != null ? "OK" : "NULL"));
             if (managerPrefab == null)
@@ -207,16 +288,50 @@ namespace EmojiWar.GameMain.Procedure
             {
                 manager.StartBattle(m_CharacterId);
                 Log.Info("[ProcedureBattle] Battle started, character id={0}", m_CharacterId);
+                OpenBattleHud();
+            }
+        }
 
-                // 打开战斗 HUD
-                if (GameEntry.UI != null)
+        /// <summary>网络模式：确保 SimView 绑定到本地确定性模拟（Host=HostLogic.Simulation，Client=ClientLogic.Simulation）。</summary>
+        private void EnsureNetworkSimulationBound()
+        {
+            var net = GameEntry.NetworkService;
+            if (net == null)
+            {
+                return;
+            }
+
+            if (net.Mode == Network.NetMode.Host)
+            {
+                var hostLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetHostLogic>()
+                    : null;
+                if (hostLogic != null && hostLogic.Simulation != null && GameEntry.SimView != null)
                 {
-                    if (!GameEntry.UI.HasUIGroup(Constant.UIGroup.Default))
-                    {
-                        GameEntry.UI.AddUIGroup(Constant.UIGroup.Default);
-                    }
-                    GameEntry.UI.OpenUIForm(Constant.UIFormAssetPath.BattleHudForm, Constant.UIGroup.Default, this);
+                    GameEntry.SimView.SetSimulation(hostLogic.Simulation, hostLogic.GetLocalEntityId());
                 }
+            }
+            else if (net.Mode == Network.NetMode.Client)
+            {
+                var clientLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetClientLogic>()
+                    : null;
+                if (clientLogic != null && clientLogic.Simulation != null && GameEntry.SimView != null)
+                {
+                    GameEntry.SimView.SetSimulation(clientLogic.Simulation, clientLogic.MyEntityId);
+                }
+            }
+        }
+
+        private void OpenBattleHud()
+        {
+            if (GameEntry.UI != null)
+            {
+                if (!GameEntry.UI.HasUIGroup(Constant.UIGroup.Default))
+                {
+                    GameEntry.UI.AddUIGroup(Constant.UIGroup.Default);
+                }
+                GameEntry.UI.OpenUIForm(Constant.UIFormAssetPath.BattleHudForm, Constant.UIGroup.Default, this);
             }
         }
 
@@ -333,6 +448,7 @@ namespace EmojiWar.GameMain.Procedure
         {
             Battle.BattleManager.OnShopPhase -= OnShopPhase;
             Entity.PlayerEntity.OnPlayerDied -= OnPlayerDied;
+            UnsubscribeNetworkSimulationEvents();
             if (GameEntry.Event != null)
             {
                 GameEntry.Event.Unsubscribe(LoadSceneSuccessEventArgs.EventId, OnLoadSceneSuccess);

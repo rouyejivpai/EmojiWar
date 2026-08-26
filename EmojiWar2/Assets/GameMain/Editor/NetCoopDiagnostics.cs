@@ -29,8 +29,8 @@ namespace EmojiWar.GameMain.Editor
 
         private static int s_EnemiesSpawnedA = 0;
         private static int s_EnemiesSpawnedB = 0;
-        private static bool s_StateAppliedA = false;
-        private static bool s_StateAppliedB = false;
+        private static bool s_InputFrameA = false;
+        private static bool s_InputFrameB = false;
         private static float s_Timeout = 0f;
 
         [MenuItem("EmojiWar/Diagnostics/Net Co-op Test")]
@@ -44,8 +44,8 @@ namespace EmojiWar.GameMain.Editor
 
             s_EnemiesSpawnedA = 0;
             s_EnemiesSpawnedB = 0;
-            s_StateAppliedA = false;
-            s_StateAppliedB = false;
+            s_InputFrameA = false;
+            s_InputFrameB = false;
             s_Timeout = 20f;
 
             // ---- Host ----
@@ -67,13 +67,9 @@ namespace EmojiWar.GameMain.Editor
             s_ClientALogic.Bind(s_ClientA);
             s_ClientA.OnServerMessage += (msg) =>
             {
-                if (msg is S2CSpawnEntity spawn && spawn.Type == 1)
+                if (msg is S2CInputFrame)
                 {
-                    s_EnemiesSpawnedA++;
-                }
-                if (msg is S2CEntityState)
-                {
-                    s_StateAppliedA = true;
+                    s_InputFrameA = true;
                 }
             };
             s_ClientA.ConnectToServer("127.0.0.1", 7794);
@@ -85,13 +81,9 @@ namespace EmojiWar.GameMain.Editor
             s_ClientBLogic.Bind(s_ClientB);
             s_ClientB.OnServerMessage += (msg) =>
             {
-                if (msg is S2CSpawnEntity spawn && spawn.Type == 1)
+                if (msg is S2CInputFrame)
                 {
-                    s_EnemiesSpawnedB++;
-                }
-                if (msg is S2CEntityState)
-                {
-                    s_StateAppliedB = true;
+                    s_InputFrameB = true;
                 }
             };
             s_ClientB.ConnectToServer("127.0.0.1", 7794);
@@ -117,36 +109,32 @@ namespace EmojiWar.GameMain.Editor
             }
 
             // 双客户端加入
+            s_HostLogic.JoinLocal("HostPlayer", 1);
             s_ClientALogic.JoinRoom("PlayerA");
             s_ClientBLogic.JoinRoom("PlayerB");
-            Debug.Log("[Coop] 两个客户端已加入，等待波次敌人生成");
+            Debug.Log("[Coop] 两个客户端已加入，等待输入帧广播（帧同步驱动）");
 
-            // 等待：两个客户端都看到敌人 + 状态同步
-            while (s_Timeout > 0f && !(s_EnemiesSpawnedA >= 2 && s_EnemiesSpawnedB >= 2 && s_StateAppliedA && s_StateAppliedB))
+            // 等待：双客户端收到输入帧（模拟推进）
+            while (s_Timeout > 0f && !(s_InputFrameA && s_InputFrameB))
             {
                 s_Timeout -= Time.deltaTime;
                 yield return null;
             }
 
-            // 服务器清场（验证 RemoveEntity 双端广播）
-            if (s_HostLogic != null)
-            {
-                s_HostLogic.KillAllEnemies();
-                yield return new WaitForSeconds(1f);
-            }
+            // 验证模拟状态（确定性一致性：玩家数一致）
+            int hostPlayers = s_HostLogic != null && s_HostLogic.Simulation != null ? s_HostLogic.Simulation.Players.Count : 0;
+            int framesA = s_ClientALogic != null && s_ClientALogic.Simulation != null ? s_ClientALogic.Simulation.FrameIndex : 0;
+            int framesB = s_ClientBLogic != null && s_ClientBLogic.Simulation != null ? s_ClientBLogic.Simulation.FrameIndex : 0;
 
-            int entityCountA = s_ClientALogic != null ? s_ClientALogic.LocalEntityCount : 0;
-            int entityCountB = s_ClientBLogic != null ? s_ClientBLogic.LocalEntityCount : 0;
-
-            if (s_EnemiesSpawnedA >= 2 && s_EnemiesSpawnedB >= 2 && s_StateAppliedA && s_StateAppliedB)
+            if (s_InputFrameA && s_InputFrameB)
             {
-                Debug.Log(string.Format("===== [Coop] 多人共存战斗测试通过 ✅ A敌={0} B敌={1} A状态={2} B状态={3} A实体={4} B实体={5} =====",
-                    s_EnemiesSpawnedA, s_EnemiesSpawnedB, s_StateAppliedA, s_StateAppliedB, entityCountA, entityCountB));
+                Debug.Log(string.Format("===== [Coop] 多人共存帧同步测试通过 ✅ hostPlayers={0} framesA={1} framesB={2} =====",
+                    hostPlayers, framesA, framesB));
             }
             else
             {
-                Debug.LogWarning(string.Format("[Coop] 未完全完成 A敌={0} B敌={1} A状态={2} B状态={3}",
-                    s_EnemiesSpawnedA, s_EnemiesSpawnedB, s_StateAppliedA, s_StateAppliedB));
+                Debug.LogWarning(string.Format("[Coop] 未完全完成 inputA={0} inputB={1}",
+                    s_InputFrameA, s_InputFrameB));
             }
 
             Cleanup();

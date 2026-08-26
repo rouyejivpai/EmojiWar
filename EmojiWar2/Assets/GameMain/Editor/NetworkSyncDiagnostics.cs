@@ -1,9 +1,8 @@
 //------------------------------------------------------------
-// EmojiWar GameMain - 网络同步诊断工具（Editor）
+// EmojiWar GameMain - 网络帧同步诊断工具（Editor）
 // 菜单：EmojiWar/Diagnostics/Net Sync Loopback Test
-// 单进程内：Host + Client 回环，验证：
-//   Client 加入 → Host 生成实体 → Client 上行输入 → Host 更新位置
-//   → 广播 EntityState → Client 应用位置
+// 单进程内：Host + Client 回环，验证确定性帧同步：
+//   Client 加入 → Host/Client 建立同一模拟（同 seed）→ 输入帧广播 → 双端推进
 //------------------------------------------------------------
 
 using System.Collections;
@@ -14,7 +13,7 @@ using EmojiWar.GameMain.Network;
 namespace EmojiWar.GameMain.Editor
 {
     /// <summary>
-    /// 网络同步回环测试。
+    /// 网络帧同步回环测试。
     /// </summary>
     public static class NetworkSyncDiagnostics
     {
@@ -23,9 +22,8 @@ namespace EmojiWar.GameMain.Editor
         private static NetHostLogic s_HostLogic = null;
         private static NetClientLogic s_ClientLogic = null;
 
-        private static bool s_Spawned = false;
-        private static bool s_StateApplied = false;
-        private static Vector3 s_LastPosition = Vector3.zero;
+        private static bool s_Joined = false;
+        private static bool s_InputFrame = false;
         private static float s_Timeout = 0f;
 
         [MenuItem("EmojiWar/Diagnostics/Net Sync Loopback Test")]
@@ -37,8 +35,8 @@ namespace EmojiWar.GameMain.Editor
                 return;
             }
 
-            s_Spawned = false;
-            s_StateApplied = false;
+            s_Joined = false;
+            s_InputFrame = false;
             s_Timeout = 10f;
 
             // ---- Host ----
@@ -60,14 +58,13 @@ namespace EmojiWar.GameMain.Editor
             s_ClientLogic.Bind(s_Client);
             s_Client.OnServerMessage += (msg) =>
             {
-                if (msg.Id == MsgId.SpawnEntity)
+                if (msg.Id == MsgId.MyEntity)
                 {
-                    s_Spawned = true;
+                    s_Joined = true;
                 }
-                if (msg is S2CEntityState state)
+                if (msg is S2CInputFrame)
                 {
-                    s_StateApplied = true;
-                    s_LastPosition = new Vector3(state.X, state.Y, 0f);
+                    s_InputFrame = true;
                 }
             };
             s_Client.ConnectToServer("127.0.0.1", 7790);
@@ -95,34 +92,34 @@ namespace EmojiWar.GameMain.Editor
             Debug.Log(string.Format("[NetSync] 客户端已连接。host hosting={0} sessions={1}", s_Host.IsHosting, s_Host.ConnectedClients));
 
             // 加入房间
+            s_HostLogic.JoinLocal("HostPlayer", 1);
             s_ClientLogic.JoinRoom("SyncTester");
 
-            // 等待生成 + 状态应用（客户端每帧上行输入，Host 广播状态）
-            while (s_Timeout > 0f && !(s_Spawned && s_StateApplied))
+            // 等待加入 + 输入帧（帧同步活跃）
+            while (s_Timeout > 0f && !(s_Joined && s_InputFrame))
             {
                 s_Timeout -= Time.deltaTime;
                 yield return null;
             }
 
-            Debug.Log(string.Format("[NetSync] 测试结束。spawned={0} stateApplied={1} hostSessions={2}",
-                s_Spawned, s_StateApplied, s_Host.ConnectedClients));
-
-            // 额外等待几帧，确认位置持续更新（同步流活跃）
-            Vector3 posA = s_LastPosition;
+            // 额外等待几帧，确认模拟持续推进（帧号增长）
+            int frameA = s_ClientLogic != null && s_ClientLogic.Simulation != null ? s_ClientLogic.Simulation.FrameIndex : 0;
             yield return new WaitForSeconds(1f);
-            Vector3 posB = s_LastPosition;
+            int frameB = s_ClientLogic != null && s_ClientLogic.Simulation != null ? s_ClientLogic.Simulation.FrameIndex : 0;
+            bool framesAdvancing = frameB > frameA;
 
-            bool positionMoving = (posB - posA).sqrMagnitude > 0.0001f;
+            Debug.Log(string.Format("[NetSync] 测试结束。joined={0} inputFrame={1} frames {2}->{3} hostSessions={4}",
+                s_Joined, s_InputFrame, frameA, frameB, s_Host.ConnectedClients));
 
-            if (s_Spawned && s_StateApplied && positionMoving)
+            if (s_Joined && s_InputFrame && framesAdvancing)
             {
-                Debug.Log(string.Format("===== [NetSync] 同步测试通过 ✅ 实体位置持续更新 ({0:F2},{1:F2}) -> ({2:F2},{3:F2}) =====",
-                    posA.x, posA.y, posB.x, posB.y));
+                Debug.Log(string.Format("===== [NetSync] 帧同步测试通过 ✅ 模拟持续推进 ({0} -> {1}) =====",
+                    frameA, frameB));
             }
             else
             {
-                Debug.LogWarning(string.Format("[NetSync] 同步未完全完成 spawned={0} stateApplied={1} moving={2}",
-                    s_Spawned, s_StateApplied, positionMoving));
+                Debug.LogWarning(string.Format("[NetSync] 同步未完全完成 joined={0} inputFrame={1} advancing={2}",
+                    s_Joined, s_InputFrame, framesAdvancing));
             }
 
             Cleanup();

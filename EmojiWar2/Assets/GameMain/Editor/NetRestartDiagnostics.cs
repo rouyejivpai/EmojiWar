@@ -1,12 +1,11 @@
 //------------------------------------------------------------
-// EmojiWar GameMain - 多人重开（下一局）测试工具（Editor）
+// EmojiWar GameMain - 多人重开（下一局）测试工具（Editor，帧同步版）
 // 菜单：EmojiWar/Diagnostics/Net Restart Test
-// 单进程内：Host + ClientA + ClientB 回环（端口 7795），验证：
-//   1. 双客户端加入 + 敌人生成广播
-//   2. Host.ResetRunAndBroadcast() → 双客户端收到 S2CRunRestart
-//   3. 服务器波次归零并重启（重置后新敌人生成）
-//   4. 客户端实体重建（玩家实体重新广播）
-// 结果写入 Logs/diag.txt（绕 console 截断）。
+// 单进程内：Host + ClientA + ClientB 回环（端口 7795），验证确定性帧同步：
+//   1. 双客户端加入 → 各自建立确定性模拟
+//   2. Host.ResetRoom() → 模拟重建（房间阶段，玩家保留）
+//   3. 输入帧持续广播 → 双端模拟 FrameIndex 持续增长（一致性推进）
+// 结果写入 Logs/diag.txt。
 //------------------------------------------------------------
 
 using System.Collections;
@@ -19,7 +18,7 @@ using EmojiWar.GameMain.Network;
 namespace EmojiWar.GameMain.Editor
 {
     /// <summary>
-    /// 多人重开（下一局）测试。
+    /// 多人重开（下一局）测试（帧同步）。
     /// </summary>
     public static class NetRestartDiagnostics
     {
@@ -32,14 +31,10 @@ namespace EmojiWar.GameMain.Editor
         private static NetworkService s_ClientB = null;
         private static NetClientLogic s_ClientBLogic = null;
 
-        private static int s_EnemiesSpawnedA = 0;
-        private static int s_EnemiesSpawnedB = 0;
-        private static bool s_RunRestartReceivedA = false;
-        private static bool s_RunRestartReceivedB = false;
-        private static bool s_ResetTriggered = false;
-        private static int s_PostResetEnemiesA = 0;
-        private static int s_PostResetEnemiesB = 0;
-        private static int s_PostResetPlayersA = 0;
+        private static bool s_JoinedA = false;
+        private static bool s_JoinedB = false;
+        private static bool s_InputFrameA = false;
+        private static bool s_InputFrameB = false;
         private static float s_Timeout = 0f;
 
         [MenuItem("EmojiWar/Diagnostics/Net Restart Test")]
@@ -51,14 +46,10 @@ namespace EmojiWar.GameMain.Editor
                 return;
             }
 
-            s_EnemiesSpawnedA = 0;
-            s_EnemiesSpawnedB = 0;
-            s_RunRestartReceivedA = false;
-            s_RunRestartReceivedB = false;
-            s_ResetTriggered = false;
-            s_PostResetEnemiesA = 0;
-            s_PostResetEnemiesB = 0;
-            s_PostResetPlayersA = 0;
+            s_JoinedA = false;
+            s_JoinedB = false;
+            s_InputFrameA = false;
+            s_InputFrameB = false;
             s_Timeout = 30f;
 
             // ---- Host ----
@@ -80,24 +71,13 @@ namespace EmojiWar.GameMain.Editor
             s_ClientALogic.Bind(s_ClientA);
             s_ClientA.OnServerMessage += (msg) =>
             {
-                if (msg is S2CSpawnEntity spawn)
+                if (msg.Id == MsgId.MyEntity)
                 {
-                    if (spawn.Type == 1)
-                    {
-                        s_EnemiesSpawnedA++;
-                        if (s_ResetTriggered)
-                        {
-                            s_PostResetEnemiesA++;
-                        }
-                    }
-                    else if (s_ResetTriggered)
-                    {
-                        s_PostResetPlayersA++;
-                    }
+                    s_JoinedA = true;
                 }
-                if (msg is S2CRunRestart)
+                if (msg is S2CInputFrame)
                 {
-                    s_RunRestartReceivedA = true;
+                    s_InputFrameA = true;
                 }
             };
             s_ClientA.ConnectToServer("127.0.0.1", Port);
@@ -109,17 +89,13 @@ namespace EmojiWar.GameMain.Editor
             s_ClientBLogic.Bind(s_ClientB);
             s_ClientB.OnServerMessage += (msg) =>
             {
-                if (msg is S2CSpawnEntity spawn && spawn.Type == 1)
+                if (msg.Id == MsgId.MyEntity)
                 {
-                    s_EnemiesSpawnedB++;
-                    if (s_ResetTriggered)
-                    {
-                        s_PostResetEnemiesB++;
-                    }
+                    s_JoinedB = true;
                 }
-                if (msg is S2CRunRestart)
+                if (msg is S2CInputFrame)
                 {
-                    s_RunRestartReceivedB = true;
+                    s_InputFrameB = true;
                 }
             };
             s_ClientB.ConnectToServer("127.0.0.1", Port);
@@ -146,79 +122,64 @@ namespace EmojiWar.GameMain.Editor
                 yield break;
             }
 
-            // 加入房间（连接建立后自动补发加入请求）
+            // 加入房间
+            s_HostLogic.JoinLocal("HostPlayer", 1);
             s_ClientALogic.JoinRoom("PlayerA");
             s_ClientBLogic.JoinRoom("PlayerB");
-            Debug.Log("[Restart] 两个客户端已加入，等待波次敌人生成");
+            Debug.Log("[Restart] 两个客户端已加入，等待输入帧广播");
 
-            // 等待：两客户端都看到敌人
-            while (s_Timeout > 0f && !(s_EnemiesSpawnedA >= 2 && s_EnemiesSpawnedB >= 2))
+            // 等待：双客户端加入 + 输入帧到达
+            while (s_Timeout > 0f && !(s_JoinedA && s_JoinedB && s_InputFrameA && s_InputFrameB))
             {
                 s_Timeout -= Time.deltaTime;
                 yield return null;
             }
 
-            if (!(s_EnemiesSpawnedA >= 2 && s_EnemiesSpawnedB >= 2))
+            if (!(s_JoinedA && s_JoinedB && s_InputFrameA && s_InputFrameB))
             {
-                sb.AppendLine(string.Format("[Restart] FAIL: 敌人生成不足 A={0} B={1}", s_EnemiesSpawnedA, s_EnemiesSpawnedB));
+                sb.AppendLine(string.Format("[Restart] FAIL: 加入/输入帧不足 A={0}/{1} B={2}/{3}",
+                    s_JoinedA, s_InputFrameA, s_JoinedB, s_InputFrameB));
                 Finish(sb);
                 yield break;
             }
 
-            int countBeforeA = s_ClientALogic != null ? s_ClientALogic.LocalEntityCount : 0;
-            int countBeforeB = s_ClientBLogic != null ? s_ClientBLogic.LocalEntityCount : 0;
-            int waveBefore = s_HostLogic != null ? s_HostLogic.WaveIndex : -1;
-            sb.AppendLine(string.Format("[Restart] 重置前: A实体={0} B实体={1} 服务器波次={2}", countBeforeA, countBeforeB, waveBefore));
+            // 记录推进前帧号
+            int framesBeforeA = s_ClientALogic != null && s_ClientALogic.Simulation != null ? s_ClientALogic.Simulation.FrameIndex : 0;
+            int framesBeforeB = s_ClientBLogic != null && s_ClientBLogic.Simulation != null ? s_ClientBLogic.Simulation.FrameIndex : 0;
+            int hostPlayers = s_HostLogic != null && s_HostLogic.Simulation != null ? s_HostLogic.Simulation.Players.Count : 0;
+            sb.AppendLine(string.Format("[Restart] 重置前: A帧={0} B帧={1} Host玩家={2}", framesBeforeA, framesBeforeB, hostPlayers));
 
-            // 房主重开：服务器权威重置 + 广播
-            s_ResetTriggered = true;
+            // 房主重置房间（回房间 → 下一局准备）
             if (s_HostLogic != null)
             {
-                s_HostLogic.ResetRunAndBroadcast();
+                s_HostLogic.ResetRoom();
+                Debug.Log("[Restart] Host.ResetRoom() 已调用");
             }
 
-            // 等待 S2CRunRestart 到达
+            // 等待输入帧继续推进（模拟持续运行）
             wait = 6f;
-            while (wait > 0f && !(s_RunRestartReceivedA && s_RunRestartReceivedB))
+            while (wait > 0f && !(s_ClientALogic.Simulation != null && s_ClientALogic.Simulation.FrameIndex > framesBeforeA
+                && s_ClientBLogic.Simulation != null && s_ClientBLogic.Simulation.FrameIndex > framesBeforeB))
             {
                 wait -= Time.deltaTime;
                 yield return null;
             }
 
-            // 等待新波次敌人生成
-            wait = 6f;
-            while (wait > 0f && !(s_PostResetEnemiesA >= 1 && s_PostResetEnemiesB >= 1))
-            {
-                wait -= Time.deltaTime;
-                yield return null;
-            }
-
-            int countAfterA = s_ClientALogic != null ? s_ClientALogic.LocalEntityCount : 0;
-            int countAfterB = s_ClientBLogic != null ? s_ClientBLogic.LocalEntityCount : 0;
-            int waveAfter = s_HostLogic != null ? s_HostLogic.WaveIndex : -1;
-            sb.AppendLine(string.Format("[Restart] 重置后: A实体={0} B实体={1} 服务器波次={2} 重置后新敌A={3} 重置后新敌B={4} 重置后玩家重建A={5}",
-                countAfterA, countAfterB, waveAfter, s_PostResetEnemiesA, s_PostResetEnemiesB, s_PostResetPlayersA));
+            int framesAfterA = s_ClientALogic != null && s_ClientALogic.Simulation != null ? s_ClientALogic.Simulation.FrameIndex : 0;
+            int framesAfterB = s_ClientBLogic != null && s_ClientBLogic.Simulation != null ? s_ClientBLogic.Simulation.FrameIndex : 0;
+            int hostPlayersAfter = s_HostLogic != null && s_HostLogic.Simulation != null ? s_HostLogic.Simulation.Players.Count : 0;
+            sb.AppendLine(string.Format("[Restart] 重置后: A帧={0} B帧={1} Host玩家={2}", framesAfterA, framesAfterB, hostPlayersAfter));
 
             // ---- 判定 ----
             bool ok = true;
-            if (!(s_RunRestartReceivedA && s_RunRestartReceivedB))
+            if (!(framesAfterA > framesBeforeA && framesAfterB > framesBeforeB))
             {
-                sb.AppendLine("[Restart] FAIL: 客户端未收到 S2CRunRestart");
+                sb.AppendLine("[Restart] FAIL: 重置后模拟未继续推进（帧号未增长）");
                 ok = false;
             }
-            if (!(waveAfter >= 1))
+            if (hostPlayersAfter < 1)
             {
-                sb.AppendLine(string.Format("[Restart] FAIL: 服务器波次未重启 {0}->{1}", waveBefore, waveAfter));
-                ok = false;
-            }
-            if (!(s_PostResetEnemiesA >= 1 && s_PostResetEnemiesB >= 1))
-            {
-                sb.AppendLine(string.Format("[Restart] FAIL: 重置后新敌人生成不足 A={0} B={1}", s_PostResetEnemiesA, s_PostResetEnemiesB));
-                ok = false;
-            }
-            if (!(countAfterA > 0 && countAfterB > 0))
-            {
-                sb.AppendLine(string.Format("[Restart] FAIL: 客户端实体未重建 A={0} B={1}", countAfterA, countAfterB));
+                sb.AppendLine("[Restart] FAIL: 重置后 Host 模拟无玩家");
                 ok = false;
             }
 

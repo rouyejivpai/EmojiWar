@@ -71,7 +71,7 @@ namespace EmojiWar.GameMain.UI
             }
         }
 
-        /// <summary>刷新当前武器信息（名称 + 弹药 + 装弹状态）。</summary>
+        /// <summary>刷新当前武器信息（名称 + 弹药 + 装弹状态）。网络模式从确定性模拟读取。</summary>
         private void RefreshWeaponInfo()
         {
             if (m_WeaponText == null && m_AmmoText == null)
@@ -79,21 +79,41 @@ namespace EmojiWar.GameMain.UI
                 return;
             }
 
+            // 网络模式：本地玩家状态来自确定性模拟
+            var simPlayer = GameEntry.SimView != null ? GameEntry.SimView.GetLocalPlayer() : null;
+            if (simPlayer != null)
+            {
+                if (m_WeaponText != null)
+                {
+                    var character = GameEntry.Data != null ? GameEntry.Data.GetCharacter(simPlayer.CharacterId) : null;
+                    var weapon = character != null ? GameEntry.Data.GetWeapon(character.DefaultWeaponId) : null;
+                    m_WeaponText.text = "武器：" + (weapon != null ? weapon.WeaponName : "无");
+                }
+                if (m_AmmoText != null)
+                {
+                    m_AmmoText.text = simPlayer.IsReloading
+                        ? "装弹中..."
+                        : string.Format("弹药 {0}/{1}", simPlayer.Ammo, simPlayer.MaxAmmo);
+                }
+                return;
+            }
+
+            // 单机模式：本地 PlayerEntity
             var player = UnityEngine.Object.FindObjectOfType<Entity.PlayerEntity>();
-            var weapon = player != null ? player.PrimaryWeapon : null;
+            var weaponBase = player != null ? player.PrimaryWeapon : null;
 
             if (m_WeaponText != null)
             {
-                m_WeaponText.text = "武器：" + (weapon != null ? weapon.WeaponName : "无");
+                m_WeaponText.text = "武器：" + (weaponBase != null ? weaponBase.WeaponName : "无");
             }
 
             if (m_AmmoText != null)
             {
-                if (weapon != null)
+                if (weaponBase != null)
                 {
-                    m_AmmoText.text = weapon.IsReloading
+                    m_AmmoText.text = weaponBase.IsReloading
                         ? "装弹中..."
-                        : string.Format("弹药 {0}/{1}", weapon.CurrentAmmo, weapon.MaxAmmo);
+                        : string.Format("弹药 {0}/{1}", weaponBase.CurrentAmmo, weaponBase.MaxAmmo);
                 }
                 else
                 {
@@ -133,6 +153,13 @@ namespace EmojiWar.GameMain.UI
             {
                 return;
             }
+            // 网络模式：波次来自确定性模拟
+            var sim = GameEntry.SimView != null ? GameEntry.SimView.Simulation : null;
+            if (sim != null)
+            {
+                m_WaveText.text = "波次：" + sim.WaveIndex;
+                return;
+            }
             var session = Battle.RunSession.Instance;
             m_WaveText.text = "波次：" + (session != null ? session.WaveIndex : 0);
         }
@@ -141,6 +168,14 @@ namespace EmojiWar.GameMain.UI
         {
             if (m_HpText == null)
             {
+                return;
+            }
+
+            // 网络模式：本地玩家 HP 来自确定性模拟
+            var simPlayer = GameEntry.SimView != null ? GameEntry.SimView.GetLocalPlayer() : null;
+            if (simPlayer != null)
+            {
+                m_HpText.text = string.Format("HP: {0:F0}/100", simPlayer.Hp);
                 return;
             }
 

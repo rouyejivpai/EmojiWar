@@ -45,10 +45,20 @@ namespace EmojiWar.GameMain.UI
         {
             base.OnOpen(userData);
 
-            // 结算信息
-            var session = Battle.RunSession.Instance;
-            int wave = session != null ? session.WaveIndex : 0;
-            int coin = session != null ? session.Coin : 0;
+            // 结算信息（网络模式从确定性模拟读取波次）
+            int wave = 0;
+            int coin = 0;
+            var sim = GameEntry.SimView != null ? GameEntry.SimView.Simulation : null;
+            if (sim != null)
+            {
+                wave = sim.WaveIndex;
+            }
+            else
+            {
+                var session = Battle.RunSession.Instance;
+                wave = session != null ? session.WaveIndex : 0;
+                coin = session != null ? session.Coin : 0;
+            }
 
             if (m_TitleText != null)
             {

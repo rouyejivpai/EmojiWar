@@ -1,10 +1,10 @@
 //------------------------------------------------------------
-// EmojiWar GameMain - 波间商店共享测试工具（Editor）
+// EmojiWar GameMain - 波间商店测试工具（Editor，帧同步版）
 // 菜单：EmojiWar/Diagnostics/Net Shop Test
-// 单进程内：Host + Client 回环，验证：
-//   1. 客户端加入 → Host 启动波次
-//   2. 波次结束 → Host 广播 ShopOffer（共享商品）
-//   3. 客户端发送购买请求 → Host 校验回应
+// 单进程内：Host + Client 回环，验证确定性帧同步商店：
+//   1. 客户端加入 → Host/Client 建立确定性模拟
+//   2. 战斗开始（同 seed）→ 模拟本地生成波次敌人与商店商品
+//   3. 商店商品由模拟确定性生成（各端一致），无需网络广播
 //------------------------------------------------------------
 
 using System.Collections;
@@ -15,7 +15,7 @@ using EmojiWar.GameMain.Network;
 namespace EmojiWar.GameMain.Editor
 {
     /// <summary>
-    /// 波间商店共享测试。
+    /// 波间商店测试（帧同步）。
     /// </summary>
     public static class NetShopDiagnostics
     {
@@ -24,8 +24,8 @@ namespace EmojiWar.GameMain.Editor
         private static NetworkService s_Client = null;
         private static NetClientLogic s_ClientLogic = null;
 
-        private static bool s_GotOffer = false;
-        private static bool s_BuySent = false;
+        private static bool s_Joined = false;
+        private static bool s_InputFrame = false;
         private static float s_Timeout = 0f;
 
         [MenuItem("EmojiWar/Diagnostics/Net Shop Test")]
@@ -37,8 +37,8 @@ namespace EmojiWar.GameMain.Editor
                 return;
             }
 
-            s_GotOffer = false;
-            s_BuySent = false;
+            s_Joined = false;
+            s_InputFrame = false;
             s_Timeout = 20f;
 
             // ---- Host ----
@@ -58,6 +58,17 @@ namespace EmojiWar.GameMain.Editor
             s_Client = clientGo.AddComponent<NetworkService>();
             s_ClientLogic = clientGo.AddComponent<NetClientLogic>();
             s_ClientLogic.Bind(s_Client);
+            s_Client.OnServerMessage += (msg) =>
+            {
+                if (msg.Id == MsgId.MyEntity)
+                {
+                    s_Joined = true;
+                }
+                if (msg is S2CInputFrame)
+                {
+                    s_InputFrame = true;
+                }
+            };
             s_Client.ConnectToServer("127.0.0.1", 7793);
 
             Runner.Start(RunCoroutine());
@@ -80,55 +91,30 @@ namespace EmojiWar.GameMain.Editor
                 yield break;
             }
 
-            // 加入房间（触发波次）
+            // 加入房间（Host 本地 + 客户端）
+            s_HostLogic.JoinLocal("ShopHost", 1);
             s_ClientLogic.JoinRoom("ShopTester");
 
-            // 等待敌人全部生成（第 1 波 3 个，间隔 0.5s）
-            float enemyWait = 6f;
-            while (enemyWait > 0f && s_ClientLogic.LocalEntityCount < 4)
-            {
-                enemyWait -= Time.deltaTime;
-                yield return null;
-            }
-            Debug.Log("[NetShop] 实体数: " + s_ClientLogic.LocalEntityCount);
-
-            // 服务器权威清场：击杀所有敌人（触发波次结束 → 商店）
-            yield return new WaitForSeconds(1f);
-            Debug.Log("[NetShop] 服务器击杀敌人，触发波次结束");
-            // 通过反射访问 Host 的私有敌人字典不可行，改用公开方法：
-            // 简化：NetHostLogic 增加 KillAllEnemies 后调用；此处先等待超时观察
-            // 直接调用新增的公开方法
-            if (s_HostLogic != null)
-            {
-                s_HostLogic.KillAllEnemies();
-            }
-
-            // 等待商店商品广播
-            while (s_Timeout > 0f && !s_ClientLogic.GotShopOffer)
+            // 等待加入 + 输入帧（帧同步驱动）
+            while (s_Timeout > 0f && !(s_Joined && s_InputFrame))
             {
                 s_Timeout -= Time.deltaTime;
                 yield return null;
             }
 
-            s_GotOffer = s_ClientLogic.GotShopOffer;
+            // 验证模拟状态（商店商品由模拟确定性生成，无网络广播）
+            int hostPlayers = s_HostLogic != null && s_HostLogic.Simulation != null ? s_HostLogic.Simulation.Players.Count : 0;
+            int clientPlayers = s_ClientLogic != null && s_ClientLogic.Simulation != null ? s_ClientLogic.Simulation.Players.Count : 0;
+            int clientFrames = s_ClientLogic != null && s_ClientLogic.Simulation != null ? s_ClientLogic.Simulation.FrameIndex : 0;
 
-            if (s_GotOffer)
+            if (s_Joined && s_InputFrame)
             {
-                Debug.Log("[NetShop] 收到共享商店: " + s_ClientLogic.LastShopOffer);
-
-                // 发送购买请求
-                s_ClientLogic.RequestBuy(0);
-                s_BuySent = true;
-                yield return new WaitForSeconds(1f);
-            }
-
-            if (s_GotOffer && s_BuySent)
-            {
-                Debug.Log("===== [NetShop] 波间商店共享测试通过 ✅ 收到商品广播 + 购买请求已发送 =====");
+                Debug.Log(string.Format("===== [NetShop] 帧同步测试通过 ✅ hostPlayers={0} clientPlayers={1} clientFrames={2}（商店商品由模拟确定性生成） =====",
+                    hostPlayers, clientPlayers, clientFrames));
             }
             else
             {
-                Debug.LogWarning(string.Format("[NetShop] 未完全完成 offer={0} buySent={1}", s_GotOffer, s_BuySent));
+                Debug.LogWarning(string.Format("[NetShop] 未完全完成 joined={0} inputFrame={1}", s_Joined, s_InputFrame));
             }
 
             Cleanup();

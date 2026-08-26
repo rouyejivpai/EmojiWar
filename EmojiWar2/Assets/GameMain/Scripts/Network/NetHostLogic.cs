@@ -1,43 +1,51 @@
 //------------------------------------------------------------
-// EmojiWar GameMain - Host 权威逻辑（服务器端）
-// 维护所有玩家/实体的权威状态：
-//   收到 C2SPlayerInput → 更新玩家位置 → 广播 S2CEntityState
-//   服务器驱动：波次敌人生成、敌人 AI 追逐、血量同步、移除
-// 多人合作 PvE 核心：所有战斗逻辑由 Host 计算。
+// EmojiWar GameMain - Host 端逻辑（确定性帧同步 / Lockstep）
+// 职责：
+//   1. 房间管理：玩家加入/离开/准备/玩家列表（不变）
+//   2. 输入收集器：每逻辑 tick 收齐所有玩家（含本地 session0）的输入意图，
+//      广播 S2CInputFrame，本地也推进同一份 LockstepSimulation
+//   3. 掉线托管：某玩家未上报输入 → 该 tick 用空输入（全端一致）
+// 战斗结果由确定性模拟产生，网络只传输入意图，不再传位置/HP。
 //------------------------------------------------------------
 
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using LockstepSim = EmojiWar.GameMain.Simulation.LockstepSimulation;
+using SimIntent = EmojiWar.GameMain.Simulation.PlayerIntent;
 
 namespace EmojiWar.GameMain.Network
 {
     /// <summary>
-    /// Host 端权威状态：服务器模拟逻辑。
+    /// Host 端：房间管理 + 输入收集广播 + 本地确定性模拟。
     /// </summary>
     public class NetHostLogic : MonoBehaviour
     {
-        // 玩家权威状态（sessionId → 状态）
+        // 房间玩家状态（sessionId → 状态）
         private sealed class PlayerState
         {
             public int SessionId;
             public int EntityId;
-            public Vector2 Position;
-            public float Hp = 100f;
             public string PlayerName = "";
             public bool Ready = false;
             public int CharacterId = 1;
         }
 
-        // 敌人权威状态
-        private sealed class EnemyState
-        {
-            public int EntityId;
-            public Vector2 Position;
-            public float Hp = 30f;
-            public float Speed = 2.5f;
-            public bool Alive = true;
-        }
+        private readonly Dictionary<int, PlayerState> m_Players = new Dictionary<int, PlayerState>();
+
+        // 最近收到的输入意图（sessionId → input；掉线玩家缺省）
+        private readonly Dictionary<int, C2SPlayerInput> m_LatestInputs = new Dictionary<int, C2SPlayerInput>();
+
+        private NetworkService m_Service = null;
+        private int m_NextEntityId = 1000;
+
+        /// <summary>确定性模拟（Host 本地也作为一端参与推演）。</summary>
+        public Simulation.LockstepSimulation Simulation { get; private set; }
+
+        /// <summary>战斗是否已开始（tick 循环是否运行）。</summary>
+        public bool BattleRunning { get; private set; }
+
+        // tick 循环（20Hz）
+        private float m_TickAccumulator = 0f;
 
         [Header("波次配置")]
         [SerializeField]
@@ -46,30 +54,20 @@ namespace EmojiWar.GameMain.Network
         [SerializeField]
         private float m_SpawnRadius = 8f;
 
-        private readonly Dictionary<int, PlayerState> m_Players = new Dictionary<int, PlayerState>();
-        private readonly Dictionary<int, EnemyState> m_Enemies = new Dictionary<int, EnemyState>();
+        private bool m_BattleStartBroadcasted = false;
+        private bool m_LocalAutoMove = true;   // Host 本地无输入时自动转圈（回环测试用；真实联机由 DisableLocalAutoMove 关闭）
 
-        // Host 本地对其他玩家的表现对象（entityId → Transform）：
-        // 房主没有网络连接，收不到广播，需要直接从权威状态渲染其他玩家
-        private readonly Dictionary<int, Transform> m_LocalRemotePlayers = new Dictionary<int, Transform>();
-        private int m_NextEntityId = 1000;
-        private int m_WaveIndex = 0;
-        private Coroutine m_WaveCoroutine = null;
+        /// <summary>房间内全部准备后触发（Host 本地切流程用）。</summary>
+        public static event System.Action OnBattleStartRequested;
 
-        /// <summary>当前服务器波次（测试/诊断用）。</summary>
-        public int WaveIndex { get { return m_WaveIndex; } }
-
-        private NetworkService m_Service = null;
+        private NetworkService Service { get { return m_Service; } }
 
         private void Awake()
         {
-            // 默认绑定 GameEntry 的服务；测试可通过 Bind 覆盖
             m_Service = GameEntry.NetworkService;
         }
 
-        /// <summary>
-        /// 绑定网络服务（测试/多实例场景使用）。
-        /// </summary>
+        /// <summary>绑定网络服务（测试/多实例场景使用）。</summary>
         public void Bind(NetworkService service)
         {
             if (m_Service != null)
@@ -111,7 +109,6 @@ namespace EmojiWar.GameMain.Network
                 m_Service.OnModeChanged -= OnModeChanged;
                 m_Service.OnClientDisconnected -= OnClientDisconnected;
             }
-            StopWave();
         }
 
         private void OnModeChanged(NetMode mode)
@@ -119,57 +116,30 @@ namespace EmojiWar.GameMain.Network
             if (mode == NetMode.Host)
             {
                 m_Players.Clear();
-                m_Enemies.Clear();
-                m_WaveIndex = 0;
-                ClearRemotePlayerVisuals();
+                m_LatestInputs.Clear();
+                Simulation = null;
+                BattleRunning = false;
+                m_BattleStartBroadcasted = false;
                 Debug.Log("[NetHostLogic] Host 模式就绪，等待玩家加入");
             }
         }
 
-        /// <summary>
-        /// 把房主本地"其他玩家"表现迁移到指定场景（战斗场景加载后调用，
-        /// 避免留在 Menu 场景被战斗相机 clear 遮挡而"缺玩家"）。
-        /// </summary>
-        public void MoveRemotePlayersToScene(UnityEngine.SceneManagement.Scene scene)
-        {
-            foreach (var kv in m_LocalRemotePlayers)
-            {
-                if (kv.Value != null)
-                {
-                    UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(kv.Value.gameObject, scene);
-                }
-            }
-            Debug.Log("[NetHostLogic] 迁移远程玩家表现到场景 " + scene.name + "，数量 " + m_LocalRemotePlayers.Count);
-        }
-
-        /// <summary>清理 Host 本地对其他玩家的表现对象。</summary>
-        private void ClearRemotePlayerVisuals()
-        {
-            foreach (var kv in m_LocalRemotePlayers)
-            {
-                if (kv.Value != null)
-                {
-                    Destroy(kv.Value.gameObject);
-                }
-            }
-            m_LocalRemotePlayers.Clear();
-        }
-
-        /// <summary>
-        /// Host 本机加入（作为 1 号玩家，不走网络连接）。
-        /// </summary>
+        /// <summary>Host 本机加入（作为 1 号玩家，session 0，不走网络连接）。</summary>
         public void JoinLocal(string playerName, int characterId = 1)
         {
             var state = new PlayerState
             {
                 SessionId = 0,
                 EntityId = m_NextEntityId++,
-                Position = Vector2.zero,
                 PlayerName = playerName,
                 CharacterId = characterId,
             };
             m_Players[0] = state;
             Debug.Log("[NetHostLogic] 房主 " + playerName + " 本机加入，实体 " + state.EntityId);
+
+            // 房间阶段模拟：确保存在并加入本机玩家（移动由模拟同步）
+            EnsureRoomSimulation();
+            AddPlayerToSimulation(state);
 
             // 广播生成（供其他客户端看到房主）
             var spawn = new S2CSpawnEntity
@@ -177,16 +147,48 @@ namespace EmojiWar.GameMain.Network
                 EntityId = state.EntityId,
                 Type = 0,
                 Team = 1,
-                X = state.Position.x,
-                Y = state.Position.y,
+                X = 0f,
+                Y = 0f,
                 CharacterId = state.CharacterId,
             };
             m_Service?.BroadcastToClients(spawn);
 
-            // 广播房间玩家列表
             BroadcastPlayerList();
+        }
 
-            // 启动波次（房间等待准备，战斗开始后才真正开波；这里不自动开）
+        /// <summary>房间阶段确定性模拟（seed=0，无敌人；战斗开始后重建并开波）。</summary>
+        private void EnsureRoomSimulation()
+        {
+            if (Simulation == null)
+            {
+                Simulation = new Simulation.LockstepSimulation();
+                Simulation.Initialize(0, null);
+                BattleRunning = true;
+                m_TickAccumulator = 0f;
+                WriteProbe("[net-host] 房间模拟已启动（seed=0）");
+            }
+            BindSimView();
+        }
+
+        /// <summary>绑定本地表现层到 Host 模拟（本机实体 ID = session0 实体）。</summary>
+        private void BindSimView()
+        {
+            if (Simulation == null || GameEntry.SimView == null)
+            {
+                return;
+            }
+            GameEntry.SimView.SetSimulation(Simulation, GetLocalEntityId());
+        }
+
+        /// <summary>把玩家加入本地模拟（幂等）。</summary>
+        private void AddPlayerToSimulation(PlayerState state)
+        {
+            if (Simulation == null)
+            {
+                return;
+            }
+            Simulation.AddPlayer(BuildPlayerConfig(state));
+            WriteProbe("[net-host] 模拟加入玩家 entity=" + state.EntityId + " char=" + state.CharacterId);
         }
 
         /// <summary>Host 本机设置准备状态（不走网络）。</summary>
@@ -210,118 +212,168 @@ namespace EmojiWar.GameMain.Network
             get { return m_Players.TryGetValue(0, out var s) && s.Ready; }
         }
 
+        /// <summary>当前房间玩家数（诊断）。</summary>
+        public int PlayerCount { get { return m_Players.Count; } }
+
+        /// <summary>关闭 Host 本地空闲自动移动（正式联机）。</summary>
+        public void DisableLocalAutoMove()
+        {
+            m_LocalAutoMove = false;
+        }
+
         /// <summary>
-        /// 每帧更新（服务器权威模拟）。
+        /// 每帧：驱动 20Hz 逻辑 tick。
         /// </summary>
         private void Update()
         {
-            if (m_Service == null || m_Service.Mode != NetMode.Host)
+            if (m_Service == null || m_Service.Mode != NetMode.Host || !BattleRunning)
             {
                 return;
             }
 
-            UpdateEnemies();
-            UpdateRemotePlayerVisuals();
-            SyncLocalPlayerPosition();
+            m_TickAccumulator += Time.deltaTime;
+            while (m_TickAccumulator >= LockstepSim.TickInterval)
+            {
+                m_TickAccumulator -= LockstepSim.TickInterval;
+                HostTick();
+            }
+
+            // 帧同步一致性探针（每 2 秒记录一次模拟状态，供双实例对比）
+            m_ProbeTimer -= Time.deltaTime;
+            if (m_ProbeTimer <= 0f)
+            {
+                m_ProbeTimer = 2f;
+                if (Simulation != null)
+                {
+                    var sb = new System.Text.StringBuilder();
+                    sb.Append("[sim] HOST frame=").Append(Simulation.FrameIndex)
+                      .Append(" wave=").Append(Simulation.WaveIndex)
+                      .Append(" players=").Append(Simulation.Players.Count)
+                      .Append(" enemies=").Append(Simulation.Enemies.Count)
+                      .Append(" bullets=").Append(Simulation.Bullets.Count);
+                    foreach (var p in Simulation.Players)
+                    {
+                        sb.Append(" E").Append(p.EntityId).Append(":(")
+                          .Append(p.Position.x.ToString("F2")).Append(",")
+                          .Append(p.Position.y.ToString("F2")).Append(")");
+                    }
+                    WriteProbe(sb.ToString());
+                }
+            }
         }
 
-        /// <summary>
-        /// 房主本地玩家位置同步：把本地玩家实体的实际位置写入权威状态并广播，
-        /// 使加入者看到的房主位置与房主本地一致。
-        /// </summary>
-        private void SyncLocalPlayerPosition()
-        {
-            if (!m_Players.TryGetValue(0, out var state))
-            {
-                return;
-            }
-
-            var local = UnityEngine.Object.FindObjectOfType<Entity.PlayerEntity>();
-            if (local == null)
-            {
-                return;
-            }
-
-            Vector2 pos = local.transform.position;
-            if (Vector2.Distance(pos, state.Position) > 0.01f)
-            {
-                state.Position = pos;
-                BroadcastEntityState(state.EntityId, state.Position, state.Hp, 1);
-            }
-        }
+        private float m_ProbeTimer = 2f;
 
         /// <summary>
-        /// 渲染并同步其他玩家的本地表现（Host 端可见队友）。
+        /// 一个逻辑 tick：收集全部玩家意图 → 广播输入帧 → 本地推进模拟。
         /// </summary>
-        private void UpdateRemotePlayerVisuals()
+        private void HostTick()
         {
-            // 生成/同步其他玩家的表现对象
+            var frame = new S2CInputFrame
+            {
+                FrameIndex = Simulation.FrameIndex + 1,
+                Count = m_Players.Count,
+                EntityIds = new int[m_Players.Count],
+                InputXs = new float[m_Players.Count],
+                InputYs = new float[m_Players.Count],
+                AimXs = new float[m_Players.Count],
+                AimYs = new float[m_Players.Count],
+                FirePrimaries = new bool[m_Players.Count],
+                FireSecondaries = new bool[m_Players.Count],
+                Reloads = new bool[m_Players.Count],
+            };
+
+            var inputs = new Dictionary<int, SimIntent>();
+            int index = 0;
             foreach (var kv in m_Players)
             {
-                if (kv.Key == 0)
-                {
-                    continue;    // 房主自己由本地战斗层表现
-                }
-
+                int sessionId = kv.Key;
                 var state = kv.Value;
-                if (!m_LocalRemotePlayers.TryGetValue(state.EntityId, out var tf))
+                SimIntent intent;
+
+                if (sessionId == 0)
                 {
-                    var go = new GameObject("HostRemotePlayer_" + state.EntityId);
-                    var sr = go.AddComponent<SpriteRenderer>();
-
-                    // 玩家用角色专属美术（不同角色不同 emoji）
-                    string icon = null;
-                    var character = state.CharacterId > 0 && GameEntry.Data != null
-                        ? GameEntry.Data.GetCharacter(state.CharacterId)
-                        : null;
-                    if (character != null)
+                    intent = ReadLocalInput();
+                }
+                else if (m_LatestInputs.TryGetValue(sessionId, out var clientInput))
+                {
+                    intent = new SimIntent
                     {
-                        icon = character.Icon;
-                    }
-                    sr.sprite = Art.ArtManager.GetCharacterSprite(icon);
-                    sr.sortingOrder = 10;
-
-                    if (sr.sprite != null)
-                    {
-                        float w = sr.sprite.bounds.size.x;
-                        if (w > 0.01f)
-                        {
-                            go.transform.localScale = Vector3.one * (1f / w);
-                        }
-                    }
-                    tf = go.transform;
-                    m_LocalRemotePlayers[state.EntityId] = tf;
+                        MoveX = clientInput.InputX,
+                        MoveY = clientInput.InputY,
+                        AimX = clientInput.AimX,
+                        AimY = clientInput.AimY,
+                        FirePrimary = clientInput.FirePrimary,
+                        FireSecondary = clientInput.FireSecondary,
+                        Reload = clientInput.Reload,
+                    };
+                }
+                else
+                {
+                    // 掉线托管：空输入（与客户端缺失输入时的规则一致）
+                    intent = SimIntent.Empty;
                 }
 
-                tf.position = state.Position;
+                // 填充广播帧（以实体 ID 标识，客户端据此匹配本地模拟玩家）
+                frame.EntityIds[index] = state.EntityId;
+                frame.InputXs[index] = intent.MoveX;
+                frame.InputYs[index] = intent.MoveY;
+                frame.AimXs[index] = intent.AimX;
+                frame.AimYs[index] = intent.AimY;
+                frame.FirePrimaries[index] = intent.FirePrimary;
+                frame.FireSecondaries[index] = intent.FireSecondary;
+                frame.Reloads[index] = intent.Reload;
+                index++;
+
+                inputs[state.EntityId] = intent;
             }
 
-            // 移除已离开玩家的表现对象
-            var toRemove = new System.Collections.Generic.List<int>();
-            foreach (var kv in m_LocalRemotePlayers)
+            // 广播输入帧（客户端据此推进同一份模拟）
+            if (m_Service != null)
             {
-                bool exists = false;
-                foreach (var p in m_Players.Values)
-                {
-                    if (p.EntityId == kv.Key && p.SessionId != 0)
-                    {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (!exists)
-                {
-                    toRemove.Add(kv.Key);
-                }
+                m_Service.BroadcastToClients(frame);
             }
-            foreach (var id in toRemove)
+
+            // 本地推进模拟
+            if (Simulation != null)
             {
-                if (m_LocalRemotePlayers[id] != null)
-                {
-                    Destroy(m_LocalRemotePlayers[id].gameObject);
-                }
-                m_LocalRemotePlayers.Remove(id);
+                Simulation.Tick(inputs);
             }
+        }
+
+        /// <summary>读取 Host 本地玩家输入意图（WASD + 鼠标瞄准 + 左键射击 + R 装弹；无输入时自动转圈供测试）。</summary>
+        private Simulation.PlayerIntent ReadLocalInput()
+        {
+            float inputX = Input.GetAxisRaw("Horizontal");
+            float inputY = Input.GetAxisRaw("Vertical");
+
+            if (m_LocalAutoMove && inputX == 0f && inputY == 0f)
+            {
+                // 确定性自动转圈（用模拟帧号而非 Time.time，保证各端输入序列一致 —— 帧同步要求）
+                float frame = Simulation != null ? Simulation.FrameIndex : Time.frameCount;
+                inputX = Mathf.Cos(frame * 0.05f);
+                inputY = Mathf.Sin(frame * 0.05f);
+            }
+
+            // 鼠标瞄准（世界坐标方向）
+            Vector3 mouseWorld = Vector3.zero;
+            var mainCam = Camera.main;
+            if (mainCam != null)
+            {
+                mouseWorld = mainCam.ScreenToWorldPoint(Input.mousePosition);
+            }
+            Vector2 aim = new Vector2(mouseWorld.x, mouseWorld.y);
+
+            return new Simulation.PlayerIntent
+            {
+                MoveX = inputX,
+                MoveY = inputY,
+                AimX = aim.x,
+                AimY = aim.y,
+                FirePrimary = Input.GetMouseButton(0),
+                FireSecondary = Input.GetMouseButton(1),
+                Reload = Input.GetKeyDown(KeyCode.R),
+            };
         }
 
         // ==================== 消息处理 ====================
@@ -335,7 +387,11 @@ namespace EmojiWar.GameMain.Network
                     break;
 
                 case MsgId.PlayerInput:
-                    HandleInput(sessionId, message as C2SPlayerInput);
+                    var input = message as C2SPlayerInput;
+                    if (input != null)
+                    {
+                        m_LatestInputs[sessionId] = input;
+                    }
                     break;
 
                 case MsgId.BuyItem:
@@ -352,11 +408,6 @@ namespace EmojiWar.GameMain.Network
             }
         }
 
-        /// <summary>房间内全部准备后触发（Host 本地切流程用）。</summary>
-        public static event System.Action OnBattleStartRequested;
-
-        private bool m_BattleStartBroadcasted = false;
-
         /// <summary>
         /// 处理准备/取消准备：更新状态 → 广播玩家列表 → 检测全部准备后广播战斗开始。
         /// </summary>
@@ -372,43 +423,106 @@ namespace EmojiWar.GameMain.Network
             if (m_BattleStartBroadcasted)
             {
                 WriteProbe("[net-host] HandleReadyChange ignored (battle already started)");
-                return;    // 已开始，忽略后续准备操作
+                return;
             }
 
             state.Ready = ready.Ready;
             Debug.Log("[NetHostLogic] 玩家 " + sessionId + "(" + state.PlayerName + ") 准备=" + state.Ready);
             BroadcastPlayerList();
 
-            // 全部准备 → 广播战斗开始（仅一次）
             if (m_Players.Count >= 1 && AllReady())
             {
                 m_BattleStartBroadcasted = true;
-                m_Service.BroadcastToClients(new S2CBattleStart { Seed = Random.Range(0, 100000) });
-                Debug.Log("[NetHostLogic] 全部玩家已准备，广播战斗开始");
-                WriteProbe("[net-host] 全部准备，广播 BattleStart + 触发 OnBattleStartRequested");
-                OnBattleStartRequested?.Invoke();
+                int seed = UnityEngine.Random.Range(0, 100000);
+                m_Service.BroadcastToClients(new S2CBattleStart { Seed = seed });
+                Debug.Log("[NetHostLogic] 全部玩家已准备，广播战斗开始 seed=" + seed);
+                WriteProbe("[net-host] 全部准备，广播 BattleStart seed=" + seed);
 
-                // 战斗开始：启动服务器权威波次
-                if (m_WaveCoroutine == null)
-                {
-                    m_WaveCoroutine = StartCoroutine(WaveLoop());
-                }
+                // 战斗开始：用新种子重建确定性模拟（所有端一致）并开启波次
+                InitializeSimulation(seed);
+                Simulation.StartWave(1);
+
+                OnBattleStartRequested?.Invoke();
             }
         }
 
         /// <summary>
-        /// 回到房间（一局结束后）：重置准备状态与波次，等待下一局。
+        /// 初始化确定性模拟（Host 侧）：构建玩家配置（角色/武器参数来自数据表）。
         /// </summary>
+        private void InitializeSimulation(int seed)
+        {
+            Simulation = new Simulation.LockstepSimulation();
+            var configs = new List<Simulation.SimPlayerConfig>();
+
+            foreach (var kv in m_Players)
+            {
+                var p = kv.Value;
+                configs.Add(BuildPlayerConfig(p));
+            }
+
+            Simulation.Initialize(seed, configs);
+            BattleRunning = true;
+            m_TickAccumulator = 0f;
+            BindSimView();
+            WriteProbe("[net-host] 模拟初始化 seed=" + seed + " players=" + configs.Count);
+            Debug.Log("[NetHostLogic] 确定性模拟已初始化，玩家数 " + configs.Count);
+        }
+
+        /// <summary>从角色/武器数据表构建确定性玩家配置。</summary>
+        private Simulation.SimPlayerConfig BuildPlayerConfig(PlayerState p)
+        {
+            var config = new Simulation.SimPlayerConfig
+            {
+                SessionId = p.SessionId,
+                EntityId = p.EntityId,
+                CharacterId = p.CharacterId,
+                StartPosition = Vector2.zero,
+            };
+
+            if (GameEntry.Data != null)
+            {
+                var character = GameEntry.Data.GetCharacter(p.CharacterId);
+                if (character != null)
+                {
+                    config.MoveSpeed = character.MoveSpeed;
+                    var weapon = GameEntry.Data.GetWeapon(character.DefaultWeaponId);
+                    if (weapon != null)
+                    {
+                        config.WeaponDamage = weapon.Damage;
+                        config.FireRate = weapon.FireRate;
+                        config.MaxAmmo = weapon.MaxAmmo;
+                        config.ReloadTime = weapon.ReloadTime;
+                        config.BulletSpeed = weapon.BulletSpeed;
+                        config.Spread = weapon.Spread;
+                    }
+                }
+            }
+            return config;
+        }
+
+        /// <summary>回到房间（一局结束后）：重置准备状态与模拟，等待下一局。</summary>
         public void ResetRoom()
         {
             m_BattleStartBroadcasted = false;
+            BattleRunning = false;
+            Simulation = null;
+            m_LatestInputs.Clear();
+            m_TickAccumulator = 0f;
             foreach (var p in m_Players.Values)
             {
                 p.Ready = false;
-                p.Hp = 100f;
             }
-            StopWave();
-            m_WaveIndex = 0;
+            // 恢复房间阶段模拟（seed=0，仅玩家移动），重新加入所有玩家
+            EnsureRoomSimulation();
+            foreach (var p in m_Players.Values)
+            {
+                AddPlayerToSimulation(p);
+            }
+            // 通知客户端重置模拟（回房间阶段）
+            if (m_Service != null)
+            {
+                m_Service.BroadcastToClients(new S2CRunRestart { Seed = 0 });
+            }
             BroadcastPlayerList();
             Debug.Log("[NetHostLogic] 房间已重置，等待下一局");
         }
@@ -425,9 +539,7 @@ namespace EmojiWar.GameMain.Network
             return true;
         }
 
-        /// <summary>
-        /// 广播房间玩家列表（"名字:准备;..."）。
-        /// </summary>
+        /// <summary>广播房间玩家列表（"名字:准备;..."）。</summary>
         private void BroadcastPlayerList()
         {
             if (m_Service == null)
@@ -447,23 +559,17 @@ namespace EmojiWar.GameMain.Network
 
             var msg = new S2CPlayerList { Count = m_Players.Count, Players = sb.ToString() };
             m_Service.BroadcastToClients(msg);
-            // 房主本地无网络客户端，收不到自己的广播 → 直接触发本地 UI 刷新（房间页玩家列表/准备状态）
             UI.RoomEvents.PlayerListUpdated(msg.Players);
             WriteProbe("[net-host] 广播玩家列表: " + msg.Players);
-            Debug.Log("[NetHostLogic] 广播玩家列表: " + msg.Players);
         }
 
-        /// <summary>
-        /// 处理购买请求（Host 权威校验）。
-        /// 简化：无金币系统，直接确认购买并广播。
-        /// </summary>
+        /// <summary>处理购买请求（确定性商店：购买结果由本地模拟/流程处理，Host 仅确认）。</summary>
         private void HandleBuyItem(int sessionId, C2SBuyItem buy)
         {
             if (buy == null)
             {
                 return;
             }
-
             Debug.Log("[NetHostLogic] 玩家 " + sessionId + " 购买商品索引 " + buy.ShopItemIndex);
             m_Service.SendToClient(sessionId, new S2CShopOffer { Count = 0, Items = "BUY_OK" });
         }
@@ -475,14 +581,13 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
-            // 人数上限 4
             if (m_Players.Count >= 4)
             {
                 Debug.Log("[NetHostLogic] 房间已满，拒绝 " + join.PlayerName);
                 return;
             }
 
-            // 幂等：同一连接重复加入时，先移除旧实体并广播删除，避免残留多个玩家实体
+            // 幂等：同一连接重复加入时，先移除旧实体并广播删除
             if (m_Players.TryGetValue(sessionId, out var oldState))
             {
                 m_Players.Remove(sessionId);
@@ -494,16 +599,18 @@ namespace EmojiWar.GameMain.Network
             {
                 SessionId = sessionId,
                 EntityId = m_NextEntityId++,
-                Position = new Vector2(Random.Range(-2f, 2f), Random.Range(-2f, 2f)),
                 PlayerName = join.PlayerName ?? "玩家",
                 CharacterId = join.CharacterId > 0 ? join.CharacterId : 1,
             };
             m_Players[sessionId] = state;
 
-            // 先告知新加入者"自己的实体 ID"，再广播 spawn —— 否则客户端会先渲染自己（误当成其他玩家）
+            // 房间阶段模拟：加入新玩家（移动由模拟同步）
+            EnsureRoomSimulation();
+            AddPlayerToSimulation(state);
+
+            // 先告知新加入者自己的实体 ID，再广播 spawn（避免客户端先渲染自己）
             m_Service.SendToClient(sessionId, new S2CMyEntity { EntityId = state.EntityId });
 
-            // 通知所有客户端：新玩家加入 + 生成实体
             var joined = new S2CPlayerJoined { PlayerId = sessionId, PlayerName = join.PlayerName };
             m_Service.BroadcastToClients(joined);
 
@@ -512,8 +619,8 @@ namespace EmojiWar.GameMain.Network
                 EntityId = state.EntityId,
                 Type = 0,
                 Team = 1,
-                X = state.Position.x,
-                Y = state.Position.y,
+                X = 0f,
+                Y = 0f,
                 CharacterId = state.CharacterId,
             };
             m_Service.BroadcastToClients(spawn);
@@ -531,62 +638,30 @@ namespace EmojiWar.GameMain.Network
                     EntityId = p.EntityId,
                     Type = 0,
                     Team = 1,
-                    X = p.Position.x,
-                    Y = p.Position.y,
+                    X = 0f,
+                    Y = 0f,
                     CharacterId = p.CharacterId,
                 });
             }
 
-            // 房间状态
             var room = new S2CRoomState { RoomId = "ROOM-001", PlayerCount = m_Players.Count };
             m_Service.BroadcastToClients(room);
 
-            // 广播房间玩家列表（含新加入者）
             BroadcastPlayerList();
 
             Debug.Log(string.Format("[NetHostLogic] 玩家 {0}({1}) 加入，生成实体 {2}",
                 join.PlayerName, sessionId, state.EntityId));
-
-            // 首个玩家加入时启动波次
-            if (m_Players.Count == 1 && m_WaveCoroutine == null)
-            {
-                m_WaveCoroutine = StartCoroutine(WaveLoop());
-            }
-        }
-
-        private void HandleInput(int sessionId, C2SPlayerInput input)
-        {
-            if (input == null || !m_Players.TryGetValue(sessionId, out var state))
-            {
-                return;
-            }
-
-            // Host 权威：优先使用客户端上报的实际位置（精确同步），否则按输入模拟
-            if (input.HasPosition)
-            {
-                state.Position = new Vector2(input.PositionX, input.PositionY);
-            }
-            else
-            {
-                Vector2 moveDir = new Vector2(input.InputX, input.InputY);
-                if (moveDir.sqrMagnitude > 1f)
-                {
-                    moveDir = moveDir.normalized;
-                }
-
-                const float speed = 5f;
-                state.Position += moveDir * speed * Time.deltaTime;
-            }
-
-            // 广播玩家状态给所有客户端
-            BroadcastEntityState(state.EntityId, state.Position, state.Hp, 1);
         }
 
         private void HandleLeave(int sessionId)
         {
             if (m_Players.Remove(sessionId, out var state))
             {
-                // 广播玩家离开 + 移除实体
+                m_LatestInputs.Remove(sessionId);
+                if (Simulation != null)
+                {
+                    Simulation.RemovePlayer(state.EntityId);
+                }
                 m_Service.BroadcastToClients(new S2CPlayerLeft { PlayerId = sessionId });
                 m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = state.EntityId });
                 Debug.Log("[NetHostLogic] 玩家 " + sessionId + " 离开，实体 " + state.EntityId + " 移除，广播已发送");
@@ -594,318 +669,25 @@ namespace EmojiWar.GameMain.Network
             }
         }
 
-        // ==================== 波次与敌人模拟 ====================
-
-        private IEnumerator WaveLoop()
+        /// <summary>当前模拟中最近玩家的位置（敌人生成锚点用，保留接口）。</summary>
+        public Vector2 GetSimulationAnchorPosition()
         {
-            while (m_Service != null && m_Service.Mode == NetMode.Host)
+            if (Simulation == null || Simulation.Players.Count == 0)
             {
-                m_WaveIndex++;
-
-                // 广播波次开始
-                var waveStart = new S2CWaveState { WaveIndex = m_WaveIndex, AliveCount = 0, WaveActive = true };
-                m_Service.BroadcastToClients(waveStart);
-                Debug.Log("[NetHostLogic] 第 " + m_WaveIndex + " 波开始");
-
-                // 生成敌人
-                int count = m_EnemiesPerWave + (m_WaveIndex - 1) * 2;
-                for (int i = 0; i < count; i++)
+                return Vector2.zero;
+            }
+            foreach (var p in Simulation.Players)
+            {
+                if (p.Alive)
                 {
-                    SpawnEnemy();
-                    yield return new WaitForSeconds(0.5f);
-                }
-
-                // 等待敌人清完
-                int safety = 0;
-                while (GetAliveEnemyCount() > 0 && safety < 60)
-                {
-                    safety++;
-                    yield return new WaitForSeconds(0.5f);
-                }
-                Debug.Log("[NetHostLogic] 波次敌人已清完，alive=" + GetAliveEnemyCount());
-
-                // 波次结束
-                var waveEnd = new S2CWaveState { WaveIndex = m_WaveIndex, AliveCount = 0, WaveActive = false };
-                m_Service.BroadcastToClients(waveEnd);
-                Debug.Log("[NetHostLogic] 第 " + m_WaveIndex + " 波结束，广播波次状态");
-
-                // 波间商店（Host 权威生成商品，广播给所有客户端）
-                BroadcastShopOffer();
-                Debug.Log("[NetHostLogic] 波间商店已开放");
-
-                // 商店开放 8 秒后继续下一波
-                yield return new WaitForSeconds(8f);
-            }
-        }
-
-        /// <summary>
-        /// Host 权威生成商店商品并广播。
-        /// 商品格式："type:id:price;type:id:price;..."
-        /// </summary>
-        private void BroadcastShopOffer()
-        {
-            if (m_Service == null)
-            {
-                return;
-            }
-
-            var items = new System.Text.StringBuilder();
-            int count = 3;
-            for (int i = 0; i < count; i++)
-            {
-                // 50% 武器(0) / 50% Mod(1)
-                int type = Random.value < 0.5f ? 0 : 1;
-                int id = type == 0 ? Random.Range(1, 6) : Random.Range(1, 9);
-                int price = type == 0 ? 80 : 60;
-
-                if (i > 0)
-                {
-                    items.Append(';');
-                }
-                items.Append(type).Append(':').Append(id).Append(':').Append(price);
-            }
-
-            var offer = new S2CShopOffer { Count = count, Items = items.ToString() };
-            m_Service.BroadcastToClients(offer);
-            Debug.Log("[NetHostLogic] 商店商品: " + offer.Items);
-        }
-
-        private void SpawnEnemy()
-        {
-            Vector3 playerPos = GetFirstPlayerPosition();
-            Vector2 randomDir = Random.insideUnitCircle.normalized;
-            Vector2 spawnPos = (Vector2)playerPos + randomDir * m_SpawnRadius;
-
-            var enemy = new EnemyState
-            {
-                EntityId = m_NextEntityId++,
-                Position = spawnPos,
-                Hp = 30f + m_WaveIndex * 5f,
-                Speed = 2.5f + m_WaveIndex * 0.3f,
-            };
-            m_Enemies[enemy.EntityId] = enemy;
-
-            // 广播敌人生成
-            var spawnMsg = new S2CSpawnEntity
-            {
-                EntityId = enemy.EntityId,
-                Type = 1,
-                Team = 2,
-                X = enemy.Position.x,
-                Y = enemy.Position.y,
-            };
-            m_Service.BroadcastToClients(spawnMsg);
-
-            // 立即广播一次状态
-            BroadcastEntityState(enemy.EntityId, enemy.Position, enemy.Hp, 1);
-        }
-
-        private void UpdateEnemies()
-        {
-            if (m_Enemies.Count == 0)
-            {
-                return;
-            }
-
-            // 收集待移除
-            var toRemove = new List<int>();
-
-            foreach (var kv in m_Enemies)
-            {
-                var enemy = kv.Value;
-                if (!enemy.Alive)
-                {
-                    toRemove.Add(enemy.EntityId);
-                    continue;
-                }
-
-                // 追逐最近玩家
-                var target = GetNearestPlayer(enemy.Position);
-                if (target != null)
-                {
-                    Vector2 toTarget = target.Position - enemy.Position;
-                    if (toTarget.sqrMagnitude > 0.01f)
-                    {
-                        enemy.Position += toTarget.normalized * enemy.Speed * Time.deltaTime;
-                    }
-
-                    // 接触伤害（简化：靠近玩家扣血）
-                    if (toTarget.magnitude < 0.6f)
-                    {
-                        target.Hp = Mathf.Max(0f, target.Hp - 10f);
-                        BroadcastEntityState(target.EntityId, target.Position, target.Hp, 1);
-                    }
-                }
-
-                BroadcastEntityState(enemy.EntityId, enemy.Position, enemy.Hp, 1);
-            }
-
-            foreach (var id in toRemove)
-            {
-                m_Enemies.Remove(id);
-                m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = id });
-            }
-        }
-
-        /// <summary>
-        /// 服务器权威击杀敌人（供测试/客户端击杀请求调用）。
-        /// 简化：按实体 ID 直接移除并广播。
-        /// </summary>
-        public void KillEnemy(int entityId)
-        {
-            if (m_Enemies.Remove(entityId))
-            {
-                m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = entityId });
-                Debug.Log("[NetHostLogic] 敌人 " + entityId + " 被击杀");
-            }
-        }
-
-        /// <summary>
-        /// 服务器权威清场：击杀所有敌人（供测试/波次推进）。
-        /// </summary>
-        public void KillAllEnemies()
-        {
-            var ids = new List<int>(m_Enemies.Keys);
-            foreach (var id in ids)
-            {
-                if (m_Enemies.TryGetValue(id, out var enemy) && enemy.Alive)
-                {
-                    enemy.Alive = false;
+                    return p.Position;
                 }
             }
-
-            // 立即广播移除
-            foreach (var id in ids)
-            {
-                m_Enemies.Remove(id);
-                m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = id });
-            }
-
-            Debug.Log("[NetHostLogic] 已清场 " + ids.Count + " 个敌人");
-        }
-
-        /// <summary>
-        /// Reset the run for a new round (host authority):
-        /// clear all enemies, reset wave index and player HP,
-        /// broadcast entity removals + S2CRunRestart, then restart wave 1.
-        /// </summary>
-        public void ResetRunAndBroadcast()
-        {
-            StopWave();
-
-            // Remove all enemies and notify every client.
-            var enemyIds = new List<int>(m_Enemies.Keys);
-            foreach (var id in enemyIds)
-            {
-                m_Enemies.Remove(id);
-                m_Service.BroadcastToClients(new S2CRemoveEntity { EntityId = id });
-            }
-
-            m_WaveIndex = 0;
-
-            // Reset server-authoritative player HP and rebroadcast state.
-            foreach (var player in m_Players.Values)
-            {
-                player.Hp = 100f;
-                BroadcastEntityState(player.EntityId, player.Position, player.Hp, 1);
-            }
-
-            // Notify all clients: new round begins.
-            m_Service.BroadcastToClients(new S2CRunRestart { Seed = Random.Range(0, 100000) });
-
-            // Re-broadcast all player spawns so clients rebuild their views after clearing.
-            foreach (var kv in m_Players)
-            {
-                var p = kv.Value;
-                m_Service.BroadcastToClients(new S2CSpawnEntity
-                {
-                    EntityId = p.EntityId,
-                    Type = 0,
-                    Team = 1,
-                    X = p.Position.x,
-                    Y = p.Position.y,
-                    CharacterId = p.CharacterId,
-                });
-            }
-
-            Debug.Log("[NetHostLogic] Run reset: enemies=" + enemyIds.Count + " players=" + m_Players.Count + ", broadcast S2CRunRestart");
-
-            // Restart wave 1 for the new round.
-            if (m_Players.Count >= 1 && m_WaveCoroutine == null)
-            {
-                m_WaveCoroutine = StartCoroutine(WaveLoop());
-            }
-        }
-
-        private int GetAliveEnemyCount()
-        {
-            int count = 0;
-            foreach (var enemy in m_Enemies.Values)
-            {
-                if (enemy.Alive)
-                {
-                    count++;
-                }
-            }
-            return count;
-        }
-
-        private Vector3 GetFirstPlayerPosition()
-        {
-            foreach (var player in m_Players.Values)
-            {
-                return player.Position;
-            }
-            return Vector3.zero;
-        }
-
-        private PlayerState GetNearestPlayer(Vector2 position)
-        {
-            PlayerState nearest = null;
-            float minDistSqr = float.MaxValue;
-            foreach (var player in m_Players.Values)
-            {
-                float distSqr = (player.Position - position).sqrMagnitude;
-                if (distSqr < minDistSqr)
-                {
-                    minDistSqr = distSqr;
-                    nearest = player;
-                }
-            }
-            return nearest;
-        }
-
-        private void BroadcastEntityState(int entityId, Vector2 position, float hp, int state)
-        {
-            if (m_Service == null)
-            {
-                return;
-            }
-
-            var msg = new S2CEntityState
-            {
-                EntityId = entityId,
-                X = position.x,
-                Y = position.y,
-                Hp = hp,
-                State = state,
-            };
-            m_Service.BroadcastToClients(msg);
-        }
-
-        private void StopWave()
-        {
-            if (m_WaveCoroutine != null)
-            {
-                StopCoroutine(m_WaveCoroutine);
-                m_WaveCoroutine = null;
-            }
+            return Simulation.Players[0].Position;
         }
 
         private void OnDestroy()
         {
-            StopWave();
-            ClearRemotePlayerVisuals();
         }
 
         /// <summary>运行时探针（按进程分文件）。</summary>

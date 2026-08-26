@@ -43,9 +43,17 @@ namespace EmojiWar.GameMain.UI
                 Battle.RunSession.Instance.OnCoinChanged += OnCoinChanged;
             }
 
-            // 生成商品并构建 UI
+            // 生成商品并构建 UI（网络模式：商品来自确定性模拟，各端一致）
             m_Items.Clear();
-            m_Items.AddRange(Shop.ShopManager.GenerateOfferings(3));
+            var sim = GameEntry.SimView != null ? GameEntry.SimView.Simulation : null;
+            if (sim != null && !string.IsNullOrEmpty(sim.ShopItems))
+            {
+                m_Items.AddRange(Shop.ShopManager.ParseOfferings(sim.ShopItems));
+            }
+            else
+            {
+                m_Items.AddRange(Shop.ShopManager.GenerateOfferings(3));
+            }
             BuildUI();
             RefreshCoin();
 
@@ -169,7 +177,14 @@ namespace EmojiWar.GameMain.UI
                 GameEntry.UI.CloseUIForm(UIForm);
             }
 
-            // 恢复战斗波次
+            // 网络模式：波次由确定性模拟自动推进（商店计时到即开下一波），无需额外恢复
+            var sim = GameEntry.SimView != null ? GameEntry.SimView.Simulation : null;
+            if (sim != null)
+            {
+                return;
+            }
+
+            // 单机模式：恢复战斗波次
             var manager = UnityEngine.Object.FindObjectOfType<Battle.BattleManager>();
             if (manager != null)
             {

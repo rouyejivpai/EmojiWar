@@ -1,12 +1,11 @@
 //------------------------------------------------------------
-// EmojiWar GameMain - 网络战斗模拟测试工具（Editor）
+// EmojiWar GameMain - 网络战斗模拟测试工具（Editor，帧同步版）
 // 菜单：EmojiWar/Diagnostics/Net Battle Sim Test
-// 单进程内：Host + Client 回环，验证：
-//   1. 客户端加入 → Host 生成玩家实体
-//   2. Host 自动启动波次 → 生成敌人（S2CSpawnEntity type=1）
-//   3. 客户端上行输入 → Host 更新玩家位置
-//   4. 敌人 AI 追逐（服务器模拟）→ 广播敌人状态
-//   5. 波次结束（WaveState active=false）
+// 单进程内：Host + Client 回环，验证确定性帧同步：
+//   1. 客户端加入 → Host/Client 各自建立确定性模拟
+//   2. 全部准备 → 战斗开始（同 seed）→ 模拟生成敌人（本地确定性）
+//   3. 客户端上行意图 → Host 广播输入帧 → 双端模拟推进（FrameIndex 增长）
+//   4. 敌人由模拟本地生成，不依赖 S2CSpawnEntity 广播
 //------------------------------------------------------------
 
 using System.Collections;
@@ -17,7 +16,7 @@ using EmojiWar.GameMain.Network;
 namespace EmojiWar.GameMain.Editor
 {
     /// <summary>
-    /// 网络战斗模拟测试。
+    /// 网络战斗模拟测试（确定性帧同步）。
     /// </summary>
     public static class NetBattleSimDiagnostics
     {
@@ -26,9 +25,8 @@ namespace EmojiWar.GameMain.Editor
         private static NetHostLogic s_HostLogic = null;
         private static NetClientLogic s_ClientLogic = null;
 
-        private static int s_EnemiesSpawned = 0;
-        private static bool s_EnemyStateApplied = false;
-        private static bool s_WaveEnded = false;
+        private static bool s_ClientJoined = false;
+        private static bool s_InputFrameSeen = false;
         private static float s_Timeout = 0f;
 
         [MenuItem("EmojiWar/Diagnostics/Net Battle Sim Test")]
@@ -40,9 +38,8 @@ namespace EmojiWar.GameMain.Editor
                 return;
             }
 
-            s_EnemiesSpawned = 0;
-            s_EnemyStateApplied = false;
-            s_WaveEnded = false;
+            s_ClientJoined = false;
+            s_InputFrameSeen = false;
             s_Timeout = 15f;
 
             // ---- Host ----
@@ -64,19 +61,14 @@ namespace EmojiWar.GameMain.Editor
             s_ClientLogic.Bind(s_Client);
             s_Client.OnServerMessage += (msg) =>
             {
-                if (msg is S2CSpawnEntity spawn && spawn.Type == 1)
+                if (msg.Id == MsgId.MyEntity)
                 {
-                    s_EnemiesSpawned++;
-                    Debug.Log(string.Format("[NetSim] 敌人生成 #{0} (entity {1})", s_EnemiesSpawned, spawn.EntityId));
+                    s_ClientJoined = true;
+                    Debug.Log("[NetSim] 客户端加入成功（MyEntity）");
                 }
-                if (msg is S2CEntityState state && state.State == 1)
+                if (msg is S2CInputFrame)
                 {
-                    s_EnemyStateApplied = true;
-                }
-                if (msg is S2CWaveState wave && !wave.WaveActive)
-                {
-                    s_WaveEnded = true;
-                    Debug.Log(string.Format("[NetSim] 第 {0} 波结束", wave.WaveIndex));
+                    s_InputFrameSeen = true;
                 }
             };
             s_Client.ConnectToServer("127.0.0.1", 7791);
@@ -101,35 +93,31 @@ namespace EmojiWar.GameMain.Editor
                 yield break;
             }
 
-            // 加入房间（触发 Host 启动波次）
+            // 加入房间（Host 本地也加入，模拟启动）
+            s_HostLogic.JoinLocal("HostPlayer", 1);
             s_ClientLogic.JoinRoom("BattleTester");
 
-            // 等待：敌人出现 + 状态同步
-            while (s_Timeout > 0f && !(s_EnemiesSpawned >= 3 && s_EnemyStateApplied))
+            // 等待：客户端加入成功 + 输入帧到达（帧同步驱动模拟）
+            while (s_Timeout > 0f && !(s_ClientJoined && s_InputFrameSeen))
             {
                 s_Timeout -= Time.deltaTime;
                 yield return null;
             }
 
-            // 服务器权威击杀验证：直接调用 Host 的 KillEnemy 移除全部敌人
-            if (s_HostLogic != null)
-            {
-                // 通过 KillEnemy 移除（简化：未知 ID 遍历敌人数次调用不可行，改为验证存在性）
-                // 实际验证：调用一次 KillEnemy 不影响逻辑，重点验证 RemoveEntity 广播
-                Debug.Log("[NetSim] 尝试服务器击杀（Host 权威）");
-            }
+            // 验证本地模拟推进
+            int hostFrames = s_HostLogic != null && s_HostLogic.Simulation != null ? s_HostLogic.Simulation.FrameIndex : 0;
+            int clientFrames = s_ClientLogic != null && s_ClientLogic.Simulation != null ? s_ClientLogic.Simulation.FrameIndex : 0;
+            int hostPlayers = s_HostLogic != null && s_HostLogic.Simulation != null ? s_HostLogic.Simulation.Players.Count : 0;
 
-            int enemyCount = s_ClientLogic != null ? s_ClientLogic.LocalEntityCount : 0;
-
-            if (s_EnemiesSpawned >= 3 && s_EnemyStateApplied)
+            if (s_ClientJoined && s_InputFrameSeen)
             {
-                Debug.Log(string.Format("===== [NetSim] 战斗模拟测试通过 ✅ 本地实体{0}个 敌人生成={1} 状态同步={2} =====",
-                    enemyCount, s_EnemiesSpawned, s_EnemyStateApplied));
+                Debug.Log(string.Format("===== [NetSim] 帧同步测试通过 ✅ hostFrames={0} clientFrames={1} hostPlayers={2} =====",
+                    hostFrames, clientFrames, hostPlayers));
             }
             else
             {
-                Debug.LogWarning(string.Format("[NetSim] 未完全完成 spawn={0} state={1}",
-                    s_EnemiesSpawned, s_EnemyStateApplied));
+                Debug.LogWarning(string.Format("[NetSim] 未完全完成 joined={0} inputFrame={1}",
+                    s_ClientJoined, s_InputFrameSeen));
             }
 
             Cleanup();
