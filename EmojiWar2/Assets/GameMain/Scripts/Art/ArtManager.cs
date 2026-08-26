@@ -89,6 +89,18 @@ namespace EmojiWar.GameMain.Art
         }
 
         /// <summary>
+        /// 获取武器图标 Sprite（按数据表 Icon 字段）。
+        /// </summary>
+        public static Sprite GetWeaponSprite(string icon)
+        {
+            if (string.IsNullOrEmpty(icon))
+            {
+                return GetBulletSprite();
+            }
+            return LoadEmoji(icon);
+        }
+
+        /// <summary>
         /// 获取金币 Sprite（金币 emoji 1fa99）。
         /// </summary>
         public static Sprite GetCoinSprite()

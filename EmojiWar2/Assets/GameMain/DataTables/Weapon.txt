@@ -1,9 +1,10 @@
 #------------------------------------------------------------
 # Weapon 数据表
-# 列顺序：Id, WeaponName, Description, PrefabPath, Category, Rarity, Weight, Damage, FireRate, Range, MaxAmmo, ReloadTime, BulletSpeed, Spread
+# 列顺序：Id, WeaponName, Description, PrefabPath, Category, Rarity, Weight, Damage, FireRate, Range, MaxAmmo, ReloadTime, BulletSpeed, Spread, Icon
+# Icon: Resources/Art 下的武器图标素材（emoji 文件名，不含扩展名）
 #------------------------------------------------------------
-1	水滴枪	能发射水滴的枪		远程	1	1	10	3	10	30	2	15	0.05
-2	盾	提供简单的防御		防具	1	1	0	0	0	0	0	0	0
-3	刀光	挥出近距离刀光		近战	2	1	15	2	2	0	0	0	0
-4	速射手枪	射速极快的小手枪		远程	2	1	7	6	10	24	1.5	18	0.08
-5	霰弹枪	大范围散射的霰弹		远程	3	1	18	1.5	8	16	2.5	12	0.25
+1	水滴枪	能发射水滴的枪		远程	1	1	10	3	10	30	2	15	0.05	水滴
+2	盾	提供简单的防御		防具	1	1	0	0	0	0	0	0	0	1f6e1
+3	刀光	挥出近距离刀光		近战	2	1	15	2	2	0	0	0	0	刀光1
+4	速射手枪	射速极快的小手枪		远程	2	1	7	6	10	24	1.5	18	0.08	26a1
+5	霰弹枪	大范围散射的霰弹		远程	3	1	18	1.5	8	16	2.5	12	0.25	🎉

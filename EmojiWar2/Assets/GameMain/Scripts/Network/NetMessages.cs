@@ -460,6 +460,51 @@ namespace EmojiWar.GameMain.Network
         }
     }
 
+    /// <summary>S2C: 武器更新（购买武器后同步模拟参数，所有端一致）。</summary>
+    public sealed class S2CWeaponUpdate : NetMessage
+    {
+        public int EntityId;        // 持有者实体 ID
+        public int WeaponId;        // 武器数据表 ID
+        public string WeaponName;   // 武器名
+        public string WeaponIcon;   // 武器图标
+        public float Damage;
+        public float FireRate;
+        public int MaxAmmo;
+        public float ReloadTime;
+        public float BulletSpeed;
+        public float Spread;
+
+        public override MsgId Id { get { return MsgId.WeaponUpdate; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(EntityId);
+            writer.Write(WeaponId);
+            writer.Write(WeaponName ?? string.Empty);
+            writer.Write(WeaponIcon ?? string.Empty);
+            writer.Write(Damage);
+            writer.Write(FireRate);
+            writer.Write(MaxAmmo);
+            writer.Write(ReloadTime);
+            writer.Write(BulletSpeed);
+            writer.Write(Spread);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            EntityId = reader.ReadInt32();
+            WeaponId = reader.ReadInt32();
+            WeaponName = reader.ReadString();
+            WeaponIcon = reader.ReadString();
+            Damage = reader.ReadSingle();
+            FireRate = reader.ReadSingle();
+            MaxAmmo = reader.ReadInt32();
+            ReloadTime = reader.ReadSingle();
+            BulletSpeed = reader.ReadSingle();
+            Spread = reader.ReadSingle();
+        }
+    }
+
     /// <summary>Heartbeat.</summary>
     public sealed class NetHeartbeat : NetMessage
     {

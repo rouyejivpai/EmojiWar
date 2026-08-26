@@ -1,13 +1,14 @@
 #------------------------------------------------------------
 # Mod 数据表
-# 列顺序：Id, ModId, ModName, Description, Category, Rarity, Weight, EffectType, Param1, Param2
+# 列顺序：Id, ModId, ModName, Description, Category, Rarity, Weight, EffectType, Param1, Param2, Icon
 # EffectType: FireRateUp(攻速+), FireRateMul(攻速×), OnKill(击杀触发), Freeze(冰霜减速), Spread(散射), DamageUp(伤害+)
+# Icon: Resources/Art 下的 emoji 素材（FireRate→1f525火, Freeze→2744雪花, Damage→1f621, Spread→1f4ab, OnKill→1f47b）
 #------------------------------------------------------------
-1	rateup_mod	攻速提升	提升武器攻速	武器	2	1.5	FireRateUp	1	0
-2	ratemul_mod	攻速增幅	武器攻速乘区增幅	武器	2	1.5	FireRateMul	0.2	0
-3	kill_mod	杀戮怒火	子弹击杀敌人后获得攻速加成	武器	2	1.5	OnKill	0.5	3
-4	ice_mod	雪花	子弹触碰敌人时使其减速	武器	2	1.5	Freeze	0.3	2
-5	flash_mod	散射水滴	一次发射三颗小水滴	武器	3	1.2	Spread	3	0
-6	damage_mod	伤害强化	提升武器伤害	武器	3	1.2	DamageUp	5	0
-7	ice2_mod	极寒	更强的冰霜减速	武器	3	1	Freeze	0.5	3
-8	damage2_mod	破坏	大幅提升武器伤害	武器	4	0.8	DamageUp	10	0
+1	rateup_mod	攻速提升	提升武器攻速	武器	2	1.5	FireRateUp	1	0	1f525
+2	ratemul_mod	攻速增幅	武器攻速乘区增幅	武器	2	1.5	FireRateMul	0.2	0	1f525
+3	kill_mod	杀戮怒火	子弹击杀敌人后获得攻速加成	武器	2	1.5	OnKill	0.5	3	1f47b
+4	ice_mod	雪花	子弹触碰敌人时使其减速	武器	2	1.5	Freeze	0.3	2	2744-fe0f
+5	flash_mod	散射水滴	一次发射三颗小水滴	武器	3	1.2	Spread	3	0	1f4ab
+6	damage_mod	伤害强化	提升武器伤害	武器	3	1.2	DamageUp	5	0	1f621
+7	ice2_mod	极寒	更强的冰霜减速	武器	3	1	Freeze	0.5	3	2744-fe0f
+8	damage2_mod	破坏	大幅提升武器伤害	武器	4	0.8	DamageUp	10	0	1f621

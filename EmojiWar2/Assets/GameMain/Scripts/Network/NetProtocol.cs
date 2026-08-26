@@ -35,6 +35,7 @@ namespace EmojiWar.GameMain.Network
         RunRestart = 2105,      // S2C: host restarts the run for a new round
         MyEntity = 2106,        // S2C: host tells a joiner its own entity id { entityId }
         InputFrame = 2107,      // S2C: 输入帧广播（帧同步；各端推进确定性模拟）
+        WeaponUpdate = 2108,    // S2C: 武器更新（购买武器后同步模拟参数）{ entityId, weaponId, ... }
         PlayerList = 2203,      // S2C: 房间玩家列表（名字+准备状态）{ players }
         RoomClosed = 2204,      // S2C: 房间解散（房主退出）
 

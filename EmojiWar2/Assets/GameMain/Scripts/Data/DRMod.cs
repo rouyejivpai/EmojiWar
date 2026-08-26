@@ -47,6 +47,9 @@ namespace EmojiWar.GameMain.Data
         /// <summary>效果参数 2。</summary>
         public float Param2 { get; private set; }
 
+        /// <summary>Mod 图标（Resources/Art 下的 emoji 文件名）。</summary>
+        public string Icon { get; private set; }
+
         public bool ParseDataRow(string dataRowText, object userData)
         {
             string[] split = dataRowText.Split('\t');
@@ -62,6 +65,7 @@ namespace EmojiWar.GameMain.Data
             EffectType = split[index++];
             Param1 = float.Parse(split[index++]);
             Param2 = float.Parse(split[index++]);
+            Icon = index < split.Length ? split[index++] : string.Empty;
 
             return true;
         }

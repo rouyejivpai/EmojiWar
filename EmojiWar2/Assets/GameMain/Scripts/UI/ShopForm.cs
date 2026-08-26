@@ -118,15 +118,83 @@ namespace EmojiWar.GameMain.UI
                     btnText.alignment = TextAnchor.MiddleCenter;
                 }
 
+                // 商品图标（参考旧版 good.cs：武器/Mod 图标；加载失败时保留空位）
+                var iconGo = new GameObject("Icon");
+                iconGo.transform.SetParent(btn.transform, false);
+                var iconRect = iconGo.AddComponent<RectTransform>();
+                iconRect.anchorMin = new Vector2(0f, 0.5f);
+                iconRect.anchorMax = new Vector2(0f, 0.5f);
+                iconRect.pivot = new Vector2(0f, 0.5f);
+                iconRect.anchoredPosition = new Vector2(15, 0);
+                iconRect.sizeDelta = new Vector2(56, 56);
+                var iconImage = iconGo.AddComponent<Image>();
+                iconImage.sprite = GetItemIconSprite(item);
+                if (iconImage.sprite != null)
+                {
+                    float w = iconImage.sprite.bounds.size.x;
+                    if (w > 0.01f)
+                    {
+                        iconGo.transform.localScale = Vector3.one * (0.8f / w);
+                    }
+                }
+
                 var captured = item;
                 btn.onClick.RemoveAllListeners();
                 btn.onClick.AddListener(() => OnBuyItem(captured));
             }
         }
 
+        /// <summary>商品图标（武器用数据表 Icon，Mod 用默认）。</summary>
+        private static Sprite GetItemIconSprite(Shop.ShopItem item)
+        {
+            if (item == null || GameEntry.Data == null)
+            {
+                return null;
+            }
+
+            if (item.Type == Shop.ShopItemType.Weapon)
+            {
+                var weapon = GameEntry.Data.GetWeapon(item.DataId);
+                if (weapon != null)
+                {
+                    return Art.ArtManager.GetWeaponSprite(weapon.Icon);
+                }
+            }
+            else
+            {
+                var mod = GameEntry.Data.GetMod(item.DataId);
+                if (mod != null)
+                {
+                    return Art.ArtManager.GetWeaponSprite(mod.Icon);
+                }
+            }
+            return null;
+        }
+
         private void OnBuyItem(Shop.ShopItem item)
         {
             var session = Battle.RunSession.Instance;
+
+            // 网络模式：购买请求上行到 Host（Host 更新模拟武器并广播同步）
+            var net = GameEntry.NetworkService;
+            if (net != null && net.Mode != Network.NetMode.Offline)
+            {
+                var clientLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetClientLogic>()
+                    : null;
+                if (clientLogic != null)
+                {
+                    int index = m_Items.IndexOf(item);
+                    clientLogic.RequestBuy(index >= 0 ? index : 0);
+                    if (m_InfoText != null)
+                    {
+                        m_InfoText.text = "购买请求已发送：" + item.Name;
+                    }
+                    return;
+                }
+            }
+
+            // 单机模式：本地结算
             if (session == null)
             {
                 return;
@@ -156,7 +224,23 @@ namespace EmojiWar.GameMain.UI
                     player.PrimaryWeapon.ModComponent.AddMod(modRow);
                 }
             }
-            // 武器购买：暂存（Phase 2 简化：仅提示）
+            else
+            {
+                // 单机武器购买：直接更换玩家主武器（模拟模式由 Host 同步）
+                var player = UnityEngine.Object.FindObjectOfType<Entity.PlayerEntity>();
+                var weaponRow = GameEntry.Data != null ? GameEntry.Data.GetWeapon(item.DataId) : null;
+                if (player != null && weaponRow != null && player.PrimaryWeapon != null)
+                {
+                    var weapon = player.PrimaryWeapon;
+                    weapon.Configure(weaponRow);
+                    var ranged = weapon as Weapon.RangedWeapon;
+                    if (ranged != null)
+                    {
+                        ranged.InitRanged(weaponRow);
+                    }
+                    m_InfoText.text = "已装备：" + item.Name;
+                }
+            }
 
             if (m_InfoText != null)
             {

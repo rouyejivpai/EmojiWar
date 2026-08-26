@@ -37,6 +37,9 @@ namespace EmojiWar.GameMain.Simulation
         public float MoveSpeed = 5f;
 
         // 主武器参数（来自 DRWeapon 数据表，确定性）
+        public int WeaponId = 1;                 // 武器数据表 ID（HUD/图标用）
+        public string WeaponName = "水滴枪";      // 武器名（HUD 用，避免查表）
+        public string WeaponIcon = "水滴";        // 武器图标（HUD 用，避免查表）
         public float WeaponDamage = 10f;
         public float FireRate = 3f;          // 每秒射击次数
         public int MaxAmmo = 30;
@@ -57,6 +60,9 @@ namespace EmojiWar.GameMain.Simulation
         public bool Alive = true;
 
         // 武器运行时状态（确定性）
+        public int WeaponId = 1;
+        public string WeaponName = "水滴枪";
+        public string WeaponIcon = "水滴";
         public float WeaponDamage;
         public float FireRate;
         public int MaxAmmo;
@@ -241,6 +247,9 @@ namespace EmojiWar.GameMain.Simulation
                 CharacterId = cfg.CharacterId,
                 Position = cfg.StartPosition,
                 MoveSpeed = cfg.MoveSpeed,
+                WeaponId = cfg.WeaponId,
+                WeaponName = cfg.WeaponName,
+                WeaponIcon = cfg.WeaponIcon,
                 WeaponDamage = cfg.WeaponDamage,
                 FireRate = cfg.FireRate,
                 MaxAmmo = cfg.MaxAmmo,
@@ -584,6 +593,34 @@ namespace EmojiWar.GameMain.Simulation
                 }
             }
             return null;
+        }
+
+        /// <summary>
+        /// 更换玩家武器（商店购买武器后同步调用；各端收到同一 S2CWeaponUpdate 后调用，保持确定性）。
+        /// </summary>
+        public void ApplyWeapon(int entityId, SimPlayerConfig weaponConfig)
+        {
+            var player = GetPlayerByEntityId(entityId);
+            if (player == null || weaponConfig == null)
+            {
+                return;
+            }
+
+            player.WeaponId = weaponConfig.WeaponId;
+            player.WeaponName = weaponConfig.WeaponName;
+            player.WeaponIcon = weaponConfig.WeaponIcon;
+            player.WeaponDamage = weaponConfig.WeaponDamage;
+            player.FireRate = weaponConfig.FireRate;
+            player.MaxAmmo = weaponConfig.MaxAmmo;
+            player.ReloadTime = weaponConfig.ReloadTime;
+            player.BulletSpeed = weaponConfig.BulletSpeed;
+            player.Spread = weaponConfig.Spread;
+
+            // 换弹并重置冷却（确定性）
+            player.Ammo = player.MaxAmmo;
+            player.IsReloading = false;
+            player.ReloadTimer = 0f;
+            player.FireCooldown = 0f;
         }
     }
 }

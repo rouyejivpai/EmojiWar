@@ -488,6 +488,9 @@ namespace EmojiWar.GameMain.Network
                     var weapon = GameEntry.Data.GetWeapon(character.DefaultWeaponId);
                     if (weapon != null)
                     {
+                        config.WeaponId = weapon.Id;
+                        config.WeaponName = weapon.WeaponName;
+                        config.WeaponIcon = weapon.Icon;
                         config.WeaponDamage = weapon.Damage;
                         config.FireRate = weapon.FireRate;
                         config.MaxAmmo = weapon.MaxAmmo;
@@ -563,14 +566,91 @@ namespace EmojiWar.GameMain.Network
             WriteProbe("[net-host] 广播玩家列表: " + msg.Players);
         }
 
-        /// <summary>处理购买请求（确定性商店：购买结果由本地模拟/流程处理，Host 仅确认）。</summary>
+        /// <summary>
+        /// 处理购买请求（商店购买：武器/Mod）。
+        /// 确定性规则：商品由模拟确定性生成（同种子），Host 按索引解析后：
+        ///   - 武器：更新玩家模拟武器并广播 S2CWeaponUpdate（所有端一致）
+        ///   - Mod：暂存背包（Phase 简化）
+        /// </summary>
         private void HandleBuyItem(int sessionId, C2SBuyItem buy)
         {
-            if (buy == null)
+            if (buy == null || Simulation == null || !m_Players.TryGetValue(sessionId, out var state))
             {
                 return;
             }
-            Debug.Log("[NetHostLogic] 玩家 " + sessionId + " 购买商品索引 " + buy.ShopItemIndex);
+
+            string offer = Simulation.ShopItems;
+            if (string.IsNullOrEmpty(offer))
+            {
+                Debug.Log("[NetHostLogic] 商店未开放，忽略购买请求");
+                return;
+            }
+
+            string[] entries = offer.Split(';');
+            if (buy.ShopItemIndex < 0 || buy.ShopItemIndex >= entries.Length)
+            {
+                Debug.Log("[NetHostLogic] 无效商品索引 " + buy.ShopItemIndex);
+                return;
+            }
+
+            string[] kv = entries[buy.ShopItemIndex].Split(':');
+            if (kv.Length < 3)
+            {
+                return;
+            }
+
+            int type = 0, id = 0;
+            if (!int.TryParse(kv[0], out type) || !int.TryParse(kv[1], out id))
+            {
+                return;
+            }
+
+            Debug.Log("[NetHostLogic] 玩家 " + sessionId + " 购买 type=" + type + " id=" + id);
+
+            if (type == 0)
+            {
+                // 武器：更新模拟 + 广播（各端调用 ApplyWeapon 保持确定性）
+                var weapon = GameEntry.Data != null ? GameEntry.Data.GetWeapon(id) : null;
+                if (weapon == null)
+                {
+                    return;
+                }
+
+                var cfg = new Simulation.SimPlayerConfig
+                {
+                    WeaponId = weapon.Id,
+                    WeaponName = weapon.WeaponName,
+                    WeaponIcon = weapon.Icon,
+                    WeaponDamage = weapon.Damage,
+                    FireRate = weapon.FireRate,
+                    MaxAmmo = weapon.MaxAmmo,
+                    ReloadTime = weapon.ReloadTime,
+                    BulletSpeed = weapon.BulletSpeed,
+                    Spread = weapon.Spread,
+                };
+                Simulation.ApplyWeapon(state.EntityId, cfg);
+
+                m_Service.BroadcastToClients(new S2CWeaponUpdate
+                {
+                    EntityId = state.EntityId,
+                    WeaponId = weapon.Id,
+                    WeaponName = weapon.WeaponName,
+                    WeaponIcon = weapon.Icon,
+                    Damage = weapon.Damage,
+                    FireRate = weapon.FireRate,
+                    MaxAmmo = weapon.MaxAmmo,
+                    ReloadTime = weapon.ReloadTime,
+                    BulletSpeed = weapon.BulletSpeed,
+                    Spread = weapon.Spread,
+                });
+                WriteProbe("[net-host] 购买武器 " + weapon.WeaponName + " -> entity " + state.EntityId);
+            }
+            else
+            {
+                // Mod：简化确认（背包/装备后续接入模拟）
+                Debug.Log("[NetHostLogic] 购买 Mod " + id + "（暂存背包，后续接入模拟）");
+            }
+
             m_Service.SendToClient(sessionId, new S2CShopOffer { Count = 0, Items = "BUY_OK" });
         }
 

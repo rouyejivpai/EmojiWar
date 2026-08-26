@@ -38,6 +38,7 @@ namespace EmojiWar.GameMain.Network
             Register<S2CGameOver>();
             Register<S2CRunRestart>();
             Register<S2CMyEntity>();
+            Register<S2CWeaponUpdate>();
             Register<S2CInputFrame>();
             Register<S2CPlayerList>();
             Register<S2CRoomClosed>();

@@ -404,6 +404,27 @@ namespace EmojiWar.GameMain.Network
                     HandleInputFrame(message as S2CInputFrame);
                     break;
 
+                case MsgId.WeaponUpdate:
+                    var wu = message as S2CWeaponUpdate;
+                    if (wu != null && Simulation != null)
+                    {
+                        var cfg = new Simulation.SimPlayerConfig
+                        {
+                            WeaponId = wu.WeaponId,
+                            WeaponName = wu.WeaponName,
+                            WeaponIcon = wu.WeaponIcon,
+                            WeaponDamage = wu.Damage,
+                            FireRate = wu.FireRate,
+                            MaxAmmo = wu.MaxAmmo,
+                            ReloadTime = wu.ReloadTime,
+                            BulletSpeed = wu.BulletSpeed,
+                            Spread = wu.Spread,
+                        };
+                        Simulation.ApplyWeapon(wu.EntityId, cfg);
+                        WriteProbe("[net] 武器更新 -> entity " + wu.EntityId + " " + wu.WeaponName);
+                    }
+                    break;
+
                 case MsgId.RoomClosed:
                     WriteProbe("[net] 收到房间解散广播");
                     m_IntentionalLeave = true;
@@ -495,6 +516,9 @@ namespace EmojiWar.GameMain.Network
                     var weapon = GameEntry.Data.GetWeapon(character.DefaultWeaponId);
                     if (weapon != null)
                     {
+                        config.WeaponId = weapon.Id;
+                        config.WeaponName = weapon.WeaponName;
+                        config.WeaponIcon = weapon.Icon;
                         config.WeaponDamage = weapon.Damage;
                         config.FireRate = weapon.FireRate;
                         config.MaxAmmo = weapon.MaxAmmo;
