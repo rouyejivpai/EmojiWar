@@ -1,7 +1,8 @@
 //------------------------------------------------------------
-// EmojiWar GameMain - 联机房间界面
-// 显示：房间标题、玩家列表（名字+准备状态）、准备按钮、离开/解散按钮。
-// 全部玩家准备后由 Host 广播开始（RoomEvents.OnBattleStart）。
+// EmojiWar GameMain - 联机房间界面（QuickBind 示例）
+// UI 引用由 QuickBind 自动生成绑定（RoomForm.QuickBind.cs）：
+//   根物体挂 QuickBind + 子物体按约定命名（btn_/txt_/...），
+//   Inspector 点 [Scan & Generate] 生成字段绑定代码。
 //------------------------------------------------------------
 
 using System;
@@ -21,25 +22,10 @@ namespace EmojiWar.GameMain.UI
     }
 
     /// <summary>
-    /// 联机房间界面。
+    /// 联机房间界面（partial：UI 字段由 QuickBind 生成）。
     /// </summary>
-    public class RoomForm : UGuiForm
+    public partial class RoomForm : UGuiForm
     {
-        [SerializeField]
-        private Text m_RoomTitleText = null;
-
-        [SerializeField]
-        private Text m_PlayerListText = null;
-
-        [SerializeField]
-        private Text m_StatusText = null;
-
-        [SerializeField]
-        private Button m_ReadyButton = null;
-
-        [SerializeField]
-        private Button m_LeaveButton = null;
-
         private bool m_LocalReady = false;
 
         /// <summary>最近一次玩家列表字符串（测试/诊断用）。</summary>
@@ -51,6 +37,13 @@ namespace EmojiWar.GameMain.UI
         protected override void OnInit(object userData)
         {
             base.OnInit(userData);
+
+            // QuickBind：应用生成的 UI 引用绑定
+            var bind = GetComponent<QuickBind>();
+            if (bind != null)
+            {
+                QuickBindApplyBindings(bind);
+            }
         }
 
         protected override void OnOpen(object userData)
@@ -59,21 +52,21 @@ namespace EmojiWar.GameMain.UI
 
             RoomEvents.OnPlayerListUpdated += OnPlayerListUpdated;
 
-            if (m_RoomTitleText != null)
+            if (m_TxtTitle != null)
             {
-                m_RoomTitleText.text = "联机房间";
+                m_TxtTitle.text = "联机房间";
             }
 
-            if (m_ReadyButton != null)
+            if (m_BtnReady != null)
             {
-                m_ReadyButton.onClick.RemoveAllListeners();
-                m_ReadyButton.onClick.AddListener(OnReadyClick);
+                m_BtnReady.onClick.RemoveAllListeners();
+                m_BtnReady.onClick.AddListener(OnReadyClick);
             }
 
-            if (m_LeaveButton != null)
+            if (m_BtnLeave != null)
             {
-                m_LeaveButton.onClick.RemoveAllListeners();
-                m_LeaveButton.onClick.AddListener(OnLeaveClick);
+                m_BtnLeave.onClick.RemoveAllListeners();
+                m_BtnLeave.onClick.AddListener(OnLeaveClick);
             }
 
             RefreshPlayerList(LastPlayerList);
@@ -104,7 +97,7 @@ namespace EmojiWar.GameMain.UI
         /// <summary>刷新玩家列表显示（"名字:1;名字:0" → 多行文本）。</summary>
         private void RefreshPlayerList(string players)
         {
-            if (m_PlayerListText == null)
+            if (m_TxtPlayerList == null)
             {
                 return;
             }
@@ -126,16 +119,16 @@ namespace EmojiWar.GameMain.UI
                 }
             }
 
-            m_PlayerListText.text = sb.ToString();
+            m_TxtPlayerList.text = sb.ToString();
         }
 
         /// <summary>更新本机准备按钮文案（流程/事件调用）。</summary>
         public void SetLocalReadyState(bool ready)
         {
             m_LocalReady = ready;
-            if (m_ReadyButton != null)
+            if (m_BtnReady != null)
             {
-                var label = m_ReadyButton.GetComponentInChildren<Text>();
+                var label = m_BtnReady.GetComponentInChildren<Text>();
                 if (label != null)
                 {
                     label.text = ready ? "取消准备" : "准备";
@@ -146,9 +139,9 @@ namespace EmojiWar.GameMain.UI
         /// <summary>显示状态提示（如"即将开始..."）。</summary>
         public void ShowStatus(string message)
         {
-            if (m_StatusText != null)
+            if (m_TxtStatus != null)
             {
-                m_StatusText.text = message;
+                m_TxtStatus.text = message;
             }
         }
     }

@@ -78,7 +78,7 @@ namespace EmojiWar.GameMain.Editor
             Debug.Log("[RoomSetup] Procedure 列表已更新（6 个流程）");
         }
 
-        /// <summary>生成 RoomForm.prefab。</summary>
+        /// <summary>生成 RoomForm.prefab（QuickBind 命名约定：txt_/btn_ 前缀）。</summary>
         private static void CreateRoomFormPrefab()
         {
             EnsureFolder("Assets/GameMain/UI");
@@ -93,34 +93,32 @@ namespace EmojiWar.GameMain.Editor
             scaler.referenceResolution = new Vector2(1920, 1080);
             root.AddComponent<GraphicRaycaster>();
             root.AddComponent<CanvasGroup>();
-            var form = root.AddComponent<RoomForm>();
+            root.AddComponent<RoomForm>();
+            root.AddComponent<QuickBind>();
 
-            // 标题
-            var title = CreateText("Title", root.transform, "联机房间", 56, new Vector2(0, 380));
+            // 标题（约定：txt_）
+            CreateText("txt_Title", root.transform, "联机房间", 56, new Vector2(0, 380));
 
-            // 玩家列表
-            var playerList = CreateText("PlayerList", root.transform, "等待玩家加入...", 32, new Vector2(0, 120));
+            // 玩家列表（约定：txt_）
+            var playerList = CreateText("txt_PlayerList", root.transform, "等待玩家加入...", 32, new Vector2(0, 120));
             playerList.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 400);
             playerList.GetComponent<Text>().alignment = TextAnchor.UpperCenter;
 
-            // 状态提示
-            var status = CreateText("Status", root.transform, "全部准备后自动开始", 24, new Vector2(0, -180));
+            // 状态提示（约定：txt_）
+            CreateText("txt_Status", root.transform, "全部准备后自动开始", 24, new Vector2(0, -180));
 
-            // 准备按钮
-            var readyBtn = CreateButton("ReadyButton", root.transform, "准备", new Vector2(-200, -320));
-            // 离开/解散按钮
-            var leaveBtn = CreateButton("LeaveButton", root.transform, "离开房间", new Vector2(200, -320));
-
-            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            form.GetType().GetField("m_RoomTitleText", flags).SetValue(form, title.GetComponent<Text>());
-            form.GetType().GetField("m_PlayerListText", flags).SetValue(form, playerList.GetComponent<Text>());
-            form.GetType().GetField("m_StatusText", flags).SetValue(form, status.GetComponent<Text>());
-            form.GetType().GetField("m_ReadyButton", flags).SetValue(form, readyBtn.GetComponent<Button>());
-            form.GetType().GetField("m_LeaveButton", flags).SetValue(form, leaveBtn.GetComponent<Button>());
+            // 准备按钮（约定：btn_）
+            CreateButton("btn_Ready", root.transform, "准备", new Vector2(-200, -320));
+            // 离开/解散按钮（约定：btn_）
+            CreateButton("btn_Leave", root.transform, "离开房间", new Vector2(200, -320));
 
             PrefabUtility.SaveAsPrefabAsset(root, RoomFormPrefabPath);
+
+            // QuickBind：扫描子物体 → 生成 RoomForm.QuickBind.cs 绑定代码
+            QuickBindGenerator.Process(root);
+
             Object.DestroyImmediate(root);
-            Debug.Log("[RoomSetup] RoomForm prefab 已生成: " + RoomFormPrefabPath);
+            Debug.Log("[RoomSetup] RoomForm prefab 已生成（QuickBind）: " + RoomFormPrefabPath);
         }
 
         /// <summary>生成 CharacterSelectForm.prefab（4 个角色按钮）。</summary>
