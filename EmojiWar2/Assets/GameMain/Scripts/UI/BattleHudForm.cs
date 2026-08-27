@@ -43,6 +43,7 @@ namespace EmojiWar.GameMain.UI
         private Text m_ModSlotsText = null;        // 已装备 Mod 槽（参考旧版 WeaponPanel.ModGrid）
 
         private float m_WeaponRefreshTimer = 0f;
+        private float m_LastProgressWidth = -1f;
 
         protected override void OnInit(object userData)
         {
@@ -72,12 +73,17 @@ namespace EmojiWar.GameMain.UI
 
         private void Update()
         {
-            // 每帧刷新波次、血量与射击冷却进度条
-            RefreshWave();
-            RefreshHp();
-            RefreshFireProgress();
+            // 低频刷新（0.1s 节流：波次/血量/冷却进度，避免每帧 UI 与对象查找开销）
+            m_HudRefreshTimer -= Time.deltaTime;
+            if (m_HudRefreshTimer <= 0f)
+            {
+                m_HudRefreshTimer = 0.1f;
+                RefreshWave();
+                RefreshHp();
+                RefreshFireProgress();
+            }
 
-            // 武器信息低频刷新（名称/弹药/属性/Mod）
+            // 武器信息更低频刷新（弹药/装弹/属性/Mod，0.2s）
             m_WeaponRefreshTimer -= Time.deltaTime;
             if (m_WeaponRefreshTimer <= 0f)
             {
@@ -86,7 +92,9 @@ namespace EmojiWar.GameMain.UI
             }
         }
 
-        /// <summary>刷新射击冷却进度条（参考旧版 SimpleWeaponPanel.setProgress）。</summary>
+        private float m_HudRefreshTimer = 0f;
+
+        /// <summary>刷新射击冷却进度条（参考旧版 SimpleWeaponPanel.setProgress；节流避免每帧改布局）。</summary>
         private void RefreshFireProgress()
         {
             if (m_FireProgressFill == null)
@@ -112,15 +120,24 @@ namespace EmojiWar.GameMain.UI
                 }
             }
 
-            // 进度条填充：锚定左侧，按比例缩放宽度
-            var rect = m_FireProgressFill.rectTransform;
-            Vector2 size = rect.sizeDelta;
-            float maxWidth = rect.parent != null ? rect.parent.GetComponent<RectTransform>().sizeDelta.x : 300f;
+            // 进度条填充：锚定左侧，按比例缩放宽度（仅变化超过阈值才写，避免 Canvas 重建）
+            float maxWidth = m_FireProgressFill.rectTransform.parent != null
+                ? m_FireProgressFill.rectTransform.parent.GetComponent<RectTransform>().sizeDelta.x
+                : 300f;
             if (maxWidth <= 0f)
             {
                 maxWidth = 300f;
             }
-            size.x = maxWidth * Mathf.Clamp01(progress);
+            float targetWidth = maxWidth * Mathf.Clamp01(progress);
+            if (Mathf.Abs(targetWidth - m_LastProgressWidth) < 0.5f)
+            {
+                return;
+            }
+            m_LastProgressWidth = targetWidth;
+
+            var rect = m_FireProgressFill.rectTransform;
+            Vector2 size = rect.sizeDelta;
+            size.x = targetWidth;
             rect.sizeDelta = size;
         }
 

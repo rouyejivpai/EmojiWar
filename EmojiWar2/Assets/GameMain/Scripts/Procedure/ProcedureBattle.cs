@@ -85,6 +85,10 @@ namespace EmojiWar.GameMain.Procedure
                 SubscribeNetworkSimulationEvents();
             }
 
+            // 进入战斗：兜底关闭所有旧界面（菜单/角色选择/大厅/房间），
+            // 避免流程切换时序导致的残留 UI 遮挡战斗场景
+            UI.UIFormCloser.CloseAllExcept(null);
+
             // 战斗场景：叠加加载架构下场景常驻 —— 已加载则复用并激活，避免重复加载
             var battleScene = SceneManager.GetSceneByName("Battle");
             if (!battleScene.isLoaded)
@@ -266,6 +270,8 @@ namespace EmojiWar.GameMain.Procedure
             var net = GameEntry.NetworkService;
             if (net != null && net.Mode != Network.NetMode.Offline)
             {
+                // 进入战斗：兜底关闭所有旧界面（菜单/角色选择/大厅/房间），避免残留遮挡战斗
+                UI.UIFormCloser.CloseAllExcept("BattleHudForm(Clone)");
                 EnsureNetworkSimulationBound();
                 OpenBattleHud();
                 WriteProbe("[battle-proc] 网络模式：确定性模拟驱动，绑定 SimView");

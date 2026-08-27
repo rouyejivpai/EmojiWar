@@ -36,5 +36,41 @@ namespace EmojiWar.GameMain.UI
                 }
             }
         }
+
+        /// <summary>
+        /// 关闭除指定名称外的所有 UI 窗体（进入战斗时兜底清理旧界面）。
+        /// </summary>
+        /// <param name="excludeName">保留不关闭的窗体名称（如战斗 HUD），可为 null。</param>
+        public static void CloseAllExcept(string excludeName)
+        {
+            var ui = GameEntry.UI;
+            if (ui == null)
+            {
+                return;
+            }
+
+            var toClose = new System.Collections.Generic.List<UIForm>();
+            foreach (var group in ui.GetAllUIGroups())
+            {
+                foreach (var form in group.GetAllUIForms())
+                {
+                    var formLogic = form as UIForm;
+                    if (formLogic == null || formLogic.Logic == null)
+                    {
+                        continue;
+                    }
+                    if (excludeName != null && formLogic.Logic.Name == excludeName)
+                    {
+                        continue;
+                    }
+                    toClose.Add(formLogic);
+                }
+            }
+
+            foreach (var form in toClose)
+            {
+                ui.CloseUIForm(form);
+            }
+        }
     }
 }

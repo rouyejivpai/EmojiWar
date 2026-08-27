@@ -127,7 +127,11 @@ namespace EmojiWar.GameMain.Network
                 var message = NetCodec.Decode(frame, 0, total);
                 if (message != null)
                 {
-                    Debug.Log("[NetServerSession] Received msg " + message.Id + " from session " + Id);
+                    // 高频消息（输入帧）不打日志，避免每帧 Debug.Log 严重掉帧
+                    if (message.Id != MsgId.PlayerInput && message.Id != MsgId.InputFrame)
+                    {
+                        Debug.Log("[NetServerSession] Received msg " + message.Id + " from session " + Id);
+                    }
                     OnMessage?.Invoke(Id, message);
                 }
             }
@@ -235,10 +239,6 @@ namespace EmojiWar.GameMain.Network
             if (m_Listener != null)
             {
                 bool pending = m_Listener.Pending();
-                if (Time.frameCount % 30 == 0)
-                {
-                    Debug.Log("[NetServer] Poll pending=" + pending + " sessions=" + m_Sessions.Count);
-                }
                 if (pending)
                 {
                     try
@@ -299,7 +299,11 @@ namespace EmojiWar.GameMain.Network
             {
                 sessions = new List<NetServerSession>(m_Sessions.Values);
             }
-            Debug.Log("[NetServer] Broadcast " + message.Id + " to " + sessions.Count + " sessions");
+            // 高频消息（输入帧 20Hz）不打日志，避免每帧 Debug.Log 严重掉帧
+            if (message.Id != MsgId.InputFrame)
+            {
+                Debug.Log("[NetServer] Broadcast " + message.Id + " to " + sessions.Count + " sessions");
+            }
             foreach (var session in sessions)
             {
                 session.Send(message);

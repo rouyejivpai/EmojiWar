@@ -5,6 +5,7 @@
 //   敌人 → 敌人 emoji
 //   子弹 → 子弹 sprite
 // 实体由模拟状态驱动（位置/存活），网络只影响模拟输入。
+// 性能：用集合快照做增删对比（O(n)），避免每帧 O(n*m) 检查与重复分配。
 //------------------------------------------------------------
 
 using System.Collections.Generic;
@@ -20,10 +21,16 @@ namespace EmojiWar.GameMain.Simulation
         private LockstepSimulation m_Sim = null;
         private int m_LocalEntityId = -1;
 
-        // 实体表现缓存（玩家按 EntityId；敌人/子弹按 EntityId）
+        // 实体表现缓存（玩家/敌人/子弹按 EntityId）
         private readonly Dictionary<int, SpriteRenderer> m_PlayerViews = new Dictionary<int, SpriteRenderer>();
         private readonly Dictionary<int, SpriteRenderer> m_EnemyViews = new Dictionary<int, SpriteRenderer>();
         private readonly Dictionary<int, SpriteRenderer> m_BulletViews = new Dictionary<int, SpriteRenderer>();
+
+        // 复用临时容器（避免每帧分配）
+        private readonly HashSet<int> m_PlayerIds = new HashSet<int>();
+        private readonly HashSet<int> m_EnemyIds = new HashSet<int>();
+        private readonly HashSet<int> m_BulletIds = new HashSet<int>();
+        private readonly List<int> m_ToRemove = new List<int>();
 
         /// <summary>当前绑定模拟（无则跳过渲染）。</summary>
         public LockstepSimulation Simulation { get { return m_Sim; } }
@@ -77,13 +84,17 @@ namespace EmojiWar.GameMain.Simulation
 
         private void SyncPlayers()
         {
-            // 更新/创建
+            m_PlayerIds.Clear();
+
+            // 更新/创建（只遍历模拟玩家）
             foreach (var player in m_Sim.Players)
             {
                 if (!player.Alive)
                 {
                     continue;
                 }
+
+                m_PlayerIds.Add(player.EntityId);
 
                 if (!m_PlayerViews.TryGetValue(player.EntityId, out var view))
                 {
@@ -97,30 +108,14 @@ namespace EmojiWar.GameMain.Simulation
                 }
             }
 
-            // 移除死亡玩家表现
-            var toRemove = new List<int>();
-            foreach (var kv in m_PlayerViews)
-            {
-                var simPlayer = m_Sim.GetPlayerByEntityId(kv.Key);
-                if (simPlayer == null || !simPlayer.Alive)
-                {
-                    toRemove.Add(kv.Key);
-                }
-            }
-            foreach (var id in toRemove)
-            {
-                if (m_PlayerViews[id] != null)
-                {
-                    Destroy(m_PlayerViews[id].gameObject);
-                }
-                m_PlayerViews.Remove(id);
-            }
+            // 移除已不在模拟中的表现（集合对比，O(n)）
+            RemoveMissingViews(m_PlayerViews, m_PlayerIds, m_ToRemove);
         }
 
         /// <summary>创建玩家表现（角色 emoji；本机玩家附加名字标记）。</summary>
         private SpriteRenderer CreatePlayerView(SimPlayer player)
         {
-            var go = new GameObject("SimPlayer_" + player.SessionId);
+            var go = new GameObject("SimPlayer_" + player.EntityId);
             var sr = go.AddComponent<SpriteRenderer>();
 
             string icon = null;
@@ -161,12 +156,16 @@ namespace EmojiWar.GameMain.Simulation
 
         private void SyncEnemies()
         {
+            m_EnemyIds.Clear();
+
             foreach (var enemy in m_Sim.Enemies)
             {
                 if (!enemy.Alive)
                 {
                     continue;
                 }
+
+                m_EnemyIds.Add(enemy.EntityId);
 
                 if (!m_EnemyViews.TryGetValue(enemy.EntityId, out var view))
                 {
@@ -188,44 +187,23 @@ namespace EmojiWar.GameMain.Simulation
                 view.transform.position = new Vector3(enemy.Position.x, enemy.Position.y, 0f);
             }
 
-            // 移除已死亡敌人表现
-            var dead = new List<int>();
-            foreach (var kv in m_EnemyViews)
-            {
-                bool exists = false;
-                foreach (var e in m_Sim.Enemies)
-                {
-                    if (e.EntityId == kv.Key && e.Alive)
-                    {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (!exists)
-                {
-                    dead.Add(kv.Key);
-                }
-            }
-            foreach (var id in dead)
-            {
-                if (m_EnemyViews[id] != null)
-                {
-                    Destroy(m_EnemyViews[id].gameObject);
-                }
-                m_EnemyViews.Remove(id);
-            }
+            RemoveMissingViews(m_EnemyViews, m_EnemyIds, m_ToRemove);
         }
 
         // ==================== 子弹 ====================
 
         private void SyncBullets()
         {
+            m_BulletIds.Clear();
+
             foreach (var bullet in m_Sim.Bullets)
             {
                 if (!bullet.Alive)
                 {
                     continue;
                 }
+
+                m_BulletIds.Add(bullet.EntityId);
 
                 if (!m_BulletViews.TryGetValue(bullet.EntityId, out var view))
                 {
@@ -247,30 +225,33 @@ namespace EmojiWar.GameMain.Simulation
                 view.transform.position = new Vector3(bullet.Position.x, bullet.Position.y, 0f);
             }
 
-            var gone = new List<int>();
-            foreach (var kv in m_BulletViews)
+            RemoveMissingViews(m_BulletViews, m_BulletIds, m_ToRemove);
+        }
+
+        /// <summary>移除缓存中不在当前集合的表现（O(n) 集合对比，避免每帧 O(n*m)）。</summary>
+        private static void RemoveMissingViews(Dictionary<int, SpriteRenderer> views, HashSet<int> aliveIds, List<int> toRemove)
+        {
+            if (views.Count == 0)
             {
-                bool exists = false;
-                foreach (var b in m_Sim.Bullets)
+                return;
+            }
+
+            toRemove.Clear();
+            foreach (var kv in views)
+            {
+                if (!aliveIds.Contains(kv.Key))
                 {
-                    if (b.EntityId == kv.Key && b.Alive)
-                    {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (!exists)
-                {
-                    gone.Add(kv.Key);
+                    toRemove.Add(kv.Key);
                 }
             }
-            foreach (var id in gone)
+
+            foreach (var id in toRemove)
             {
-                if (m_BulletViews[id] != null)
+                if (views[id] != null && views[id].gameObject != null)
                 {
-                    Destroy(m_BulletViews[id].gameObject);
+                    Destroy(views[id].gameObject);
                 }
-                m_BulletViews.Remove(id);
+                views.Remove(id);
             }
         }
 
