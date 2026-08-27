@@ -269,6 +269,7 @@ namespace EmojiWar.GameMain.Network
                     try
                     {
                         TcpClient client = m_Listener.AcceptTcpClient();
+                        client.NoDelay = true;   // 禁用 Nagle，降低小包延迟
                         int sessionId = m_NextSessionId++;
                         var session = new NetServerSession(sessionId, client);
                         session.OnMessage += (id, msg) => OnMessage?.Invoke(id, msg);

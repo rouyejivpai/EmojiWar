@@ -49,6 +49,34 @@ namespace EmojiWar.GameMain
         private void Start()
         {
             StartCoroutine(s_IsJoiner ? AutoJoinFlow() : AutoFlow());
+            StartCoroutine(FrameTimeMonitor());
+        }
+
+        /// <summary>
+        /// 帧时间监视：每 5 秒报告一次平均帧时间与最大帧时间（定位卡顿尖峰）。
+        /// </summary>
+        private IEnumerator FrameTimeMonitor()
+        {
+            var wait = new WaitForSeconds(5f);
+            while (true)
+            {
+                yield return wait;
+                int frames = 0;
+                float total = 0f;
+                float maxDt = 0f;
+                for (int i = 0; i < 300; i++)   // 采样 300 帧（约 1-5 秒）
+                {
+                    yield return null;
+                    float dt = Time.unscaledDeltaTime;
+                    frames++;
+                    total += dt;
+                    if (dt > maxDt) maxDt = dt;
+                }
+                float avg = frames > 0 ? total / frames : 0f;
+                WriteProbe(string.Format("[fps] avg={0:F1}ms ({1:F0}fps) max={2:F1}ms ({3:F0}fps)",
+                    avg * 1000f, frames > 0 ? frames / total : 0f,
+                    maxDt * 1000f, maxDt > 0f ? 1f / maxDt : 0f));
+            }
         }
 
         /// <summary>加入者自动流程：开始游戏 → 加入 → 房间自动准备 → 全部准备后自动开始。</summary>

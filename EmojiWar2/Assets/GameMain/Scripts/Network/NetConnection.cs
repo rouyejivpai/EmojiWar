@@ -64,6 +64,8 @@ namespace EmojiWar.GameMain.Network
                 }
 
                 m_Client = new TcpClient();
+                // NoDelay：禁用 Nagle 算法，避免小包（输入帧）延迟堆积
+                m_Client.NoDelay = true;
                 m_Client.BeginConnect(host, port, OnConnectCallback, null);
             }
             catch (Exception e)

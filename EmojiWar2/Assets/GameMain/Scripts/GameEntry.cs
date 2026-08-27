@@ -69,6 +69,12 @@ namespace EmojiWar.GameMain
         private void Start()
         {
             InitFrameworkComponents();
+
+            // 帧率配置：覆盖 GameFramework BaseComponent 默认 30fps → 60fps
+            // （BaseComponent 在 Awake 时设置了 Application.targetFrameRate=30，
+            //   这是"卡顿"的根因；这里在框架初始化后显式覆盖）
+            // vSync 保持 QualitySettings 设置（开），60Hz 显示器下即为流畅的 60fps
+            Application.targetFrameRate = 60;
         }
 
         /// <summary>
