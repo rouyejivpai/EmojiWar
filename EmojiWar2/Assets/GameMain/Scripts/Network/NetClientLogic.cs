@@ -223,17 +223,19 @@ namespace EmojiWar.GameMain.Network
                 mouseWorld = mainCam.ScreenToWorldPoint(Input.mousePosition);
             }
 
-            var input = new C2SPlayerInput
+            // 复用输入消息对象（每帧上行，避免 60Hz 对象分配；Send 内同步序列化后即可复用）
+            if (m_InputMsg == null)
             {
-                InputX = inputX,
-                InputY = inputY,
-                AimX = mouseWorld.x,
-                AimY = mouseWorld.y,
-                FirePrimary = Input.GetMouseButton(0),
-                FireSecondary = Input.GetMouseButton(1),
-                Reload = Input.GetKeyDown(KeyCode.R),
-            };
-            m_Service.Send(input);
+                m_InputMsg = new C2SPlayerInput();
+            }
+            m_InputMsg.InputX = inputX;
+            m_InputMsg.InputY = inputY;
+            m_InputMsg.AimX = mouseWorld.x;
+            m_InputMsg.AimY = mouseWorld.y;
+            m_InputMsg.FirePrimary = Input.GetMouseButton(0);
+            m_InputMsg.FireSecondary = Input.GetMouseButton(1);
+            m_InputMsg.Reload = Input.GetKeyDown(KeyCode.R);
+            m_Service.Send(m_InputMsg);
 
             // 帧同步一致性探针（每 2 秒记录一次模拟状态，供双实例对比）
             m_ProbeTimer -= Time.deltaTime;
@@ -260,6 +262,7 @@ namespace EmojiWar.GameMain.Network
         }
 
         private float m_ProbeTimer = 2f;
+        private C2SPlayerInput m_InputMsg = null;   // 复用的上行输入消息（避免每帧分配）
 
         /// <summary>本机角色 ID（本地玩家当前角色；无玩家时用上次选择）。</summary>
         private int GetLocalCharacterId()

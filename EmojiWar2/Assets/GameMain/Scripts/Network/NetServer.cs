@@ -29,6 +29,8 @@ namespace EmojiWar.GameMain.Network
             m_Client = client;
             m_Stream = client.GetStream();
         }
+
+        private byte[] m_ReadBuffer = new byte[4096];   // 复用读取缓冲（避免每帧分配）
         public bool IsAlive
         {
             get { return m_Client != null && m_Client.Connected; }
@@ -49,8 +51,8 @@ namespace EmojiWar.GameMain.Network
 
             try
             {
-                byte[] frame = NetCodec.Encode(message);
-                m_Stream.Write(frame, 0, frame.Length);
+                byte[] frame = NetCodec.Encode(message, out int length);
+                m_Stream.Write(frame, 0, length);
             }
             catch (Exception e)
             {
@@ -87,8 +89,7 @@ namespace EmojiWar.GameMain.Network
 
             try
             {
-                byte[] buffer = new byte[4096];
-                int read = m_Stream.Read(buffer, 0, buffer.Length);
+                int read = m_Stream.Read(m_ReadBuffer, 0, m_ReadBuffer.Length);
                 if (read <= 0)
                 {
                     Disconnect();
@@ -97,7 +98,7 @@ namespace EmojiWar.GameMain.Network
 
                 for (int i = 0; i < read; i++)
                 {
-                    m_ReceiveBuffer.Add(buffer[i]);
+                    m_ReceiveBuffer.Add(m_ReadBuffer[i]);
                 }
 
                 ProcessBuffer();
@@ -121,10 +122,10 @@ namespace EmojiWar.GameMain.Network
                     break;
                 }
 
-                byte[] frame = m_ReceiveBuffer.GetRange(0, total).ToArray();
+                // 免拷贝解码（复用静态缓冲，避免 GetRange().ToArray() 每帧分配）
+                var message = NetCodec.DecodeFromList(m_ReceiveBuffer, 0, total);
                 m_ReceiveBuffer.RemoveRange(0, total);
 
-                var message = NetCodec.Decode(frame, 0, total);
                 if (message != null)
                 {
                     // 高频消息（输入帧）不打日志，避免每帧 Debug.Log 严重掉帧

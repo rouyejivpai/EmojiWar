@@ -112,10 +112,11 @@ namespace EmojiWar.GameMain.Simulation
             RemoveMissingViews(m_PlayerViews, m_PlayerIds, m_ToRemove);
         }
 
-        /// <summary>创建玩家表现（角色 emoji；本机玩家附加名字标记）。</summary>
+        /// <summary>创建玩家表现（角色 emoji；本机玩家附加名字标记）。挂到 SimView 下跨场景常驻。</summary>
         private SpriteRenderer CreatePlayerView(SimPlayer player)
         {
             var go = new GameObject("SimPlayer_" + player.EntityId);
+            go.transform.SetParent(transform, false);   // 常驻：跟随 SimView（GameEntry 下），跨场景可见
             var sr = go.AddComponent<SpriteRenderer>();
 
             string icon = null;
@@ -170,6 +171,7 @@ namespace EmojiWar.GameMain.Simulation
                 if (!m_EnemyViews.TryGetValue(enemy.EntityId, out var view))
                 {
                     var go = new GameObject("SimEnemy_" + enemy.EntityId);
+                    go.transform.SetParent(transform, false);   // 常驻：跨场景可见
                     view = go.AddComponent<SpriteRenderer>();
                     view.sprite = Art.ArtManager.GetEnemySprite();
                     view.sortingOrder = 5;
@@ -208,6 +210,7 @@ namespace EmojiWar.GameMain.Simulation
                 if (!m_BulletViews.TryGetValue(bullet.EntityId, out var view))
                 {
                     var go = new GameObject("SimBullet_" + bullet.EntityId);
+                    go.transform.SetParent(transform, false);   // 常驻：跨场景可见
                     view = go.AddComponent<SpriteRenderer>();
                     view.sprite = Art.ArtManager.GetBulletSprite();
                     view.sortingOrder = 8;

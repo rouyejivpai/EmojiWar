@@ -17,6 +17,8 @@ namespace EmojiWar.GameMain
     {
         /// <summary>
         /// 激活指定场景（设为 active）并只启用该场景的相机。
+        /// SimView 实体挂在 GameEntry（DontDestroyOnLoad 跨场景常驻），
+        /// Unity 相机按 layer 渲染与场景归属无关，无需迁移。
         /// </summary>
         public static void ActivateScene(string sceneName)
         {

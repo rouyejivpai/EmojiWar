@@ -18,6 +18,13 @@ namespace EmojiWar.GameMain.Network
         /// <summary>帧头长度（ID 2 字节 + 长度 2 字节）。</summary>
         public const int HeaderLength = 4;
 
+        // 可复用编码缓冲（高频消息：输入上行/输入帧广播，避免每帧 MemoryStream/byte[] 分配）
+        private static readonly MemoryStream s_EncodeStream = new MemoryStream(256);
+        private static byte[] s_EncodeFrame = new byte[512];
+
+        // 可复用解码缓冲（高频输入帧拆帧，避免 GetRange().ToArray() 每帧分配）
+        private static byte[] s_DecodeFrame = new byte[512];
+
         private static readonly Dictionary<ushort, Func<NetMessage>> s_Factories = new Dictionary<ushort, Func<NetMessage>>();
 
         static NetCodec()
@@ -52,31 +59,51 @@ namespace EmojiWar.GameMain.Network
         }
 
         /// <summary>
-        /// 序列化消息为完整帧（含头）。
+        /// 序列化消息为完整帧（含头）并输出帧长度。
+        /// 复用静态缓冲：单线程主线程调用（网络层在主线程轮询），无并发冲突。
+        /// 注意：返回的数组是共享缓冲，length 为有效字节数，调用方必须立即使用。
         /// </summary>
+        public static byte[] Encode(NetMessage message, out int length)
+        {
+            // 复用编码流（重置后写入）
+            s_EncodeStream.SetLength(0);
+            using (var writer = new BinaryWriter(s_EncodeStream, System.Text.Encoding.UTF8, true))
+            {
+                message.Serialize(writer);
+            }
+
+            int payloadLength = (int)s_EncodeStream.Length;
+            int total = HeaderLength + payloadLength;
+
+            // 帧缓冲不足时扩容（静态字段可重新赋值）
+            if (s_EncodeFrame.Length < total)
+            {
+                Array.Resize(ref s_EncodeFrame, total * 2);
+            }
+
+            byte[] frame = s_EncodeFrame;
+            frame[0] = (byte)((ushort)message.Id & 0xFF);
+            frame[1] = (byte)(((ushort)message.Id >> 8) & 0xFF);
+            frame[2] = (byte)(payloadLength & 0xFF);
+            frame[3] = (byte)((payloadLength >> 8) & 0xFF);
+            // Payload：从编码流直接拷贝
+            System.Buffer.BlockCopy(s_EncodeStream.GetBuffer(), 0, frame, HeaderLength, payloadLength);
+
+            length = total;
+            return frame;
+        }
+
+        /// <summary>兼容旧调用：仅序列化返回帧（不做长度输出，内部一次性分配）。</summary>
         public static byte[] Encode(NetMessage message)
         {
-            using (var payloadStream = new MemoryStream())
+            var bytes = Encode(message, out int length);
+            if (length == bytes.Length)
             {
-                using (var writer = new BinaryWriter(payloadStream))
-                {
-                    message.Serialize(writer);
-                }
-
-                byte[] payload = payloadStream.ToArray();
-                byte[] frame = new byte[HeaderLength + payload.Length];
-
-                // 消息 ID
-                frame[0] = (byte)((ushort)message.Id & 0xFF);
-                frame[1] = (byte)(((ushort)message.Id >> 8) & 0xFF);
-                // 长度
-                frame[2] = (byte)(payload.Length & 0xFF);
-                frame[3] = (byte)((payload.Length >> 8) & 0xFF);
-                // Payload
-                Array.Copy(payload, 0, frame, HeaderLength, payload.Length);
-
-                return frame;
+                return bytes;
             }
+            var copy = new byte[length];
+            Array.Copy(bytes, copy, length);
+            return copy;
         }
 
         /// <summary>
@@ -103,6 +130,51 @@ namespace EmojiWar.GameMain.Network
 
             var message = factory();
             using (var payloadStream = new MemoryStream(frame, offset + HeaderLength, length, false))
+            {
+                using (var reader = new BinaryReader(payloadStream))
+                {
+                    message.Deserialize(reader);
+                }
+            }
+            return message;
+        }
+
+        /// <summary>
+        /// 从接收缓冲（List&lt;byte&gt;）解码消息（高频输入帧路径：免 GetRange().ToArray() 分配）。
+        /// 复用静态解码缓冲，单线程主线程调用安全。
+        /// </summary>
+        public static NetMessage DecodeFromList(List<byte> buffer, int offset, int count)
+        {
+            if (count < HeaderLength)
+            {
+                return null;
+            }
+
+            ushort msgId = (ushort)(buffer[offset] | (buffer[offset + 1] << 8));
+            int length = buffer[offset + 2] | (buffer[offset + 3] << 8);
+            if (count < HeaderLength + length)
+            {
+                return null;
+            }
+
+            if (!s_Factories.TryGetValue(msgId, out var factory))
+            {
+                return null;
+            }
+
+            int total = HeaderLength + length;
+            if (s_DecodeFrame.Length < total)
+            {
+                Array.Resize(ref s_DecodeFrame, total * 2);
+            }
+            // 拷贝到复用缓冲（仅当前消息长度，比 GetRange().ToArray() 少一次 List 扩容拷贝）
+            for (int i = 0; i < total; i++)
+            {
+                s_DecodeFrame[i] = buffer[offset + i];
+            }
+
+            var message = factory();
+            using (var payloadStream = new MemoryStream(s_DecodeFrame, HeaderLength, length, false))
             {
                 using (var reader = new BinaryReader(payloadStream))
                 {
