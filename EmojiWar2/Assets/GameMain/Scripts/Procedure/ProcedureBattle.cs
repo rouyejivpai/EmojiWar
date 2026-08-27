@@ -274,6 +274,12 @@ namespace EmojiWar.GameMain.Procedure
                 UI.UIFormCloser.CloseAllExcept("BattleHudForm(Clone)");
                 EnsureNetworkSimulationBound();
                 OpenBattleHud();
+
+                // GC 预热：场景切换过渡期主动回收启动阶段积累的堆对象，
+                // 避免战斗中触发完整 GC（实测 274ms 暂停 = 明显卡顿）
+                WriteProbe("[battle-proc] GC 预热（过渡期主动回收）");
+                System.GC.Collect();
+
                 WriteProbe("[battle-proc] 网络模式：确定性模拟驱动，绑定 SimView");
                 return;
             }

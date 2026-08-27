@@ -107,6 +107,42 @@ namespace EmojiWar.GameMain
             var battleScene = UnityEngine.SceneManagement.SceneManager.GetSceneByName("Battle");
             WriteProbe("[auto] joiner battleSceneLoaded=" + battleScene.isLoaded);
 
+            // UI 状态探针：列出当前所有 UIForm（验证进战斗后旧 UI 是否已关闭）
+            try
+            {
+                var ui = GameEntry.UI;
+                var forms = new System.Collections.Generic.List<string>();
+                if (ui != null)
+                {
+                    foreach (var g in ui.GetAllUIGroups())
+                    {
+                        foreach (var f in g.GetAllUIForms())
+                        {
+                            var logic = (f as UnityGameFramework.Runtime.UIForm);
+                            if (logic != null && logic.Logic != null)
+                            {
+                                forms.Add(logic.Logic.Name + "(" + (logic.Logic.gameObject.activeInHierarchy ? "A" : "I") + ")");
+                            }
+                        }
+                    }
+                }
+                var canvases = Object.FindObjectsOfType<Canvas>(true);
+                var overlayList = new System.Collections.Generic.List<string>();
+                foreach (var c in canvases)
+                {
+                    if (c.renderMode == RenderMode.ScreenSpaceOverlay && c.gameObject.activeInHierarchy)
+                    {
+                        overlayList.Add(c.gameObject.name);
+                    }
+                }
+                WriteProbe("[auto] joiner UIForms=" + string.Join(",", forms.ToArray()) +
+                    " overlay=" + string.Join(",", overlayList.ToArray()));
+            }
+            catch (System.Exception e)
+            {
+                WriteProbe("[auto] joiner UI probe error: " + e.Message);
+            }
+
             // 统计网络实体（确定性模拟玩家）
             var netLogics = Object.FindObjectsOfType<Network.NetClientLogic>();
             int total = 0;
@@ -146,6 +182,42 @@ namespace EmojiWar.GameMain
 
             // 等待战斗开始（模拟驱动：SimView 渲染玩家/敌人/子弹）
             yield return new WaitForSeconds(10f);
+
+            // UI 状态探针：列出当前所有 UIForm（验证进战斗后旧 UI 是否已关闭）
+            try
+            {
+                var ui = GameEntry.UI;
+                var forms = new System.Collections.Generic.List<string>();
+                if (ui != null)
+                {
+                    foreach (var g in ui.GetAllUIGroups())
+                    {
+                        foreach (var f in g.GetAllUIForms())
+                        {
+                            var logic = (f as UnityGameFramework.Runtime.UIForm);
+                            if (logic != null && logic.Logic != null)
+                            {
+                                forms.Add(logic.Logic.Name + "(" + (logic.Logic.gameObject.activeInHierarchy ? "A" : "I") + ")");
+                            }
+                        }
+                    }
+                }
+                var canvases = Object.FindObjectsOfType<Canvas>(true);
+                var overlayList = new System.Collections.Generic.List<string>();
+                foreach (var c in canvases)
+                {
+                    if (c.renderMode == RenderMode.ScreenSpaceOverlay && c.gameObject.activeInHierarchy)
+                    {
+                        overlayList.Add(c.gameObject.name);
+                    }
+                }
+                WriteProbe("[auto] UIForms=" + string.Join(",", forms.ToArray()) +
+                    " overlay=" + string.Join(",", overlayList.ToArray()));
+            }
+            catch (System.Exception e)
+            {
+                WriteProbe("[auto] UI probe error: " + e.Message);
+            }
 
             // 统计场景中实际渲染的 SpriteRenderer（验证美术是否生效）
             var renderers = Object.FindObjectsOfType<SpriteRenderer>();
