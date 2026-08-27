@@ -202,7 +202,48 @@ namespace EmojiWar.GameMain.Network
                 Debug.Log("[NetClientLogic] JoinRoom 未确认，重发");
             }
 
-            // 上行输入意图（只传意图，不传位置结果 —— 帧同步）
+            // 帧同步一致性探针（每 2 秒记录一次模拟状态 + fps，供双实例对比；在输入节流之前执行）
+            m_ProbeTimer -= Time.unscaledDeltaTime;
+            if (m_ProbeTimer <= 0f)
+            {
+                m_ProbeTimer = 2f;
+                float fps = m_FpsAccumTime > 0f ? m_FpsAccumFrames / m_FpsAccumTime : 0f;
+                m_FpsAccumFrames = 0;
+                m_FpsAccumTime = 0f;
+                if (Simulation != null)
+                {
+                    var sb = new System.Text.StringBuilder();
+                    sb.Append("[sim] CLIENT frame=").Append(Simulation.FrameIndex)
+                      .Append(" wave=").Append(Simulation.WaveIndex)
+                      .Append(" players=").Append(Simulation.Players.Count)
+                      .Append(" enemies=").Append(Simulation.Enemies.Count)
+                      .Append(" bullets=").Append(Simulation.Bullets.Count)
+                      .Append(" fps=").Append(fps.ToString("F0"));
+                    foreach (var p in Simulation.Players)
+                    {
+                        sb.Append(" E").Append(p.EntityId).Append(":(")
+                          .Append(p.Position.x.ToString("F2")).Append(",")
+                          .Append(p.Position.y.ToString("F2")).Append(")");
+                    }
+                    WriteProbe(sb.ToString());
+                }
+            }
+            else
+            {
+                m_FpsAccumFrames++;
+                m_FpsAccumTime += Time.unscaledDeltaTime;
+            }
+
+            // 上行输入意图（只传意图，不传位置结果 —— 帧同步）。
+            // 20Hz 节流发送（与 Host 逻辑 tick 对齐）：每帧采样，但只每 0.05s 发送一次，
+            // 避免 60Hz 每帧上行浪费带宽与序列化开销（掉帧主因之一）。
+            m_InputSendTimer -= Time.deltaTime;
+            if (m_InputSendTimer > 0f)
+            {
+                return;
+            }
+            m_InputSendTimer = LockstepSim.TickInterval;
+
             float inputX = Input.GetAxisRaw("Horizontal");
             float inputY = Input.GetAxisRaw("Vertical");
 
@@ -223,7 +264,7 @@ namespace EmojiWar.GameMain.Network
                 mouseWorld = mainCam.ScreenToWorldPoint(Input.mousePosition);
             }
 
-            // 复用输入消息对象（每帧上行，避免 60Hz 对象分配；Send 内同步序列化后即可复用）
+            // 复用输入消息对象（20Hz 上行，避免高频对象分配；Send 内同步序列化后即可复用）
             if (m_InputMsg == null)
             {
                 m_InputMsg = new C2SPlayerInput();
@@ -236,33 +277,14 @@ namespace EmojiWar.GameMain.Network
             m_InputMsg.FireSecondary = Input.GetMouseButton(1);
             m_InputMsg.Reload = Input.GetKeyDown(KeyCode.R);
             m_Service.Send(m_InputMsg);
-
-            // 帧同步一致性探针（每 2 秒记录一次模拟状态，供双实例对比）
-            m_ProbeTimer -= Time.deltaTime;
-            if (m_ProbeTimer <= 0f)
-            {
-                m_ProbeTimer = 2f;
-                if (Simulation != null)
-                {
-                    var sb = new System.Text.StringBuilder();
-                    sb.Append("[sim] CLIENT frame=").Append(Simulation.FrameIndex)
-                      .Append(" wave=").Append(Simulation.WaveIndex)
-                      .Append(" players=").Append(Simulation.Players.Count)
-                      .Append(" enemies=").Append(Simulation.Enemies.Count)
-                      .Append(" bullets=").Append(Simulation.Bullets.Count);
-                    foreach (var p in Simulation.Players)
-                    {
-                        sb.Append(" E").Append(p.EntityId).Append(":(")
-                          .Append(p.Position.x.ToString("F2")).Append(",")
-                          .Append(p.Position.y.ToString("F2")).Append(")");
-                    }
-                    WriteProbe(sb.ToString());
-                }
-            }
         }
 
         private float m_ProbeTimer = 2f;
-        private C2SPlayerInput m_InputMsg = null;   // 复用的上行输入消息（避免每帧分配）
+        private int m_FpsAccumFrames = 0;
+        private float m_FpsAccumTime = 0f;
+        private C2SPlayerInput m_InputMsg = null;   // 复用的上行输入消息（避免高频分配）
+        private float m_InputSendTimer = 0f;        // 上行输入 20Hz 节流计时
+        private readonly Dictionary<int, SimIntent> m_InputsCache = new Dictionary<int, SimIntent>(4);   // 复用输入帧字典
 
         /// <summary>本机角色 ID（本地玩家当前角色；无玩家时用上次选择）。</summary>
         private int GetLocalCharacterId()
@@ -461,11 +483,12 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
-            var inputs = new Dictionary<int, SimIntent>();
+            // 复用输入字典（20Hz 每帧调用，避免高频分配）
+            m_InputsCache.Clear();
             for (int i = 0; i < frame.Count; i++)
             {
                 int entityId = frame.EntityIds[i];
-                inputs[entityId] = new SimIntent
+                m_InputsCache[entityId] = new SimIntent
                 {
                     MoveX = frame.InputXs[i],
                     MoveY = frame.InputYs[i],
@@ -477,7 +500,7 @@ namespace EmojiWar.GameMain.Network
                 };
             }
 
-            Simulation.Tick(inputs);
+            Simulation.Tick(m_InputsCache);
         }
 
         /// <summary>处理实体生成：玩家进名册并加入本地模拟（玩家位置由模拟驱动）。</summary>

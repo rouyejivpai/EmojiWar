@@ -437,9 +437,21 @@ namespace EmojiWar.GameMain.Simulation
             // 4. 波次推进（确定性）
             UpdateWave();
 
-            // 5. 清理死亡实体
-            m_Bullets.RemoveAll(b => !b.Alive);
-            m_Enemies.RemoveAll(e => !e.Alive);
+            // 5. 清理死亡实体（反向遍历手动移除，避免 RemoveAll lambda 每 tick 闭包分配）
+            for (int i = m_Bullets.Count - 1; i >= 0; i--)
+            {
+                if (!m_Bullets[i].Alive)
+                {
+                    m_Bullets.RemoveAt(i);
+                }
+            }
+            for (int i = m_Enemies.Count - 1; i >= 0; i--)
+            {
+                if (!m_Enemies[i].Alive)
+                {
+                    m_Enemies.RemoveAt(i);
+                }
+            }
 
             // 6. 战斗结束检测
             if (AllPlayersDead())

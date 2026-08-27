@@ -20,6 +20,7 @@ namespace EmojiWar.GameMain.Network
         private NetworkStream m_Stream = null;
         private readonly List<byte> m_ReceiveBuffer = new List<byte>();
         private byte[] m_ReadBuffer = new byte[4096];   // 复用读取缓冲（避免每帧分配）
+        private int m_Consumed = 0;                     // 已拆帧消费的字节数（游标，避免每次 RemoveRange O(n) 前移）
 
         public bool IsConnected
         {
@@ -164,12 +165,32 @@ namespace EmojiWar.GameMain.Network
                     return;
                 }
 
+                // 批量追加（避免逐字节 Add 的 List 扩容开销）
+                int need = m_ReceiveBuffer.Count + read;
+                if (m_ReceiveBuffer.Capacity < need)
+                {
+                    m_ReceiveBuffer.Capacity = need;
+                }
                 for (int i = 0; i < read; i++)
                 {
                     m_ReceiveBuffer.Add(m_ReadBuffer[i]);
                 }
 
                 ProcessBuffer();
+
+                // 批量消费完成后统一压缩：仅当已消费字节较多时前移一次（避免每帧 O(n)）
+                if (m_Consumed > 0)
+                {
+                    if (m_Consumed >= m_ReceiveBuffer.Count)
+                    {
+                        m_ReceiveBuffer.Clear();
+                    }
+                    else
+                    {
+                        m_ReceiveBuffer.RemoveRange(0, m_Consumed);
+                    }
+                    m_Consumed = 0;
+                }
             }
             catch (Exception e)
             {
@@ -179,23 +200,25 @@ namespace EmojiWar.GameMain.Network
         }
 
         /// <summary>
-        /// 拆帧并分发消息。
+        /// 拆帧并分发消息（用游标 m_Consumed 读取，避免每次 RemoveRange O(n) 前移）。
         /// </summary>
         private void ProcessBuffer()
         {
-            while (m_ReceiveBuffer.Count >= NetCodec.HeaderLength)
+            int count = m_ReceiveBuffer.Count;
+            while (count - m_Consumed >= NetCodec.HeaderLength)
             {
-                int length = m_ReceiveBuffer[2] | (m_ReceiveBuffer[3] << 8);
+                int offset = m_Consumed;
+                int length = m_ReceiveBuffer[offset + 2] | (m_ReceiveBuffer[offset + 3] << 8);
                 int total = NetCodec.HeaderLength + length;
 
-                if (m_ReceiveBuffer.Count < total)
+                if (count - m_Consumed < total)
                 {
                     break; // 等待完整帧
                 }
 
                 // 免拷贝解码（复用静态缓冲，避免 GetRange().ToArray() 每帧分配）
-                var message = NetCodec.DecodeFromList(m_ReceiveBuffer, 0, total);
-                m_ReceiveBuffer.RemoveRange(0, total);
+                var message = NetCodec.DecodeFromList(m_ReceiveBuffer, offset, total);
+                m_Consumed += total;
 
                 if (message != null)
                 {

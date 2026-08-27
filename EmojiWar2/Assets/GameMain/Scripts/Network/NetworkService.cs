@@ -49,13 +49,10 @@ namespace EmojiWar.GameMain.Network
 
         private void Update()
         {
-            // 轮询网络（服务器与客户端）
+            // 轮询网络（服务器与客户端）。TCP 需要及时读取，保持在主线程轮询；
+            // 无日志避免每帧字符串格式化开销。
             if (m_Server != null)
             {
-                if (Time.frameCount % 90 == 0)
-                {
-                    Debug.Log("[NetworkService] Update tick, server=" + (m_Server != null) + " sessions=" + (m_Server != null ? m_Server.SessionCount : -1));
-                }
                 m_Server.Poll();
             }
             if (m_Connection != null)

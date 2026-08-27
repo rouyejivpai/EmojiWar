@@ -20,6 +20,7 @@ namespace EmojiWar.GameMain.Network
         private readonly TcpClient m_Client;
         private NetworkStream m_Stream;
         private readonly List<byte> m_ReceiveBuffer = new List<byte>();
+        private int m_Consumed = 0;                     // 已拆帧消费的字节数（游标，避免每次 RemoveRange O(n) 前移）
 
         public int Id { get; private set; }
 
@@ -96,12 +97,32 @@ namespace EmojiWar.GameMain.Network
                     return;
                 }
 
+                // 批量追加（避免逐字节 Add 的 List 扩容开销）
+                int need = m_ReceiveBuffer.Count + read;
+                if (m_ReceiveBuffer.Capacity < need)
+                {
+                    m_ReceiveBuffer.Capacity = need;
+                }
                 for (int i = 0; i < read; i++)
                 {
                     m_ReceiveBuffer.Add(m_ReadBuffer[i]);
                 }
 
                 ProcessBuffer();
+
+                // 批量消费完成后统一压缩：仅当已消费字节较多时前移一次（避免每帧 O(n)）
+                if (m_Consumed > 0)
+                {
+                    if (m_Consumed >= m_ReceiveBuffer.Count)
+                    {
+                        m_ReceiveBuffer.Clear();
+                    }
+                    else
+                    {
+                        m_ReceiveBuffer.RemoveRange(0, m_Consumed);
+                    }
+                    m_Consumed = 0;
+                }
             }
             catch (Exception e)
             {
@@ -112,19 +133,21 @@ namespace EmojiWar.GameMain.Network
 
         private void ProcessBuffer()
         {
-            while (m_ReceiveBuffer.Count >= NetCodec.HeaderLength)
+            int count = m_ReceiveBuffer.Count;
+            while (count - m_Consumed >= NetCodec.HeaderLength)
             {
-                int length = m_ReceiveBuffer[2] | (m_ReceiveBuffer[3] << 8);
+                int offset = m_Consumed;
+                int length = m_ReceiveBuffer[offset + 2] | (m_ReceiveBuffer[offset + 3] << 8);
                 int total = NetCodec.HeaderLength + length;
 
-                if (m_ReceiveBuffer.Count < total)
+                if (count - m_Consumed < total)
                 {
                     break;
                 }
 
                 // 免拷贝解码（复用静态缓冲，避免 GetRange().ToArray() 每帧分配）
-                var message = NetCodec.DecodeFromList(m_ReceiveBuffer, 0, total);
-                m_ReceiveBuffer.RemoveRange(0, total);
+                var message = NetCodec.DecodeFromList(m_ReceiveBuffer, offset, total);
+                m_Consumed += total;
 
                 if (message != null)
                 {
@@ -169,6 +192,7 @@ namespace EmojiWar.GameMain.Network
         private TcpListener m_Listener = null;
         private readonly Dictionary<int, NetServerSession> m_Sessions = new Dictionary<int, NetServerSession>();
         private readonly object m_SyncRoot = new object();
+        private readonly List<NetServerSession> m_SessionList = new List<NetServerSession>();   // 复用遍历列表（避免每帧分配）
         private int m_NextSessionId = 1;
 
         public bool IsRunning { get; private set; }
@@ -264,13 +288,13 @@ namespace EmojiWar.GameMain.Network
                 }
             }
 
-            // 处理各会话消息（先拷贝避免遍历中修改）
-            List<NetServerSession> sessions;
+            // 处理各会话消息（复用列表避免每帧分配；会话只在连接/断开时增删）
+            m_SessionList.Clear();
             lock (m_SyncRoot)
             {
-                sessions = new List<NetServerSession>(m_Sessions.Values);
+                m_SessionList.AddRange(m_Sessions.Values);
             }
-            foreach (var session in sessions)
+            foreach (var session in m_SessionList)
             {
                 if (session.IsAlive)
                 {
@@ -295,17 +319,18 @@ namespace EmojiWar.GameMain.Network
         /// </summary>
         public void Broadcast(NetMessage message)
         {
-            List<NetServerSession> sessions;
+            // 复用列表避免每帧分配（InputFrame 20Hz 广播高频）
+            m_SessionList.Clear();
             lock (m_SyncRoot)
             {
-                sessions = new List<NetServerSession>(m_Sessions.Values);
+                m_SessionList.AddRange(m_Sessions.Values);
             }
             // 高频消息（输入帧 20Hz）不打日志，避免每帧 Debug.Log 严重掉帧
             if (message.Id != MsgId.InputFrame)
             {
-                Debug.Log("[NetServer] Broadcast " + message.Id + " to " + sessions.Count + " sessions");
+                Debug.Log("[NetServer] Broadcast " + message.Id + " to " + m_SessionList.Count + " sessions");
             }
-            foreach (var session in sessions)
+            foreach (var session in m_SessionList)
             {
                 session.Send(message);
             }

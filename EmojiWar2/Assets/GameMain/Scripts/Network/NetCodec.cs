@@ -24,11 +24,14 @@ namespace EmojiWar.GameMain.Network
 
         // 可复用解码缓冲（高频输入帧拆帧，避免 GetRange().ToArray() 每帧分配）
         private static byte[] s_DecodeFrame = new byte[512];
+        private static readonly MemoryStream s_DecodeStream = new MemoryStream(512);   // 复用解码流（避免每帧 new）
+        private static readonly BinaryReader s_DecodeReader;                            // 复用读取器
 
         private static readonly Dictionary<ushort, Func<NetMessage>> s_Factories = new Dictionary<ushort, Func<NetMessage>>();
 
         static NetCodec()
         {
+            s_DecodeReader = new BinaryReader(s_DecodeStream, System.Text.Encoding.UTF8, true);
             Register<C2SJoinRoom>();
             Register<C2SPlayerInput>();
             Register<C2SBuyItem>();
@@ -107,7 +110,7 @@ namespace EmojiWar.GameMain.Network
         }
 
         /// <summary>
-        /// 从帧解码消息。
+        /// 从帧解码消息（复用解码流/读取器，避免每帧分配）。
         /// </summary>
         public static NetMessage Decode(byte[] frame, int offset, int count)
         {
@@ -129,13 +132,10 @@ namespace EmojiWar.GameMain.Network
             }
 
             var message = factory();
-            using (var payloadStream = new MemoryStream(frame, offset + HeaderLength, length, false))
-            {
-                using (var reader = new BinaryReader(payloadStream))
-                {
-                    message.Deserialize(reader);
-                }
-            }
+            s_DecodeStream.SetLength(0);
+            s_DecodeStream.Write(frame, offset + HeaderLength, length);
+            s_DecodeStream.Position = 0;
+            message.Deserialize(s_DecodeReader);
             return message;
         }
 
@@ -167,20 +167,17 @@ namespace EmojiWar.GameMain.Network
             {
                 Array.Resize(ref s_DecodeFrame, total * 2);
             }
-            // 拷贝到复用缓冲（仅当前消息长度，比 GetRange().ToArray() 少一次 List 扩容拷贝）
+            // 批量拷贝到复用缓冲
             for (int i = 0; i < total; i++)
             {
                 s_DecodeFrame[i] = buffer[offset + i];
             }
 
             var message = factory();
-            using (var payloadStream = new MemoryStream(s_DecodeFrame, HeaderLength, length, false))
-            {
-                using (var reader = new BinaryReader(payloadStream))
-                {
-                    message.Deserialize(reader);
-                }
-            }
+            s_DecodeStream.SetLength(0);
+            s_DecodeStream.Write(s_DecodeFrame, HeaderLength, length);
+            s_DecodeStream.Position = 0;
+            message.Deserialize(s_DecodeReader);
             return message;
         }
     }

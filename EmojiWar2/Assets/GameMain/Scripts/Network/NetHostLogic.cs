@@ -238,11 +238,14 @@ namespace EmojiWar.GameMain.Network
                 HostTick();
             }
 
-            // 帧同步一致性探针（每 2 秒记录一次模拟状态，供双实例对比）
+            // 帧同步一致性探针（每 2 秒记录一次模拟状态 + fps，供双实例对比）
             m_ProbeTimer -= Time.deltaTime;
             if (m_ProbeTimer <= 0f)
             {
                 m_ProbeTimer = 2f;
+                float fps = m_FpsAccumTime > 0f ? m_FpsAccumFrames / m_FpsAccumTime : 0f;
+                m_FpsAccumFrames = 0;
+                m_FpsAccumTime = 0f;
                 if (Simulation != null)
                 {
                     var sb = new System.Text.StringBuilder();
@@ -250,7 +253,8 @@ namespace EmojiWar.GameMain.Network
                       .Append(" wave=").Append(Simulation.WaveIndex)
                       .Append(" players=").Append(Simulation.Players.Count)
                       .Append(" enemies=").Append(Simulation.Enemies.Count)
-                      .Append(" bullets=").Append(Simulation.Bullets.Count);
+                      .Append(" bullets=").Append(Simulation.Bullets.Count)
+                      .Append(" fps=").Append(fps.ToString("F0"));
                     foreach (var p in Simulation.Players)
                     {
                         sb.Append(" E").Append(p.EntityId).Append(":(")
@@ -260,30 +264,47 @@ namespace EmojiWar.GameMain.Network
                     WriteProbe(sb.ToString());
                 }
             }
+            else
+            {
+                // 累积 fps（渲染帧率）
+                m_FpsAccumFrames++;
+                m_FpsAccumTime += Time.unscaledDeltaTime;
+            }
         }
 
         private float m_ProbeTimer = 2f;
+        private int m_FpsAccumFrames = 0;
+        private float m_FpsAccumTime = 0f;
+
+        // 复用输入帧与输入字典（HostTick 20Hz 每 tick 调用，避免高频分配）
+        private S2CInputFrame m_InputFrame = null;
+        private readonly Dictionary<int, SimIntent> m_InputsCache = new Dictionary<int, SimIntent>(4);
 
         /// <summary>
         /// 一个逻辑 tick：收集全部玩家意图 → 广播输入帧 → 本地推进模拟。
         /// </summary>
         private void HostTick()
         {
-            var frame = new S2CInputFrame
+            // 复用输入帧（数组按玩家数惰性扩容）
+            if (m_InputFrame == null || m_InputFrame.EntityIds == null || m_InputFrame.EntityIds.Length < m_Players.Count)
             {
-                FrameIndex = Simulation.FrameIndex + 1,
-                Count = m_Players.Count,
-                EntityIds = new int[m_Players.Count],
-                InputXs = new float[m_Players.Count],
-                InputYs = new float[m_Players.Count],
-                AimXs = new float[m_Players.Count],
-                AimYs = new float[m_Players.Count],
-                FirePrimaries = new bool[m_Players.Count],
-                FireSecondaries = new bool[m_Players.Count],
-                Reloads = new bool[m_Players.Count],
-            };
+                m_InputFrame = new S2CInputFrame
+                {
+                    EntityIds = new int[m_Players.Count],
+                    InputXs = new float[m_Players.Count],
+                    InputYs = new float[m_Players.Count],
+                    AimXs = new float[m_Players.Count],
+                    AimYs = new float[m_Players.Count],
+                    FirePrimaries = new bool[m_Players.Count],
+                    FireSecondaries = new bool[m_Players.Count],
+                    Reloads = new bool[m_Players.Count],
+                };
+            }
+            var frame = m_InputFrame;
+            frame.FrameIndex = Simulation.FrameIndex + 1;
+            frame.Count = m_Players.Count;
 
-            var inputs = new Dictionary<int, SimIntent>();
+            m_InputsCache.Clear();
             int index = 0;
             foreach (var kv in m_Players)
             {
@@ -325,7 +346,7 @@ namespace EmojiWar.GameMain.Network
                 frame.Reloads[index] = intent.Reload;
                 index++;
 
-                inputs[state.EntityId] = intent;
+                m_InputsCache[state.EntityId] = intent;
             }
 
             // 广播输入帧（客户端据此推进同一份模拟）
@@ -334,10 +355,10 @@ namespace EmojiWar.GameMain.Network
                 m_Service.BroadcastToClients(frame);
             }
 
-            // 本地推进模拟
+            // 本地推进模拟（复用输入字典）
             if (Simulation != null)
             {
-                Simulation.Tick(inputs);
+                Simulation.Tick(m_InputsCache);
             }
         }
 
