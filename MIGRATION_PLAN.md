@@ -383,3 +383,51 @@ S2C: RoomState / SpawnEntity / EntityState(位置/血量) / SpawnProjectile /
 
 - 编辑器 Play 模式：Simulate Start → 角色选择 → 创建房间 → ProcedureRoom + 模拟运行（FrameIndex 增长）+ SimView 绑定 ✅
 - 双实例构建版：-autocreate / -autojoin → 各自建立模拟 → 输入帧驱动推进（待重新打包 AssetBundle 后验证）
+
+## 11. 按实践文档复盘与落地（P0/P1/P2）
+
+> 日期：2026-08-28
+> 依据：`doc/确定性帧同步可借鉴实践.md`（11 条清单），对帧同步工程复盘，分三档落地。
+
+### 11.1 复盘结论（11 条对照）
+
+| # | 文档要求 | 复盘状态 | 处置 |
+|---|---|---|---|
+| 1 | 逻辑/表现硬隔离 + 帧末快照 | 部分 ✅（LockstepSimulation 纯 C#，SimView 只读表现；无帧末快照） | P0：补 PrevPosition 帧首记录 → 渲染插值 |
+| 2 | 固定逻辑帧率 + 渲染插值 + 时间预算批量推进 | 部分 ✅（20Hz 已固定；渲染直接赋值跳变） | P0/P2：SimView 插值；Host 批量推进（4ms/12ms/60 帧上限） |
+| 3 | 录像 = 初始状态 + 输入流 | ❌ | P1：ReplayRecorder（版本指纹+seed+玩家配置+每帧输入） |
+| 4 | 确定性打点 + diff 工具 | ❌ | P1：DeterminismTracer（10 类检查点）+ tools/trace_diff.py |
+| 5 | 对象复用契约 | ❌ | P2：SimView 敌人/子弹对象池 |
+| 6 | 同进程多局回归矩阵 | 部分 ✅（人工双实例跑过） | P2：AutoPlay 自动第二局（对比 seed/模拟状态） |
+| 7 | 录像性能基线 | ❌ | 待办（回放路径未接入） |
+| 8 | 单一逻辑源 | ❌（Host/Client 各自 BuildPlayerConfig） | P1：SimConfigFactory.Build 单一来源 |
+| 9 | 纯 C# 确定性（定点数/有序容器/确定性 PRNG） | 部分 ✅（SimRandom 确定性 PRNG；Player 按 EntityId 排序；仍用 float/Vector2） | P1 完成排序遍历；定点数留待后续 |
+| 10 | 4 人减配 | ✅（人数上限 4，20Hz 带宽充裕） | — |
+| 11 | 落地顺序 | 已按 ROI 顺序：插值 → 录像/打点 → 池化/回归 | — |
+
+### 11.2 P0/P1 落地（commit 0f73d6d，已双端验证）
+
+- **P0 渲染插值**：SimView 新增 `InterpolationFactor` + `Interpolate(prev,cur,t)`，NetHost/NetClient 每渲染帧设置系数（基于 m_LastFrameTime），消除 20Hz 跳变
+- **P1 录像（文档 §3 ROI 最高）**：`ReplayRecorder.cs` = 版本指纹 + seed + 玩家配置 + 每帧输入流；HostTick 逐帧 RecordFrame，ResetRoom 时 flush；构建版实测 1212 帧/64KB/seed=84781 完整可读
+- **P1 确定性打点 + diff（文档 §4）**：`DeterminismTracer.cs` 二进制 trace（FrameStart/PlayerSpawn/EnemySpawn/BulletSpawn/RandomCall/PlayerHp/EnemyDeath/WaveChange/ShopOffer/BattleEnd 10 类检查点）；`tools/trace_diff.py` 输出首个分歧；双端 trace 各 1168 检查点**完全一致** ✅
+- **P1 单一逻辑源（文档 §8）**：`SimConfigFactory.Build(sessionId, entityId, characterId)`，Host/Client 不再各自拼配置
+
+### 11.3 P2 落地（commit f96083e，双实例最终验证通过）
+
+- **P2 时间预算批量推进（文档 §2）**：NetHostLogic 每渲染帧批量推进模拟（正常 4ms / 追帧 12ms / 单帧上限 60 逻辑帧），帧边界检查防止中途打断
+- **P2 对象池（文档 §5）**：SimView 敌人/子弹对象池（GetFromPool/ReturnToPool/RemoveMissingViews 带回收），玩家直接销毁
+- **P2 同进程多局回归（文档 §6）**：AutoPlay run2 自动第二局准备，验证 `after-restart: legacyPlayers=0 legacyEnemies=0`（无跨局污染）+ `run2 frame=860 wave=1 players=2 enemies=3` ✅
+
+### 11.4 验证证据（2026-08-28 构建版双实例）
+
+- 帧同步：Host/Client 帧号同步（1133→1334），位置逐帧一致（E1000/E1001 坐标吻合）
+- 确定性：双端 trace 各 1168 检查点 diff 完全一致 ✅
+- 性能：avg 4.2ms（240fps），周期性 max 8.3/12.5ms = vSync 帧节奏，非卡顿
+- 多局：第二局无遗留对象、seed/模拟状态正常（见 11.3）
+- UI：进战斗后 UIForms 仅剩 BattleHudForm(Clone)（CloseAllExcept 兜底）
+
+### 11.5 已知遗留（文档 §9 之外）
+
+- 逻辑仍用 float/Vector2（建议定点数 Q16.16，跨平台一致性前提，未做）
+- LockstepSimulation 引用 UnityEngine（Vector2），未独立程序集禁止引用 UnityEngine
+- 录像回放路径未接入（仅录制）；快照/观战/专用服为文档 §10 减配项之外的后续方向
