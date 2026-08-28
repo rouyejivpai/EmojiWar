@@ -187,8 +187,45 @@ namespace EmojiWar.GameMain.Procedure
         /// <summary>全部准备 → 开始战斗（Host 广播或本机触发）。</summary>
         private void OnBattleStart()
         {
+            // 诊断：列出当前 UIForms（验证进入战斗前房间 UI 是否已被清理）
+            try
+            {
+                var ui = GameEntry.UI;
+                var names = new System.Collections.Generic.List<string>();
+                if (ui != null)
+                {
+                    foreach (var g in ui.GetAllUIGroups())
+                    {
+                        foreach (var f in g.GetAllUIForms())
+                        {
+                            var logic = (f as UnityGameFramework.Runtime.UIForm);
+                            if (logic != null && logic.Logic != null)
+                            {
+                                names.Add(logic.Logic.Name + "(" + (logic.Logic.gameObject.activeInHierarchy ? "A" : "I") + ")");
+                            }
+                        }
+                    }
+                }
+                WriteProbe("[room] BattleStart: UIForms=" + string.Join(",", names.ToArray()));
+            }
+            catch (System.Exception e)
+            {
+                WriteProbe("[room] BattleStart UI probe error: " + e.Message);
+            }
+
             Log.Info("[ProcedureRoom] 战斗开始，进入战斗流程");
             WriteProbe("[room] BattleStart -> 进入战斗");
+
+            // 先关闭房间 UI（含取消异步加载中的 RoomForm），再切流程：
+            // 若只依赖 ProcedureBattle.OnEnter 的 CloseAllExcept 兜底，当本流程
+            // 重复触发/防重拦截时兜底不会执行，或 RoomForm 尚在异步加载中遍历不到，
+            // 都会导致房间 UI 残留叠在战斗画面上。
+            UI.UIFormCloser.CloseByName("RoomForm(Clone)");
+            if (GameEntry.UI != null)
+            {
+                GameEntry.UI.CloseAllLoadingUIForms();
+            }
+
             ChangeState<ProcedureBattle>(m_ProcedureFsm);
         }
 

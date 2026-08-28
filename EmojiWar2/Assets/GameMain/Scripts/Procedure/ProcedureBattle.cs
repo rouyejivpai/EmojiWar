@@ -48,6 +48,16 @@ namespace EmojiWar.GameMain.Procedure
             base.OnEnter(procedureOwner);
             Log.Info("===== EmojiWar Battle =====");
 
+            // 进入战斗：先兜底关闭所有旧界面（菜单/角色选择/大厅/房间），
+            // 含取消仍在异步加载中的窗体（GF OpenUIForm 为异步加载，未加载完成的窗体
+            // 不会被 GetAllUIForms 遍历到，CloseAllExcept 关不到，加载完成后会残留遮挡）。
+            // 此清理必须在防重判断之前：重复 ChangeState<Battle> 被拦截时也要清 UI。
+            UI.UIFormCloser.CloseAllExcept(null);
+            if (GameEntry.UI != null)
+            {
+                GameEntry.UI.CloseAllLoadingUIForms();
+            }
+
             // 防重复进入：一局内重复 OnEnter（重复 ChangeState）直接忽略，避免重复开局/场景叠加
             // 注意：m_BattleStartedThisEnter 不在防重条件中 —— 重开（GameOver 后同一实例重新进入）时
             // 它会残留 true，若参与防重会误挡正常重开（players=0）。
@@ -84,10 +94,6 @@ namespace EmojiWar.GameMain.Procedure
             {
                 SubscribeNetworkSimulationEvents();
             }
-
-            // 进入战斗：兜底关闭所有旧界面（菜单/角色选择/大厅/房间），
-            // 避免流程切换时序导致的残留 UI 遮挡战斗场景
-            UI.UIFormCloser.CloseAllExcept(null);
 
             // 战斗场景：叠加加载架构下场景常驻 —— 已加载则复用并激活，避免重复加载
             var battleScene = SceneManager.GetSceneByName("Battle");
