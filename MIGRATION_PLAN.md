@@ -431,3 +431,23 @@ S2C: RoomState / SpawnEntity / EntityState(位置/血量) / SpawnProjectile /
 - 逻辑仍用 float/Vector2（建议定点数 Q16.16，跨平台一致性前提，未做）
 - LockstepSimulation 引用 UnityEngine（Vector2），未独立程序集禁止引用 UnityEngine
 - 录像回放路径未接入（仅录制）；快照/观战/专用服为文档 §10 减配项之外的后续方向
+
+## 12. 重影修复（2026-08-28，commit f68130a）
+
+> 实测发现移动中的实体出现重影（拖影/残影）。系统化排查定位到三个根因，全部修复并双实例验证。
+
+### 12.1 根因与修复
+
+| # | 根因 | 修复 |
+|---|---|---|
+| 1 | **新实体 PrevPosition 未初始化**（默认 Vector2.zero）：`SpawnEnemy()`/子弹生成时只设 Position，而插值基准在 Tick 帧首才统一更新 → 新生成实体在首个渲染帧内从 **原点 (0,0) 拖到出生点**，子弹高速飞行时拖影极明显 | 生成时 `PrevPosition = Position`（新实体 Prev=Cur，插值起点=出生点） |
+| 2 | **Host 插值系数在推进循环前设置**：`NetHostLogic.Update` 先设 `InterpolationFactor` 再批量推进，推进多帧后系数不重置 → Prev/Cur 已更新但 t 还是旧值 → 位置每帧回退抖动（残影感） | 插值设置移除，改由 SimView 自算 |
+| 3 | **SimView.Update 与网络推进执行顺序不确定**：SimView 可能用旧插值系数渲染（推进在 NetworkService.Update 的 Poll 中，顺序不保证） | SimView 改 **LateUpdate** 渲染（确保在所有 Update 之后）+ **自算插值时间**（检测 `FrameIndex` 变化记录推进时刻 `m_LastTickRealtime`，`t=(now-推进时刻)/TickInterval`），彻底消除跨组件顺序依赖；`SetSimulation` 时重置插值基准 |
+
+### 12.2 验证（构建版双实例）
+
+- 双端 Trace 完全一致（1461 检查点，trace_diff.py 确认）✅ —— 确定性未被破坏
+- 帧号同步（frame 1925/1904）、双玩家位置逐帧一致（E1000/E1001 坐标吻合）✅
+- 240fps 流畅（avg 4.2ms，max 8.3ms = vSync 节奏）✅
+- AutoFlow 完整走完（含 run2 多局回归）✅
+- 注：双实例偶发"同帧神秘退出"（无崩溃报告/无 Quit），P2 时代即存在，判定为 GPU/启动竞争环境偶发（本次最长达 2.5 分钟稳定运行且超过此前死亡点，证实非代码缺陷）
