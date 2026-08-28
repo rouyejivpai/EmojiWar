@@ -52,6 +52,22 @@ namespace EmojiWar.GameMain
             StartCoroutine(FrameTimeMonitor());
         }
 
+        /// <summary>退出诊断：记录进程退出时刻与上下文（区分崩溃/正常关闭）。</summary>
+        private void OnApplicationQuit()
+        {
+            WriteProbe("[auto] OnApplicationQuit called (graceful quit path)");
+        }
+
+        private void OnDisable()
+        {
+            WriteProbe("[auto] AutoPlay OnDisable (component disabled/destroyed)");
+        }
+
+        private void OnDestroy()
+        {
+            WriteProbe("[auto] AutoPlay OnDestroy");
+        }
+
         /// <summary>
         /// 帧时间监视：每 5 秒报告一次平均帧时间与最大帧时间（定位卡顿尖峰）。
         /// </summary>
@@ -310,6 +326,9 @@ namespace EmojiWar.GameMain
             {
                 WriteProbe("[auto] run2 no-sim（第二局未启动，检查房间/准备流程）");
             }
+
+            // 流程结束标记：若协程自然跑完，后续 OnDestroy/OnApplicationQuit 探针可定位进程退出原因
+            WriteProbe("[auto] AutoFlow finished (coroutine end)");
         }
 
         private static void WriteProbe(string message)

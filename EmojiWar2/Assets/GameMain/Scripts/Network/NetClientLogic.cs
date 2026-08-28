@@ -183,12 +183,8 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
-            // 渲染插值系数：距上次接收输入帧的时间进度（文档 §2 渲染插值）
-            if (Simulation != null && GameEntry.SimView != null)
-            {
-                float t = (Time.realtimeSinceStartup - m_LastFrameTime) / LockstepSim.TickInterval;
-                GameEntry.SimView.InterpolationFactor = Mathf.Clamp01(t);
-            }
+            // 插值系数不再在此设置：SimView.LateUpdate 检测模拟帧号推进自算插值时间
+            // （文档 §2 渲染插值），避免与 NetworkService.Update 的接收推进顺序错位导致位置回退抖动。
 
             // 连接建立后补发加入房间请求（异步连接时序）
             if (!m_JoinSent && m_Service.IsConnected)

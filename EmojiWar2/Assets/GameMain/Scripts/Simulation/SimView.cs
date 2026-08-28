@@ -51,6 +51,10 @@ namespace EmojiWar.GameMain.Simulation
         private readonly HashSet<int> m_BulletIds = new HashSet<int>();
         private readonly List<int> m_ToRemove = new List<int>();
 
+        // 插值时间基准（文档 §2 渲染插值）：SimView 自算，不依赖网络层执行顺序
+        private int m_LastTickFrame = -1;       // 上次记录推进时刻的帧号
+        private float m_LastTickRealtime = 0f;  // 最近一次模拟推进的时刻（realtimeSinceStartup）
+
         /// <summary>当前绑定模拟（无则跳过渲染）。</summary>
         public LockstepSimulation Simulation { get { return m_Sim; } }
 
@@ -64,6 +68,8 @@ namespace EmojiWar.GameMain.Simulation
         {
             m_Sim = sim;
             m_LocalEntityId = localEntityId;
+            m_LastTickFrame = -1;   // 重置插值基准（换模拟后首次渲染即记录新帧号推进时刻）
+            m_LastTickRealtime = Time.realtimeSinceStartup;
             ClearAllViews();
         }
 
@@ -119,12 +125,30 @@ namespace EmojiWar.GameMain.Simulation
             return sr;
         }
 
-        private void Update()
+        /// <summary>
+        /// 渲染放 LateUpdate：确保在所有 Update（网络推进 HostTick / HandleInputFrame）之后渲染。
+        /// 插值时间由 SimView 自算（检测模拟帧号推进时刻），不依赖网络层设置顺序，杜绝位置回退抖动/重影。
+        /// </summary>
+        private void LateUpdate()
         {
             if (m_Sim == null)
             {
                 return;
             }
+
+            // 自算插值系数：模拟帧号推进 → 记录推进时刻；t = (now - 推进时刻)/TickInterval ∈ [0,1)
+            if (m_Sim.FrameIndex != m_LastTickFrame)
+            {
+                m_LastTickFrame = m_Sim.FrameIndex;
+                m_LastTickRealtime = Time.realtimeSinceStartup;
+            }
+            if (m_LastTickFrame < 0)
+            {
+                m_LastTickFrame = m_Sim.FrameIndex;
+                m_LastTickRealtime = Time.realtimeSinceStartup;
+            }
+            InterpolationFactor = Mathf.Clamp01(
+                (Time.realtimeSinceStartup - m_LastTickRealtime) / LockstepSimulation.TickInterval);
 
             SyncPlayers();
             SyncEnemies();

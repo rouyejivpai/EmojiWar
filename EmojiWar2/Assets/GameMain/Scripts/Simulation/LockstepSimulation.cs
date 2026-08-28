@@ -388,6 +388,7 @@ namespace EmojiWar.GameMain.Simulation
                     {
                         EntityId = m_NextEntityId++,
                         Position = player.Position,
+                        PrevPosition = player.Position,   // 新实体 Prev=Cur：避免插值从原点拖出（重影）
                         Direction = aim,
                         Speed = player.BulletSpeed,
                         Damage = player.WeaponDamage,
@@ -583,6 +584,7 @@ namespace EmojiWar.GameMain.Simulation
             {
                 EntityId = m_NextEntityId++,
                 Position = center + offset,
+                PrevPosition = center + offset,   // 新实体 Prev=Cur：避免插值从原点拖出（重影）
                 Hp = 30f + WaveIndex * 5f,
                 Speed = 2.5f + WaveIndex * 0.3f,
             });

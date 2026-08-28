@@ -231,13 +231,6 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
-            // 渲染插值系数：上一逻辑帧到当前帧的进度（文档 §2 渲染插值）
-            if (Simulation != null && GameEntry.SimView != null)
-            {
-                float t = m_TickAccumulator / LockstepSim.TickInterval;
-                GameEntry.SimView.InterpolationFactor = Mathf.Clamp01(t);
-            }
-
             // 批量推进用时间预算（文档 §2）：正常 4ms；累积帧多（追帧/卡顿恢复）放宽到 12ms；
             // 帧数上限兜底（一次最多 60 帧），预算只能在完整逻辑帧边界检查。
             m_TickAccumulator += Time.deltaTime;
@@ -255,6 +248,9 @@ namespace EmojiWar.GameMain.Network
                     break;
                 }
             }
+
+            // 推进循环结束后不再设置插值系数：SimView.LateUpdate 检测模拟帧号推进自算插值时间
+            // （文档 §2 渲染插值），避免跨组件执行顺序导致的基准错位/位置回退抖动。
 
             // 帧同步一致性探针（每 2 秒记录一次模拟状态 + fps，供双实例对比）
             m_ProbeTimer -= Time.deltaTime;
