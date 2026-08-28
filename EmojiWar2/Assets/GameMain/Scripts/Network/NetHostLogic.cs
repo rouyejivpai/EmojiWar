@@ -238,11 +238,22 @@ namespace EmojiWar.GameMain.Network
                 GameEntry.SimView.InterpolationFactor = Mathf.Clamp01(t);
             }
 
+            // 批量推进用时间预算（文档 §2）：正常 4ms；累积帧多（追帧/卡顿恢复）放宽到 12ms；
+            // 帧数上限兜底（一次最多 60 帧），预算只能在完整逻辑帧边界检查。
             m_TickAccumulator += Time.deltaTime;
-            while (m_TickAccumulator >= LockstepSim.TickInterval)
+            float budgetMs = (m_TickAccumulator >= LockstepSim.TickInterval * 8f) ? 12f : 4f;
+            float budgetEnd = Time.realtimeSinceStartup + budgetMs * 0.001f;
+            int framesThisFrame = 0;
+            while (m_TickAccumulator >= LockstepSim.TickInterval && framesThisFrame < 60)
             {
                 m_TickAccumulator -= LockstepSim.TickInterval;
                 HostTick();
+                framesThisFrame++;
+                // 预算只在完整逻辑帧边界检查（文档 §2：中途截断 = 破坏确定性）
+                if (Time.realtimeSinceStartup >= budgetEnd && m_TickAccumulator >= LockstepSim.TickInterval)
+                {
+                    break;
+                }
             }
 
             // 帧同步一致性探针（每 2 秒记录一次模拟状态 + fps，供双实例对比）

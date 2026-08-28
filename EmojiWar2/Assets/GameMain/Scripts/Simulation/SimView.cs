@@ -41,6 +41,10 @@ namespace EmojiWar.GameMain.Simulation
         private readonly Dictionary<int, SpriteRenderer> m_EnemyViews = new Dictionary<int, SpriteRenderer>();
         private readonly Dictionary<int, SpriteRenderer> m_BulletViews = new Dictionary<int, SpriteRenderer>();
 
+        // 对象池（文档 §5：子弹/敌人频繁增删复用 GameObject，避免每帧 Instantiate/Destroy）
+        private readonly Stack<SpriteRenderer> m_EnemyPool = new Stack<SpriteRenderer>();
+        private readonly Stack<SpriteRenderer> m_BulletPool = new Stack<SpriteRenderer>();
+
         // 复用临时容器（避免每帧分配）
         private readonly HashSet<int> m_PlayerIds = new HashSet<int>();
         private readonly HashSet<int> m_EnemyIds = new HashSet<int>();
@@ -66,9 +70,10 @@ namespace EmojiWar.GameMain.Simulation
         /// <summary>清空所有表现实体（模拟重建/离开战斗时调用）。</summary>
         public void ClearAllViews()
         {
+            // 玩家直接销毁（数量少）；敌人/子弹入池复用
             DestroyViews(m_PlayerViews);
-            DestroyViews(m_EnemyViews);
-            DestroyViews(m_BulletViews);
+            ReturnToPool(m_EnemyViews, m_EnemyPool);
+            ReturnToPool(m_BulletViews, m_BulletPool);
         }
 
         private static void DestroyViews(Dictionary<int, SpriteRenderer> views)
@@ -81,6 +86,37 @@ namespace EmojiWar.GameMain.Simulation
                 }
             }
             views.Clear();
+        }
+
+        /// <summary>把表现回收进池（隐藏 + 停用，供复用）。</summary>
+        private static void ReturnToPool(Dictionary<int, SpriteRenderer> views, Stack<SpriteRenderer> pool)
+        {
+            foreach (var kv in views)
+            {
+                if (kv.Value != null && kv.Value.gameObject != null)
+                {
+                    kv.Value.gameObject.SetActive(false);
+                    pool.Push(kv.Value);
+                }
+            }
+            views.Clear();
+        }
+
+        /// <summary>从池取表现（没有则新建）。</summary>
+        private SpriteRenderer GetFromPool(Stack<SpriteRenderer> pool, string name)
+        {
+            SpriteRenderer sr;
+            if (pool.Count > 0)
+            {
+                sr = pool.Pop();
+                sr.gameObject.SetActive(true);
+                sr.gameObject.name = name;
+                return sr;
+            }
+            var go = new GameObject(name);
+            go.transform.SetParent(transform, false);   // 常驻：跨场景可见
+            sr = go.AddComponent<SpriteRenderer>();
+            return sr;
         }
 
         private void Update()
@@ -123,8 +159,23 @@ namespace EmojiWar.GameMain.Simulation
                 }
             }
 
-            // 移除已不在模拟中的表现（集合对比，O(n)）
-            RemoveMissingViews(m_PlayerViews, m_PlayerIds, m_ToRemove);
+            // 移除已不在模拟中的玩家表现（玩家数量少，直接销毁不入池）
+            m_ToRemove.Clear();
+            foreach (var kv in m_PlayerViews)
+            {
+                if (!m_PlayerIds.Contains(kv.Key))
+                {
+                    m_ToRemove.Add(kv.Key);
+                }
+            }
+            foreach (var id in m_ToRemove)
+            {
+                if (m_PlayerViews[id] != null && m_PlayerViews[id].gameObject != null)
+                {
+                    Destroy(m_PlayerViews[id].gameObject);
+                }
+                m_PlayerViews.Remove(id);
+            }
         }
 
         /// <summary>创建玩家表现（角色 emoji；本机玩家附加名字标记）。挂到 SimView 下跨场景常驻。</summary>
@@ -185,9 +236,7 @@ namespace EmojiWar.GameMain.Simulation
 
                 if (!m_EnemyViews.TryGetValue(enemy.EntityId, out var view))
                 {
-                    var go = new GameObject("SimEnemy_" + enemy.EntityId);
-                    go.transform.SetParent(transform, false);   // 常驻：跨场景可见
-                    view = go.AddComponent<SpriteRenderer>();
+                    view = GetFromPool(m_EnemyPool, "SimEnemy_" + enemy.EntityId);
                     view.sprite = Art.ArtManager.GetEnemySprite();
                     view.sortingOrder = 5;
                     if (view.sprite != null)
@@ -195,7 +244,7 @@ namespace EmojiWar.GameMain.Simulation
                         float w = view.sprite.bounds.size.x;
                         if (w > 0.01f)
                         {
-                            go.transform.localScale = Vector3.one * (1f / w);
+                            view.transform.localScale = Vector3.one * (1f / w);
                         }
                     }
                     m_EnemyViews[enemy.EntityId] = view;
@@ -204,7 +253,7 @@ namespace EmojiWar.GameMain.Simulation
                 view.transform.position = Interpolate(enemy.PrevPosition, enemy.Position, InterpolationFactor);
             }
 
-            RemoveMissingViews(m_EnemyViews, m_EnemyIds, m_ToRemove);
+            RemoveMissingViews(m_EnemyViews, m_EnemyIds, m_ToRemove, m_EnemyPool);
         }
 
         // ==================== 子弹 ====================
@@ -224,9 +273,7 @@ namespace EmojiWar.GameMain.Simulation
 
                 if (!m_BulletViews.TryGetValue(bullet.EntityId, out var view))
                 {
-                    var go = new GameObject("SimBullet_" + bullet.EntityId);
-                    go.transform.SetParent(transform, false);   // 常驻：跨场景可见
-                    view = go.AddComponent<SpriteRenderer>();
+                    view = GetFromPool(m_BulletPool, "SimBullet_" + bullet.EntityId);
                     view.sprite = Art.ArtManager.GetBulletSprite();
                     view.sortingOrder = 8;
                     if (view.sprite != null)
@@ -234,7 +281,7 @@ namespace EmojiWar.GameMain.Simulation
                         float w = view.sprite.bounds.size.x;
                         if (w > 0.01f)
                         {
-                            go.transform.localScale = Vector3.one * (0.3f / w);
+                            view.transform.localScale = Vector3.one * (0.3f / w);
                         }
                     }
                     m_BulletViews[bullet.EntityId] = view;
@@ -243,11 +290,11 @@ namespace EmojiWar.GameMain.Simulation
                 view.transform.position = Interpolate(bullet.PrevPosition, bullet.Position, InterpolationFactor);
             }
 
-            RemoveMissingViews(m_BulletViews, m_BulletIds, m_ToRemove);
+            RemoveMissingViews(m_BulletViews, m_BulletIds, m_ToRemove, m_BulletPool);
         }
 
-        /// <summary>移除缓存中不在当前集合的表现（O(n) 集合对比，避免每帧 O(n*m)）。</summary>
-        private static void RemoveMissingViews(Dictionary<int, SpriteRenderer> views, HashSet<int> aliveIds, List<int> toRemove)
+        /// <summary>移除缓存中不在当前集合的表现（O(n) 集合对比；回收进池复用）。</summary>
+        private static void RemoveMissingViews(Dictionary<int, SpriteRenderer> views, HashSet<int> aliveIds, List<int> toRemove, Stack<SpriteRenderer> pool)
         {
             if (views.Count == 0)
             {
@@ -267,7 +314,9 @@ namespace EmojiWar.GameMain.Simulation
             {
                 if (views[id] != null && views[id].gameObject != null)
                 {
-                    Destroy(views[id].gameObject);
+                    // 复用契约（文档 §5）：停用并回收，下次复用前会重设 sprite/scale
+                    views[id].gameObject.SetActive(false);
+                    pool.Push(views[id]);
                 }
                 views.Remove(id);
             }

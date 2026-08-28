@@ -292,6 +292,24 @@ namespace EmojiWar.GameMain
                 players2.Length, enemies2.Length));
             Debug.Log(string.Format("[AutoPlay] 重开后: legacyPlayers={0} legacyEnemies={1}",
                 players2.Length, enemies2.Length));
+
+            // 同进程多局回归（文档 §6 B 组）：回到房间后再次准备开第二局，
+            // 对比两局的 seed 与模拟初始状态，验证无跨局状态污染。
+            // 房间页已恢复（seed=0 房间模拟）；再次触发准备 → 全部准备 → 第二局开始
+            WriteProbe("[auto] 多局回归：第二局准备");
+            UI.RoomFormEvents.RequestReady();
+            yield return new WaitForSeconds(10f);
+
+            var sim2 = GameEntry.SimView != null ? GameEntry.SimView.Simulation : null;
+            if (sim2 != null)
+            {
+                WriteProbe(string.Format("[auto] run2 frame={0} wave={1} players={2} enemies={3}",
+                    sim2.FrameIndex, sim2.WaveIndex, sim2.Players.Count, sim2.Enemies.Count));
+            }
+            else
+            {
+                WriteProbe("[auto] run2 no-sim（第二局未启动，检查房间/准备流程）");
+            }
         }
 
         private static void WriteProbe(string message)
