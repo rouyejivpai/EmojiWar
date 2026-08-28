@@ -33,16 +33,9 @@ namespace EmojiWar.GameMain.Editor
         private const string LobbyFormPrefabPath = "Assets/GameMain/UI/LobbyForm.prefab";
         private const string GameOverFormPrefabPath = "Assets/GameMain/UI/GameOverForm.prefab";
 
-        // 流程类型全名（供 ProcedureComponent 反射创建）
-        private static readonly string[] ProcedureTypeNames =
-        {
-            "EmojiWar.GameMain.Procedure.ProcedureLaunch",
-            "EmojiWar.GameMain.Procedure.ProcedureMenu",
-            "EmojiWar.GameMain.Procedure.ProcedureLobby",
-            "EmojiWar.GameMain.Procedure.ProcedureBattle",
-            "EmojiWar.GameMain.Procedure.ProcedureGameOver",
-        };
-        private const string EntranceProcedureTypeName = "EmojiWar.GameMain.Procedure.ProcedureLaunch";
+        // 流程类型全名（供 ProcedureComponent 反射创建）——单一来源：ProcedureTypes（GF 规范）
+        private static readonly string[] ProcedureTypeNames = Procedure.ProcedureTypes.Available;
+        private const string EntranceProcedureTypeName = Procedure.ProcedureTypes.Entrance;
 
         [MenuItem("EmojiWar/Setup/01 - Build Menu Scene")]
         public static void BuildMenuScene()

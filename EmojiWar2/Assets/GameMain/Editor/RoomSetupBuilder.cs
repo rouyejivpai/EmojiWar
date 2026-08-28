@@ -26,17 +26,8 @@ namespace EmojiWar.GameMain.Editor
         private const string RoomFormPrefabPath = "Assets/GameMain/UI/RoomForm.prefab";
         private const string CharacterSelectFormPrefabPath = "Assets/GameMain/UI/CharacterSelectForm.prefab";
 
-        // 流程类型全名（含 ProcedureRoom + ProcedureCharacterSelect）
-        private static readonly string[] ProcedureTypeNames =
-        {
-            "EmojiWar.GameMain.Procedure.ProcedureLaunch",
-            "EmojiWar.GameMain.Procedure.ProcedureMenu",
-            "EmojiWar.GameMain.Procedure.ProcedureCharacterSelect",
-            "EmojiWar.GameMain.Procedure.ProcedureLobby",
-            "EmojiWar.GameMain.Procedure.ProcedureRoom",
-            "EmojiWar.GameMain.Procedure.ProcedureBattle",
-            "EmojiWar.GameMain.Procedure.ProcedureGameOver",
-        };
+        // 流程类型全名（含 ProcedureRoom + ProcedureCharacterSelect）——单一来源：ProcedureTypes（GF 规范）
+        private static readonly string[] ProcedureTypeNames = Procedure.ProcedureTypes.Available;
 
         [MenuItem("EmojiWar/Setup/02 - Build Room Setup")]
         public static void BuildRoomSetup()

@@ -451,3 +451,33 @@ S2C: RoomState / SpawnEntity / EntityState(位置/血量) / SpawnProjectile /
 - 240fps 流畅（avg 4.2ms，max 8.3ms = vSync 节奏）✅
 - AutoFlow 完整走完（含 run2 多局回归）✅
 - 注：双实例偶发"同帧神秘退出"（无崩溃报告/无 Quit），P2 时代即存在，判定为 GPU/启动竞争环境偶发（本次最长达 2.5 分钟稳定运行且超过此前死亡点，证实非代码缺陷）
+
+## 13. 流程状态机按 GF 规范固化（2026-08-28）
+
+> 按 GF（StarForce）范式梳理并固化流程状态机：状态注册单一来源 + 死代码清理 + 规范文档。
+
+### 13.1 现状与问题
+
+- 7 个流程已注册（Launch→Menu→CharacterSelect→Lobby→Room→Battle→GameOver），符合 GF `ProcedureComponent` 场景注册范式
+- **问题 1**：`ProcedureShop.cs` 是死代码（未注册进流程列表、无任何引用、`CloseShop` 无调用者）——商店实际由 `ProcedureBattle.OnShopPhase` 内联打开 ShopForm，不走独立流程
+- **问题 2**：流程类型名散落硬编码（MenuSceneBuilder 5 个 / RoomSetupBuilder 7 个 / 场景 YAML 7 个），重跑 Builder 会把场景流程列表**回退成不全的版本**
+- **问题 3**：无状态机定义文档，转换条件（守卫）散落在各流程事件回调中
+
+### 13.2 落地
+
+- **单一来源**：新增 `Scripts/Procedure/ProcedureTypes.cs`——`Available[]`（7 个注册顺序）+ `Entrance`（Launch），两个 Builder 改为引用它，场景 YAML 与 Builder 从此同源
+- **死代码清理**：删除 `ProcedureShop.cs`（+meta），商店保持 Battle 内联打开
+- **规范文档**：新增 `doc/流程状态机.md`——状态机图、状态/转换表、守卫条件（全部准备才开战、Battle 防重入、结算回房、房主退出解散）、跨流程数据流、GF 符合度自查、维护指引
+- 编译通过（清理 ScriptAssemblies 缓存后 0 错误）
+
+### 13.3 GF 符合度自查（详见 doc/流程状态机.md §4）
+
+| 规范项 | 状态 |
+|---|---|
+| ProcedureBase 生命周期 + 事件成对订阅/退订 | ✅ |
+| ProcedureComponent 场景配置注册 + 入口流程 | ✅ |
+| ChangeState\<T\> 驱动 | ✅ |
+| 流程类型名单一来源 | ✅（本次新增） |
+| 无死流程类 | ✅（本次清理） |
+| 防重入守卫（m_Entered / s_BattleSession） | ✅ 自研增强（GF 未强制，本项目防重复 ChangeState） |
+| 跨流程数据（角色 ID 静态字段） | ⚠️ 简化实现，可演进为 ChangeState(userData)/DataNode |
