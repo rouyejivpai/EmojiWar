@@ -55,6 +55,7 @@ namespace EmojiWar.GameMain.Simulation
         public int EntityId;
         public int CharacterId;
         public Vector2 Position;
+        public Vector2 PrevPosition;   // 上一逻辑帧位置（渲染插值用）
         public float MoveSpeed;
         public float Hp = 100f;
         public bool Alive = true;
@@ -80,6 +81,7 @@ namespace EmojiWar.GameMain.Simulation
     {
         public int EntityId;
         public Vector2 Position;
+        public Vector2 PrevPosition;   // 上一逻辑帧位置（渲染插值用）
         public float Hp;
         public float Speed;
         public bool Alive = true;
@@ -91,6 +93,7 @@ namespace EmojiWar.GameMain.Simulation
     {
         public int EntityId;
         public Vector2 Position;
+        public Vector2 PrevPosition;   // 上一逻辑帧位置（渲染插值用）
         public Vector2 Direction;
         public float Speed;
         public float Damage;
@@ -209,6 +212,7 @@ namespace EmojiWar.GameMain.Simulation
                         EntityId = cfg.EntityId,
                         CharacterId = cfg.CharacterId,
                         Position = cfg.StartPosition,
+                        PrevPosition = cfg.StartPosition,
                         MoveSpeed = cfg.MoveSpeed,
                         WeaponId = cfg.WeaponId,
                         WeaponName = cfg.WeaponName,
@@ -224,11 +228,14 @@ namespace EmojiWar.GameMain.Simulation
                     };
                     m_Players.Add(player);
                 }
+                // 按 EntityId 升序排序，保证多端顺序一致（文档 §9 有序容器）
+                m_Players.Sort((a, b) => a.EntityId.CompareTo(b.EntityId));
             }
         }
 
         /// <summary>
         /// 增量加入玩家（房间阶段玩家加入时调用；与 Initialize 共用配置构建）。
+        /// 按 EntityId 升序插入，保证多端 m_Players 顺序一致（文档 §9：有序容器，杜绝遍历顺序分歧）。
         /// </summary>
         public void AddPlayer(SimPlayerConfig cfg)
         {
@@ -249,6 +256,7 @@ namespace EmojiWar.GameMain.Simulation
                 EntityId = cfg.EntityId,
                 CharacterId = cfg.CharacterId,
                 Position = cfg.StartPosition,
+                PrevPosition = cfg.StartPosition,
                 MoveSpeed = cfg.MoveSpeed,
                 WeaponId = cfg.WeaponId,
                 WeaponName = cfg.WeaponName,
@@ -262,7 +270,13 @@ namespace EmojiWar.GameMain.Simulation
                 Spread = cfg.Spread,
                 FireCooldown = 0f,
             };
-            m_Players.Add(player);
+            // 按 EntityId 升序插入（有序容器，跨端遍历顺序一致）
+            int insertIndex = 0;
+            while (insertIndex < m_Players.Count && m_Players[insertIndex].EntityId < player.EntityId)
+            {
+                insertIndex++;
+            }
+            m_Players.Insert(insertIndex, player);
         }
 
         /// <summary>移除玩家（玩家离开房间/战斗时调用）。</summary>
@@ -291,6 +305,23 @@ namespace EmojiWar.GameMain.Simulation
             }
 
             FrameIndex++;
+
+            // 确定性打点：帧开始（文档 §4）
+            DeterminismTracer.RecordInt(DeterminismTracer.Check.FrameStart, FrameIndex, FrameIndex);
+
+            // 0. 记录上一帧位置（渲染插值基准；确定性：所有端同帧同值）
+            for (int i = 0; i < m_Players.Count; i++)
+            {
+                m_Players[i].PrevPosition = m_Players[i].Position;
+            }
+            for (int i = 0; i < m_Enemies.Count; i++)
+            {
+                m_Enemies[i].PrevPosition = m_Enemies[i].Position;
+            }
+            for (int i = 0; i < m_Bullets.Count; i++)
+            {
+                m_Bullets[i].PrevPosition = m_Bullets[i].Position;
+            }
 
             // 1. 玩家：应用输入 → 移动/瞄准/射击/装弹
             foreach (var player in m_Players)
@@ -364,6 +395,11 @@ namespace EmojiWar.GameMain.Simulation
                         Lifetime = 3f,
                     });
 
+                    // 确定性打点：子弹生成（含随机散射结果）
+                    DeterminismTracer.RecordInts(DeterminismTracer.Check.BulletSpawn,
+                        new[] { m_NextEntityId - 1, BitConverter.SingleToInt32Bits(aim.x), BitConverter.SingleToInt32Bits(aim.y) },
+                        FrameIndex);
+
                     player.Ammo--;
                     player.FireCooldown = 1f / Mathf.Max(0.01f, player.FireRate);
                 }
@@ -400,6 +436,7 @@ namespace EmojiWar.GameMain.Simulation
                         {
                             enemy.Alive = false;
                             OnEnemyKilled?.Invoke(enemy.EntityId);
+                            DeterminismTracer.RecordInt(DeterminismTracer.Check.EnemyDeath, enemy.EntityId, FrameIndex);
                         }
                         break;
                     }
@@ -510,6 +547,14 @@ namespace EmojiWar.GameMain.Simulation
                 int price = type == 0 ? 80 : 60;
                 m_ShopItems.Add(type + ":" + id + ":" + price);
             }
+
+            // 确定性打点：商店商品 hash（各端同种子应一致）
+            int hash = 17;
+            foreach (var item in m_ShopItems)
+            {
+                hash = hash * 31 + item.GetHashCode();
+            }
+            DeterminismTracer.RecordInt(DeterminismTracer.Check.ShopOffer, hash, FrameIndex);
         }
 
         /// <summary>开始一波（波次号从 1 开始）。</summary>
@@ -521,6 +566,9 @@ namespace EmojiWar.GameMain.Simulation
             m_EnemiesToSpawn = count;
             m_SpawnTimer = 0f;
             OnWaveChanged?.Invoke(waveIndex);
+
+            // 确定性打点：波次变化
+            DeterminismTracer.RecordInt(DeterminismTracer.Check.WaveChange, waveIndex, FrameIndex);
         }
 
         /// <summary>确定性生成一个敌人（环绕最近玩家）。</summary>
@@ -530,6 +578,7 @@ namespace EmojiWar.GameMain.Simulation
             Vector2 center = anchor != null ? anchor.Position : Vector2.zero;
             Vector2 offset = m_Rng.InsideUnitCircle() * 8f;
 
+            int newId = m_NextEntityId;
             m_Enemies.Add(new SimEnemy
             {
                 EntityId = m_NextEntityId++,
@@ -537,6 +586,13 @@ namespace EmojiWar.GameMain.Simulation
                 Hp = 30f + WaveIndex * 5f,
                 Speed = 2.5f + WaveIndex * 0.3f,
             });
+
+            // 确定性打点：敌人生成（位置位模式，跨端可比）
+            DeterminismTracer.RecordInts(DeterminismTracer.Check.EnemySpawn,
+                new[] { newId,
+                    BitConverter.SingleToInt32Bits((center + offset).x),
+                    BitConverter.SingleToInt32Bits((center + offset).y) },
+                FrameIndex);
         }
 
         /// <summary>最近玩家（敌人 AI 目标）。</summary>

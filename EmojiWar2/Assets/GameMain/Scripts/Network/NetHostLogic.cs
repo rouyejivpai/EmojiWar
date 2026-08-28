@@ -231,6 +231,13 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
+            // 渲染插值系数：上一逻辑帧到当前帧的进度（文档 §2 渲染插值）
+            if (Simulation != null && GameEntry.SimView != null)
+            {
+                float t = m_TickAccumulator / LockstepSim.TickInterval;
+                GameEntry.SimView.InterpolationFactor = Mathf.Clamp01(t);
+            }
+
             m_TickAccumulator += Time.deltaTime;
             while (m_TickAccumulator >= LockstepSim.TickInterval)
             {
@@ -279,6 +286,7 @@ namespace EmojiWar.GameMain.Network
         // 复用输入帧与输入字典（HostTick 20Hz 每 tick 调用，避免高频分配）
         private S2CInputFrame m_InputFrame = null;
         private readonly Dictionary<int, SimIntent> m_InputsCache = new Dictionary<int, SimIntent>(4);
+        private List<PlayerState> m_SortedPlayers = null;   // 有序玩家列表（确定性遍历）
 
         /// <summary>
         /// 一个逻辑 tick：收集全部玩家意图 → 广播输入帧 → 本地推进模拟。
@@ -305,11 +313,23 @@ namespace EmojiWar.GameMain.Network
             frame.Count = m_Players.Count;
 
             m_InputsCache.Clear();
-            int index = 0;
+
+            // 按 EntityId 升序遍历（确定性：输入帧数组顺序跨端一致，文档 §9 全序原则）
+            if (m_SortedPlayers == null || m_SortedPlayers.Capacity < m_Players.Count)
+            {
+                m_SortedPlayers = new List<PlayerState>(m_Players.Count);
+            }
+            m_SortedPlayers.Clear();
             foreach (var kv in m_Players)
             {
-                int sessionId = kv.Key;
-                var state = kv.Value;
+                m_SortedPlayers.Add(kv.Value);
+            }
+            m_SortedPlayers.Sort((a, b) => a.EntityId.CompareTo(b.EntityId));
+
+            int index = 0;
+            foreach (var state in m_SortedPlayers)
+            {
+                int sessionId = state.SessionId;
                 SimIntent intent;
 
                 if (sessionId == 0)
@@ -353,6 +373,19 @@ namespace EmojiWar.GameMain.Network
             if (m_Service != null)
             {
                 m_Service.BroadcastToClients(frame);
+            }
+
+            // 输入流录像（文档 §3：记录每帧输入，供重放/不同步 diff）
+            if (EmojiWar.GameMain.Simulation.ReplayRecorder.IsRecording && Simulation != null)
+            {
+                var entityList = new List<int>(frame.Count);
+                var intentList = new List<SimIntent>(frame.Count);
+                for (int i = 0; i < frame.Count; i++)
+                {
+                    entityList.Add(frame.EntityIds[i]);
+                    intentList.Add(m_InputsCache[frame.EntityIds[i]]);
+                }
+                EmojiWar.GameMain.Simulation.ReplayRecorder.RecordFrame(frame.FrameIndex, entityList, intentList);
             }
 
             // 本地推进模拟（复用输入字典）
@@ -463,6 +496,27 @@ namespace EmojiWar.GameMain.Network
                 InitializeSimulation(seed);
                 Simulation.StartWave(1);
 
+                // 输入流录像开始（文档 §3：初始状态 + 输入流）
+                try
+                {
+                    var configs = new List<Simulation.SimPlayerConfig>();
+                    foreach (var kv in m_Players)
+                    {
+                        configs.Add(BuildPlayerConfig(kv.Value));
+                    }
+                    EmojiWar.GameMain.Simulation.ReplayRecorder.Begin(seed, "0.3.0-20260827", configs,
+                        System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/replays"));
+                    WriteProbe("[net-host] 输入流录像开始 seed=" + seed);
+
+                    // 确定性打点开始（文档 §4：不同步 diff 用）
+                    EmojiWar.GameMain.Simulation.DeterminismTracer.Begin(
+                        System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/traces"));
+                }
+                catch (System.Exception e)
+                {
+                    WriteProbe("[net-host] 录像/打点开始异常: " + e.Message);
+                }
+
                 OnBattleStartRequested?.Invoke();
             }
         }
@@ -489,44 +543,19 @@ namespace EmojiWar.GameMain.Network
             Debug.Log("[NetHostLogic] 确定性模拟已初始化，玩家数 " + configs.Count);
         }
 
-        /// <summary>从角色/武器数据表构建确定性玩家配置。</summary>
+        /// <summary>从角色/武器数据表构建确定性玩家配置（单一逻辑源：统一走 SimConfigFactory）。</summary>
         private Simulation.SimPlayerConfig BuildPlayerConfig(PlayerState p)
         {
-            var config = new Simulation.SimPlayerConfig
-            {
-                SessionId = p.SessionId,
-                EntityId = p.EntityId,
-                CharacterId = p.CharacterId,
-                StartPosition = Vector2.zero,
-            };
-
-            if (GameEntry.Data != null)
-            {
-                var character = GameEntry.Data.GetCharacter(p.CharacterId);
-                if (character != null)
-                {
-                    config.MoveSpeed = character.MoveSpeed;
-                    var weapon = GameEntry.Data.GetWeapon(character.DefaultWeaponId);
-                    if (weapon != null)
-                    {
-                        config.WeaponId = weapon.Id;
-                        config.WeaponName = weapon.WeaponName;
-                        config.WeaponIcon = weapon.Icon;
-                        config.WeaponDamage = weapon.Damage;
-                        config.FireRate = weapon.FireRate;
-                        config.MaxAmmo = weapon.MaxAmmo;
-                        config.ReloadTime = weapon.ReloadTime;
-                        config.BulletSpeed = weapon.BulletSpeed;
-                        config.Spread = weapon.Spread;
-                    }
-                }
-            }
-            return config;
+            return EmojiWar.GameMain.Simulation.SimConfigFactory.Build(p.SessionId, p.EntityId, p.CharacterId);
         }
 
         /// <summary>回到房间（一局结束后）：重置准备状态与模拟，等待下一局。</summary>
         public void ResetRoom()
         {
+            // 输入流录像结束（强制 flush，防尾帧丢失）+ 打点结束
+            EmojiWar.GameMain.Simulation.ReplayRecorder.End();
+            EmojiWar.GameMain.Simulation.DeterminismTracer.End();
+
             m_BattleStartBroadcasted = false;
             BattleRunning = false;
             Simulation = null;

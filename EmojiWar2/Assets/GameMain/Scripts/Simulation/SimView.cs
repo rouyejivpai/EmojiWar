@@ -21,6 +21,21 @@ namespace EmojiWar.GameMain.Simulation
         private LockstepSimulation m_Sim = null;
         private int m_LocalEntityId = -1;
 
+        /// <summary>
+        /// 渲染插值系数 0~1（0=上一逻辑帧，1=当前逻辑帧）。
+        /// 由网络层每帧按 (now - lastTickTime)/TickInterval 设置（文档 §2 渲染插值）。
+        /// </summary>
+        public float InterpolationFactor { get; set; } = 1f;
+
+        /// <summary>插值位置（文档 §2：表现层用 prev/cur 插值，渲染帧率自由）。</summary>
+        private static Vector3 Interpolate(Vector2 prev, Vector2 cur, float t)
+        {
+            return new Vector3(
+                prev.x + (cur.x - prev.x) * t,
+                prev.y + (cur.y - prev.y) * t,
+                0f);
+        }
+
         // 实体表现缓存（玩家/敌人/子弹按 EntityId）
         private readonly Dictionary<int, SpriteRenderer> m_PlayerViews = new Dictionary<int, SpriteRenderer>();
         private readonly Dictionary<int, SpriteRenderer> m_EnemyViews = new Dictionary<int, SpriteRenderer>();
@@ -104,7 +119,7 @@ namespace EmojiWar.GameMain.Simulation
 
                 if (view != null)
                 {
-                    view.transform.position = new Vector3(player.Position.x, player.Position.y, 0f);
+                    view.transform.position = Interpolate(player.PrevPosition, player.Position, InterpolationFactor);
                 }
             }
 
@@ -186,7 +201,7 @@ namespace EmojiWar.GameMain.Simulation
                     m_EnemyViews[enemy.EntityId] = view;
                 }
 
-                view.transform.position = new Vector3(enemy.Position.x, enemy.Position.y, 0f);
+                view.transform.position = Interpolate(enemy.PrevPosition, enemy.Position, InterpolationFactor);
             }
 
             RemoveMissingViews(m_EnemyViews, m_EnemyIds, m_ToRemove);
@@ -225,7 +240,7 @@ namespace EmojiWar.GameMain.Simulation
                     m_BulletViews[bullet.EntityId] = view;
                 }
 
-                view.transform.position = new Vector3(bullet.Position.x, bullet.Position.y, 0f);
+                view.transform.position = Interpolate(bullet.PrevPosition, bullet.Position, InterpolationFactor);
             }
 
             RemoveMissingViews(m_BulletViews, m_BulletIds, m_ToRemove);

@@ -183,6 +183,13 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
+            // 渲染插值系数：距上次接收输入帧的时间进度（文档 §2 渲染插值）
+            if (Simulation != null && GameEntry.SimView != null)
+            {
+                float t = (Time.realtimeSinceStartup - m_LastFrameTime) / LockstepSim.TickInterval;
+                GameEntry.SimView.InterpolationFactor = Mathf.Clamp01(t);
+            }
+
             // 连接建立后补发加入房间请求（异步连接时序）
             if (!m_JoinSent && m_Service.IsConnected)
             {
@@ -282,6 +289,7 @@ namespace EmojiWar.GameMain.Network
         private float m_ProbeTimer = 2f;
         private int m_FpsAccumFrames = 0;
         private float m_FpsAccumTime = 0f;
+        private float m_LastFrameTime = 0f;                 // 上次接收输入帧时间（渲染插值基准）
         private C2SPlayerInput m_InputMsg = null;   // 复用的上行输入消息（避免高频分配）
         private float m_InputSendTimer = 0f;        // 上行输入 20Hz 节流计时
         private readonly Dictionary<int, SimIntent> m_InputsCache = new Dictionary<int, SimIntent>(4);   // 复用输入帧字典
@@ -483,6 +491,8 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
+            m_LastFrameTime = Time.realtimeSinceStartup;   // 插值计时基准
+
             // 复用输入字典（20Hz 每帧调用，避免高频分配）
             m_InputsCache.Clear();
             for (int i = 0; i < frame.Count; i++)
@@ -522,39 +532,10 @@ namespace EmojiWar.GameMain.Network
             }
         }
 
-        /// <summary>从数据表构建确定性玩家配置（与 Host 相同规则）。</summary>
+        /// <summary>从数据表构建确定性玩家配置（单一逻辑源：统一走 SimConfigFactory）。</summary>
         private Simulation.SimPlayerConfig BuildPlayerConfig(int entityId, int characterId)
         {
-            var config = new Simulation.SimPlayerConfig
-            {
-                SessionId = -1,
-                EntityId = entityId,
-                CharacterId = characterId,
-                StartPosition = Vector2.zero,
-            };
-
-            if (GameEntry.Data != null)
-            {
-                var character = GameEntry.Data.GetCharacter(characterId);
-                if (character != null)
-                {
-                    config.MoveSpeed = character.MoveSpeed;
-                    var weapon = GameEntry.Data.GetWeapon(character.DefaultWeaponId);
-                    if (weapon != null)
-                    {
-                        config.WeaponId = weapon.Id;
-                        config.WeaponName = weapon.WeaponName;
-                        config.WeaponIcon = weapon.Icon;
-                        config.WeaponDamage = weapon.Damage;
-                        config.FireRate = weapon.FireRate;
-                        config.MaxAmmo = weapon.MaxAmmo;
-                        config.ReloadTime = weapon.ReloadTime;
-                        config.BulletSpeed = weapon.BulletSpeed;
-                        config.Spread = weapon.Spread;
-                    }
-                }
-            }
-            return config;
+            return EmojiWar.GameMain.Simulation.SimConfigFactory.Build(-1, entityId, characterId);
         }
 
         /// <summary>
@@ -579,6 +560,10 @@ namespace EmojiWar.GameMain.Network
             Simulation.StartWave(1);
             WriteProbe("[net] 战斗模拟初始化 seed=" + seed + " players=" + configs.Count);
             Debug.Log("[NetClientLogic] 战斗确定性模拟已初始化，玩家数 " + configs.Count);
+
+            // 确定性打点开始（文档 §4：双端各写一份 trace，diff 定位分歧）
+            EmojiWar.GameMain.Simulation.DeterminismTracer.Begin(
+                System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/traces"));
 
             if (GameEntry.SimView != null)
             {
@@ -628,6 +613,7 @@ namespace EmojiWar.GameMain.Network
         private void HandleRunRestart()
         {
             Debug.Log("[NetClientLogic] 收到房主回房间指令 S2CRunRestart");
+            EmojiWar.GameMain.Simulation.DeterminismTracer.End();
             ClearSimulation();
             EnsureRoomSimulation();
             WriteProbe("[net] RunRestart -> 重建房间模拟");
