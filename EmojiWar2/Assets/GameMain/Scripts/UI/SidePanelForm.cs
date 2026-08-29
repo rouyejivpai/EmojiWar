@@ -118,19 +118,21 @@ namespace EmojiWar.GameMain.UI
             if (!animate)
             {
                 SlideTarget.anchoredPosition = show ? GetVisiblePos() : GetHiddenPos();
-                PanelCanvasGroup.alpha = show ? 1f : 0f;
+                PanelCanvasGroup.alpha = 1f;                      // 根保持可见（收起后 Tab 等常驻元素仍显示）
                 RaycastBlocker.blocksRaycasts = show;
                 return;
             }
 
-            // DOTween：位置滑动 + 透明度淡入淡出
+            // DOTween：位置滑动 + 滑动主体透明度淡入淡出
+            // 注意：淡出目标是 RaycastBlocker（SlideTarget 上的 CanvasGroup），不是根——
+            // 根 alpha 归 0 会把整个 UIForm 淡掉（含常驻 Tab），且全屏根的位置动画无效。
             Vector2 targetPos = show ? GetVisiblePos() : GetHiddenPos();
             float targetAlpha = show ? 1f : 0f;
             RaycastBlocker.blocksRaycasts = false;   // 动画期间不可交互
 
             m_AnimTween = DOTween.Sequence()
                 .Join(SlideTarget.DOAnchorPos(targetPos, m_AnimDuration).SetEase(m_AnimEase))
-                .Join(PanelCanvasGroup.DOFade(targetAlpha, m_AnimDuration))
+                .Join(RaycastBlocker.DOFade(targetAlpha, m_AnimDuration))
                 .OnComplete(() =>
                 {
                     RaycastBlocker.blocksRaycasts = m_IsVisible;

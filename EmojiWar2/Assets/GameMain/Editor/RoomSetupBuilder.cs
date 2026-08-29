@@ -34,10 +34,103 @@ namespace EmojiWar.GameMain.Editor
         {
             UpdateProcedureList();
             CreateRoomFormPrefab();
+            CreateCharacterCardPrefab();
             CreateCharacterDockFormPrefab();
             CreateCharacterSelectFormPrefab();
             AssetDatabase.SaveAssets();
-            Debug.Log("[RoomSetup] 完成：流程列表已更新 + RoomForm/CharacterDockForm/CharacterSelectForm prefab 已生成");
+            Debug.Log("[RoomSetup] 完成：流程列表已更新 + RoomForm/CharacterCard/CharacterDockForm/CharacterSelectForm prefab 已生成");
+        }
+
+        /// <summary>
+        /// 生成 CharacterCard.prefab（角色卡片独立模板，运行时按 JSON 动态实例化）。
+        /// 内容：emoji 图标 + 名字 + 简略属性 + 选中高亮背景 + 整卡 Button。
+        /// </summary>
+        private static void CreateCharacterCardPrefab()
+        {
+            const string path = "Assets/GameMain/Resources/UI/CharacterCard.prefab";
+            EnsureFolder("Assets/GameMain/Resources/UI");
+
+            var root = new GameObject("CharacterCard");
+            root.layer = LayerMask.NameToLayer("UI");
+
+            var rect = root.AddComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(300f, 160f);
+
+            // 卡片背景（整卡可点）
+            var bg = root.AddComponent<Image>();
+            bg.color = new Color(0.15f, 0.2f, 0.3f, 0.9f);
+            var btn = root.AddComponent<Button>();
+            btn.targetGraphic = bg;
+
+            // 选中高亮背景（默认隐藏）
+            var highlight = new GameObject("Highlight");
+            highlight.transform.SetParent(root.transform, false);
+            var hlRect = highlight.AddComponent<RectTransform>();
+            hlRect.anchorMin = Vector2.zero;
+            hlRect.anchorMax = Vector2.one;
+            hlRect.offsetMin = Vector2.zero;
+            hlRect.offsetMax = Vector2.zero;
+            var hlImg = highlight.AddComponent<Image>();
+            hlImg.color = new Color(0.3f, 0.7f, 1f, 0.35f);
+            highlight.SetActive(false);
+
+            // emoji 图标（左侧）
+            var icon = new GameObject("Icon");
+            icon.transform.SetParent(root.transform, false);
+            var iconRect = icon.AddComponent<RectTransform>();
+            iconRect.anchorMin = new Vector2(0f, 0.5f);
+            iconRect.anchorMax = new Vector2(0f, 0.5f);
+            iconRect.pivot = new Vector2(0f, 0.5f);
+            iconRect.anchoredPosition = new Vector2(16f, 20f);
+            iconRect.sizeDelta = new Vector2(72f, 72f);
+            var iconImg = icon.AddComponent<Image>();
+            iconImg.preserveAspect = true;
+
+            // 名字（右上）
+            var name = new GameObject("Name");
+            name.transform.SetParent(root.transform, false);
+            var nameRect = name.AddComponent<RectTransform>();
+            nameRect.anchorMin = new Vector2(0.5f, 1f);
+            nameRect.anchorMax = new Vector2(0.5f, 1f);
+            nameRect.pivot = new Vector2(0.5f, 1f);
+            nameRect.anchoredPosition = new Vector2(60f, -10f);
+            nameRect.sizeDelta = new Vector2(220f, 40f);
+            var nameText = name.AddComponent<Text>();
+            nameText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            nameText.fontSize = 22;
+            nameText.alignment = TextAnchor.MiddleLeft;
+            nameText.color = Color.white;
+            nameText.text = "角色名";
+
+            // 简略属性（右下）
+            var stats = new GameObject("Stats");
+            stats.transform.SetParent(root.transform, false);
+            var statsRect = stats.AddComponent<RectTransform>();
+            statsRect.anchorMin = new Vector2(0.5f, 0f);
+            statsRect.anchorMax = new Vector2(0.5f, 0f);
+            statsRect.pivot = new Vector2(0.5f, 0f);
+            statsRect.anchoredPosition = new Vector2(60f, 14f);
+            statsRect.sizeDelta = new Vector2(220f, 32f);
+            var statsText = stats.AddComponent<Text>();
+            statsText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            statsText.fontSize = 16;
+            statsText.alignment = TextAnchor.MiddleLeft;
+            statsText.color = new Color(0.7f, 0.8f, 0.9f, 1f);
+            statsText.text = "生命 - 移速 -";
+
+            var card = root.AddComponent<CharacterCard>();
+
+            // 通过反射绑定字段（与现有 Builder 风格一致）
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            card.GetType().GetField("m_IconImage", flags).SetValue(card, iconImg);
+            card.GetType().GetField("m_NameText", flags).SetValue(card, nameText);
+            card.GetType().GetField("m_StatsText", flags).SetValue(card, statsText);
+            card.GetType().GetField("m_Highlight", flags).SetValue(card, hlImg);
+            card.GetType().GetField("m_Button", flags).SetValue(card, btn);
+
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+            Object.DestroyImmediate(root);
+            Debug.Log("[RoomSetup] CharacterCard prefab 已生成（独立模板）: " + path);
         }
 
         /// <summary>更新 Menu 场景的 ProcedureComponent 流程列表（加入 ProcedureRoom）。</summary>
@@ -136,12 +229,12 @@ namespace EmojiWar.GameMain.Editor
         }
 
         /// <summary>
-        /// 生成 CharacterDockForm.prefab（角色选择全屏面板，QuickBind 绑定）。
-        /// 结构：
+        /// 生成 CharacterDockForm.prefab（角色选择全屏面板骨架，QuickBind 绑定）。
+        /// 结构（角色卡片运行时按 character_select.json 动态实例化，见 CharacterDockForm.BuildCards）：
         ///   CharacterDockForm（全屏 Canvas 根，raycast 区域）
-        ///   ├── PanelSlide（滑动主体：右缘进/出，含全部内容）
-        ///   │   ├── 顶部：btn_Collapse 收起 + txt_SelectTitle 标题
-        ///   │   ├── 左栏：btn_Char1..4 + txt_Char1Name..4（角色卡片竖排）
+        ///   ├── panel_PanelSlide（滑动主体：右缘进/出，含全部内容）
+        ///   │   ├── 顶部：btn_Collapse 收起 + btn_Confirm 确认选择 + txt_SelectTitle 标题
+        ///   │   ├── CardContainer（卡片容器，运行时填卡片）
         ///   │   └── 右栏：txt_DetailIcon（大 emoji）+ txt_DetailName/Desc/Stats
         ///   └── btn_Tab（右侧窄条标签，常驻；点击滑出全屏面板）
         /// </summary>
@@ -171,7 +264,6 @@ namespace EmojiWar.GameMain.Editor
             rootRect.offsetMax = Vector2.zero;
 
             // ===== 滑动主体 panel_PanelSlide（锚右缘，宽 1920 全屏；向右滑出） =====
-            // 命名含 panel_ 前缀 → QuickBind 生成 RectTransform 字段 m_PanelSlide
             var slide = new GameObject("panel_PanelSlide");
             slide.transform.SetParent(root.transform, false);
             var slideRect = slide.AddComponent<RectTransform>();
@@ -181,20 +273,21 @@ namespace EmojiWar.GameMain.Editor
             slideRect.anchoredPosition = Vector2.zero;
             slideRect.sizeDelta = new Vector2(1920f, 0f);
             slide.AddComponent<Image>().color = new Color(0.05f, 0.1f, 0.16f, 0.92f);
+            slide.AddComponent<CanvasGroup>();   // raycast 控制器（展开拦截/收起释放）
 
-            // 顶部：标题 + 收起按钮
+            // 顶部：标题 + 收起 + 确认选择
             CreateText("txt_SelectTitle", slide.transform, "选择角色", 44, new Vector2(0, 460));
             CreateButton("btn_Collapse", slide.transform, "收起", new Vector2(-820, 460));
+            CreateButton("btn_Confirm", slide.transform, "确认选择", new Vector2(-600, 460));
 
-            // ===== 左栏：4 个角色卡片（竖排） =====
-            CreateButton("btn_Char1", slide.transform, "角色 1", new Vector2(-500, 250));
-            CreateButton("btn_Char2", slide.transform, "角色 2", new Vector2(-500, 90));
-            CreateButton("btn_Char3", slide.transform, "角色 3", new Vector2(-500, -70));
-            CreateButton("btn_Char4", slide.transform, "角色 4", new Vector2(-500, -230));
-            CreateText("txt_Char1Name", slide.transform, "流汗黄豆", 24, new Vector2(-500, 250));
-            CreateText("txt_Char2Name", slide.transform, "好吃黄豆", 24, new Vector2(-500, 90));
-            CreateText("txt_Char3Name", slide.transform, "硬汉黄豆", 24, new Vector2(-500, -70));
-            CreateText("txt_Char4Name", slide.transform, "快枪黄豆", 24, new Vector2(-500, -230));
+            // ===== 卡片容器（运行时动态实例化 CharacterCard） =====
+            var cardContainer = new GameObject("CardContainer");
+            cardContainer.transform.SetParent(slide.transform, false);
+            var ccRect = cardContainer.AddComponent<RectTransform>();
+            ccRect.anchorMin = new Vector2(0f, 0f);
+            ccRect.anchorMax = new Vector2(1f, 1f);
+            ccRect.offsetMin = Vector2.zero;
+            ccRect.offsetMax = Vector2.zero;
 
             // ===== 右栏：选中角色详情 =====
             CreateText("txt_DetailIcon", slide.transform, "😅", 120, new Vector2(400, 280));
@@ -225,7 +318,7 @@ namespace EmojiWar.GameMain.Editor
             PrefabUtility.SaveAsPrefabAsset(root, path);
 
             Object.DestroyImmediate(root);
-            Debug.Log("[RoomSetup] CharacterDockForm prefab 已生成（全屏面板 + 右侧窄条 Tab）: " + path);
+            Debug.Log("[RoomSetup] CharacterDockForm prefab 已生成（骨架 + 动态卡片容器 + 确认按钮）: " + path);
         }
 
         /// <summary>生成 CharacterSelectForm.prefab（4 个角色按钮）。</summary>

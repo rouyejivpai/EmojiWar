@@ -9,14 +9,7 @@ public partial class CharacterDockForm
 {
     [SerializeField] private UnityEngine.UI.Text m_TxtSelectTitle = null;
     [SerializeField] private UnityEngine.UI.Button m_BtnCollapse = null;
-    [SerializeField] private UnityEngine.UI.Button m_BtnChar1 = null;
-    [SerializeField] private UnityEngine.UI.Button m_BtnChar2 = null;
-    [SerializeField] private UnityEngine.UI.Button m_BtnChar3 = null;
-    [SerializeField] private UnityEngine.UI.Button m_BtnChar4 = null;
-    [SerializeField] private UnityEngine.UI.Text m_TxtChar1Name = null;
-    [SerializeField] private UnityEngine.UI.Text m_TxtChar2Name = null;
-    [SerializeField] private UnityEngine.UI.Text m_TxtChar3Name = null;
-    [SerializeField] private UnityEngine.UI.Text m_TxtChar4Name = null;
+    [SerializeField] private UnityEngine.UI.Button m_BtnConfirm = null;
     [SerializeField] private UnityEngine.UI.Text m_TxtDetailIcon = null;
     [SerializeField] private UnityEngine.UI.Text m_TxtDetailName = null;
     [SerializeField] private UnityEngine.UI.Text m_TxtDetailDesc = null;
@@ -37,45 +30,10 @@ public partial class CharacterDockForm
         {
             m_BtnCollapse = go_m_BtnCollapse.GetComponent<UnityEngine.UI.Button>();
         }
-        var go_m_BtnChar1 = bind.GetTarget("m_BtnChar1");
-        if (go_m_BtnChar1 != null)
+        var go_m_BtnConfirm = bind.GetTarget("m_BtnConfirm");
+        if (go_m_BtnConfirm != null)
         {
-            m_BtnChar1 = go_m_BtnChar1.GetComponent<UnityEngine.UI.Button>();
-        }
-        var go_m_BtnChar2 = bind.GetTarget("m_BtnChar2");
-        if (go_m_BtnChar2 != null)
-        {
-            m_BtnChar2 = go_m_BtnChar2.GetComponent<UnityEngine.UI.Button>();
-        }
-        var go_m_BtnChar3 = bind.GetTarget("m_BtnChar3");
-        if (go_m_BtnChar3 != null)
-        {
-            m_BtnChar3 = go_m_BtnChar3.GetComponent<UnityEngine.UI.Button>();
-        }
-        var go_m_BtnChar4 = bind.GetTarget("m_BtnChar4");
-        if (go_m_BtnChar4 != null)
-        {
-            m_BtnChar4 = go_m_BtnChar4.GetComponent<UnityEngine.UI.Button>();
-        }
-        var go_m_TxtChar1Name = bind.GetTarget("m_TxtChar1Name");
-        if (go_m_TxtChar1Name != null)
-        {
-            m_TxtChar1Name = go_m_TxtChar1Name.GetComponent<UnityEngine.UI.Text>();
-        }
-        var go_m_TxtChar2Name = bind.GetTarget("m_TxtChar2Name");
-        if (go_m_TxtChar2Name != null)
-        {
-            m_TxtChar2Name = go_m_TxtChar2Name.GetComponent<UnityEngine.UI.Text>();
-        }
-        var go_m_TxtChar3Name = bind.GetTarget("m_TxtChar3Name");
-        if (go_m_TxtChar3Name != null)
-        {
-            m_TxtChar3Name = go_m_TxtChar3Name.GetComponent<UnityEngine.UI.Text>();
-        }
-        var go_m_TxtChar4Name = bind.GetTarget("m_TxtChar4Name");
-        if (go_m_TxtChar4Name != null)
-        {
-            m_TxtChar4Name = go_m_TxtChar4Name.GetComponent<UnityEngine.UI.Text>();
+            m_BtnConfirm = go_m_BtnConfirm.GetComponent<UnityEngine.UI.Button>();
         }
         var go_m_TxtDetailIcon = bind.GetTarget("m_TxtDetailIcon");
         if (go_m_TxtDetailIcon != null)

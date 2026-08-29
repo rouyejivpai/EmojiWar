@@ -1,15 +1,18 @@
 //------------------------------------------------------------
-// EmojiWar GameMain - 角色选择全屏面板（准备阶段可随时切换角色）
+// EmojiWar GameMain - 角色选择全屏面板（数据驱动，准备阶段可随时切换角色）
 // 形态：
-//   - 默认展开：全屏面板（左右分栏：左=4 角色卡片竖排，右=选中角色详情），
-//     顶部有"收起"按钮。
-//   - 收起后：面板主体向右滑出屏幕，仅右侧边缘露出一个窄条标签
-//     （btn_Tab，"角色"），点击标签再次滑入全屏面板。
-//   - 与房间面板（RoomForm 右侧窄条）共存：展开时本面板置顶覆盖。
+//   - 默认展开：全屏面板（左右分栏：左=角色卡片竖排【按 JSON 动态实例化】，
+//     右=选中角色详情），顶部有"收起"按钮 + "确认选择"按钮。
+//   - 收起后：面板主体向右滑出屏幕，仅右侧边缘露出窄条标签（btn_Tab），
+//     点击标签再次滑入全屏面板。
+// 数据：character_select.json（UI 展示配置，Resources/Configs/），
+//       属性查 Character.txt（单一逻辑源）。
+// 交互：点卡片选中（高亮，不收起）；点"确认选择"收起并确认角色。
 // 动效：DOTween 滑入/滑出（SidePanelForm 基类，滑动 SlideTarget 子面板）。
 //------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using EmojiWar.GameMain.Data;
@@ -22,10 +25,15 @@ namespace EmojiWar.GameMain.UI
         /// <summary>玩家切换角色（参数：角色 ID）。</summary>
         public static event Action<int> OnCharacterChanged;
 
+        /// <summary>玩家确认角色（参数：角色 ID；点"确认选择"触发，随后收起面板）。</summary>
+        public static event Action<int> OnCharacterConfirmed;
+
         /// <summary>角色面板已打开（参数：面板实例；房间页据此绑定/展开）。</summary>
         public static event Action<CharacterDockForm> OnDockOpened;
 
         public static void Change(int characterId) { OnCharacterChanged?.Invoke(characterId); }
+
+        public static void Confirm(int characterId) { OnCharacterConfirmed?.Invoke(characterId); }
 
         public static void DockOpened(CharacterDockForm dock) { OnDockOpened?.Invoke(dock); }
     }
@@ -37,6 +45,11 @@ namespace EmojiWar.GameMain.UI
     {
         private int m_SelectedCharacterId = 1;
         private DRCharacter[] m_Characters = null;
+
+        // 动态卡片（按 JSON 实例化）
+        private readonly List<CharacterCard> m_Cards = new List<CharacterCard>();
+        private RectTransform m_CardContainer = null;
+        private const string CardContainerName = "CardContainer";
 
         /// <summary>当前选中角色 ID。</summary>
         public int SelectedCharacterId { get { return m_SelectedCharacterId; } }
@@ -111,13 +124,18 @@ namespace EmojiWar.GameMain.UI
             base.OnOpen(userData);
 
             LoadCharacters();
-            BindButtons();
+            BuildCards();
 
-            // 收起按钮 + 右侧窄条 Tab
+            // 收起按钮 + 确认按钮 + 右侧窄条 Tab
             if (m_BtnCollapse != null)
             {
                 m_BtnCollapse.onClick.RemoveAllListeners();
                 m_BtnCollapse.onClick.AddListener(() => RequestCollapse());
+            }
+            if (m_BtnConfirm != null)
+            {
+                m_BtnConfirm.onClick.RemoveAllListeners();
+                m_BtnConfirm.onClick.AddListener(() => ConfirmSelection());
             }
             if (m_BtnTab != null)
             {
@@ -132,7 +150,7 @@ namespace EmojiWar.GameMain.UI
             CharacterDockEvents.DockOpened(this);
         }
 
-        /// <summary>从数据表加载角色（Id=1..4）。</summary>
+        /// <summary>从战斗数据表加载角色（属性查询用，Id=1..4）。</summary>
         private void LoadCharacters()
         {
             m_Characters = null;
@@ -146,30 +164,114 @@ namespace EmojiWar.GameMain.UI
             }
         }
 
-        /// <summary>绑定 4 个角色按钮。</summary>
-        private void BindButtons()
+        /// <summary>
+        /// 按 character_select.json 动态实例化角色卡片（数据驱动，加角色自动多一张卡）。
+        /// 卡片从 CharacterCard.prefab（Resources/UI/CharacterCard）加载。
+        /// </summary>
+        private void BuildCards()
         {
-            BindButton(m_BtnChar1, 1, m_TxtChar1Name);
-            BindButton(m_BtnChar2, 2, m_TxtChar2Name);
-            BindButton(m_BtnChar3, 3, m_TxtChar3Name);
-            BindButton(m_BtnChar4, 4, m_TxtChar4Name);
-        }
-
-        private void BindButton(Button button, int characterId, Text nameText)
-        {
-            if (button == null)
+            // 清理旧卡
+            foreach (var card in m_Cards)
             {
+                if (card != null && card.gameObject != null)
+                {
+                    Destroy(card.gameObject);
+                }
+            }
+            m_Cards.Clear();
+
+            // 卡片容器（panel_PanelSlide 下的 CardContainer）
+            m_CardContainer = FindCardContainer();
+
+            var config = CharacterSelectConfigLoader.Load();
+            if (config == null || config.characters == null || config.characters.Count == 0)
+            {
+                Debug.LogWarning("[CharDock] character_select.json 为空，无卡片生成");
                 return;
             }
 
-            var row = GetCharacter(characterId);
-            if (row != null && nameText != null)
+            var cardPrefab = Resources.Load<GameObject>("UI/CharacterCard");
+            if (cardPrefab == null)
             {
-                nameText.text = row.CharacterName;
+                Debug.LogWarning("[CharDock] 未找到 CharacterCard.prefab（Resources/UI/CharacterCard）");
+                return;
             }
 
-            button.onClick.RemoveAllListeners();
-            button.onClick.AddListener(() => SelectCharacter(characterId, true));
+            int index = 0;
+            foreach (var entry in config.characters)
+            {
+                if (entry == null || entry.id <= 0)
+                {
+                    continue;
+                }
+
+                var go = Instantiate(cardPrefab, m_CardContainer);
+                go.name = "Card_" + entry.id;
+
+                var card = go.GetComponent<CharacterCard>();
+                if (card == null)
+                {
+                    Destroy(go);
+                    continue;
+                }
+
+                // 简略属性：查 Character.txt（单一逻辑源）
+                string statsLine = "";
+                var row = GetCharacter(entry.id);
+                if (row != null)
+                {
+                    statsLine = string.Format("生命{0} 移速{1:F0}", row.MaxHealth, row.MoveSpeed);
+                }
+
+                // 图标：emoji 转 Sprite（ArtManager 有 GetCharacterSprite）
+                Sprite iconSprite = null;
+                if (!string.IsNullOrEmpty(entry.icon))
+                {
+                    iconSprite = Art.ArtManager.GetCharacterSprite(entry.icon);
+                }
+
+                int capturedId = entry.id;
+                card.Setup(entry.id, entry.name, entry.icon, statsLine, iconSprite,
+                    (id) => SelectCharacter(id, true));
+
+                // 手动定位（竖排；容器无 LayoutGroup 时按间距摆放）
+                var cardRect = go.transform as RectTransform;
+                if (cardRect != null && m_CardContainer != null)
+                {
+                    cardRect.anchorMin = new Vector2(0.5f, 1f);
+                    cardRect.anchorMax = new Vector2(0.5f, 1f);
+                    cardRect.pivot = new Vector2(0.5f, 0.5f);
+                    cardRect.anchoredPosition = new Vector2(0f, -80f - index * 180f);
+                    cardRect.sizeDelta = new Vector2(300f, 160f);
+                }
+
+                m_Cards.Add(card);
+                index++;
+            }
+        }
+
+        /// <summary>查找卡片容器（PanelSlide 下）。</summary>
+        private RectTransform FindCardContainer()
+        {
+            var slide = SlideTarget;
+            if (slide == null)
+            {
+                return null;
+            }
+            var t = slide.Find(CardContainerName);
+            if (t == null)
+            {
+                // 兜底：创建
+                var go = new GameObject(CardContainerName);
+                go.transform.SetParent(slide, false);
+                var rt = go.AddComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0f, 0f);
+                rt.anchorMax = new Vector2(1f, 1f);
+                rt.offsetMin = Vector2.zero;
+                rt.offsetMax = Vector2.zero;
+                return rt;
+            }
+            return t as RectTransform;
         }
 
         private DRCharacter GetCharacter(int id)
@@ -184,13 +286,24 @@ namespace EmojiWar.GameMain.UI
             return null;
         }
 
-        /// <summary>选中角色：更新 UI + 触发切换事件（供房间页同步角色）。</summary>
+        /// <summary>选中角色：更新卡片高亮 + 右侧详情 + 触发切换事件（供房间页同步角色）。</summary>
         public void SelectCharacter(int characterId, bool notify)
         {
             m_SelectedCharacterId = characterId;
             Procedure.ProcedureBattle.SelectedCharacterId = characterId;
 
+            // 卡片高亮
+            foreach (var card in m_Cards)
+            {
+                if (card != null)
+                {
+                    card.SetHighlight(card.CharacterId == characterId);
+                }
+            }
+
+            // 详情区（数据查 Character.txt + JSON 描述）
             var row = GetCharacter(characterId);
+            var entry = CharacterSelectConfigLoader.GetEntry(characterId);
             if (row != null)
             {
                 if (m_TxtCurrentChar != null)
@@ -203,16 +316,17 @@ namespace EmojiWar.GameMain.UI
                 }
                 if (m_TxtDetailDesc != null)
                 {
-                    m_TxtDetailDesc.text = row.Description;
+                    m_TxtDetailDesc.text = entry != null && !string.IsNullOrEmpty(entry.desc) ? entry.desc : row.Description;
                 }
                 if (m_TxtDetailStats != null)
                 {
                     m_TxtDetailStats.text = string.Format("生命 {0}  ·  移速 {1:F0}  ·  初始金币 {2}",
                         row.MaxHealth, row.MoveSpeed, row.Coin);
                 }
-                if (m_TxtDetailIcon != null && !string.IsNullOrEmpty(row.Icon))
+                if (m_TxtDetailIcon != null)
                 {
-                    m_TxtDetailIcon.text = GetIconEmoji(row.Icon);
+                    string icon = entry != null && !string.IsNullOrEmpty(entry.icon) ? entry.icon : row.Icon;
+                    m_TxtDetailIcon.text = GetIconEmoji(icon);
                 }
             }
 
@@ -220,6 +334,13 @@ namespace EmojiWar.GameMain.UI
             {
                 CharacterDockEvents.Change(characterId);
             }
+        }
+
+        /// <summary>确认选择：触发确认事件并收起面板。</summary>
+        public void ConfirmSelection()
+        {
+            CharacterDockEvents.Confirm(m_SelectedCharacterId);
+            RequestCollapse();
         }
 
         /// <summary>emoji 码点 → 显示字符（1f605 → 😅 等）。</summary>

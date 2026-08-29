@@ -325,6 +325,10 @@ namespace EmojiWar.GameMain.Network
                 };
             }
             var frame = m_InputFrame;
+            if (Simulation == null)
+            {
+                return;   // 防御：ResetRoom 等切换窗口期 BattleRunning 仍 true 但模拟已置空
+            }
             frame.FrameIndex = Simulation.FrameIndex + 1;
             frame.Count = m_Players.Count;
 
