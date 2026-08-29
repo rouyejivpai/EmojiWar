@@ -95,6 +95,12 @@ namespace EmojiWar.GameMain.UI
             }
 
             RefreshPlayerList(LastPlayerList);
+
+            // 默认展开全屏角色面板（用户需求：进房间即展开，可占全屏）
+            if (!IsCharDockOpen)
+            {
+                ToggleCharDock(true);
+            }
         }
 
         /// <summary>运行时探针（按进程分文件）。</summary>
@@ -200,15 +206,14 @@ namespace EmojiWar.GameMain.UI
             IsCharDockOpen = true;
         }
 
-        /// <summary>角色抽屉内切换角色：更新标签并收起抽屉（网络同步由流程层处理）。</summary>
+        /// <summary>角色面板内切换角色：更新标签（面板保持展开；网络同步由流程层处理）。</summary>
         private void OnDockCharChanged(int characterId)
         {
             if (m_CharDock != null)
             {
                 m_CharDock.RefreshCurrentLabel(characterId);
-                m_CharDock.TogglePanel(false, true);   // 选完自动收起
             }
-            IsCharDockOpen = false;
+            // 注意：不自动收起——用户可在面板停留查看/继续换（收起由顶部按钮/Tab 控制）
         }
 
         /// <summary>关闭角色抽屉（供抽屉自身"收起"按钮回调）。</summary>

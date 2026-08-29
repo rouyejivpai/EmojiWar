@@ -128,10 +128,9 @@ namespace EmojiWar.GameMain
             WriteProbe("[auto] trigger start game");
             UI.MenuForm.TriggerStartGame();
 
-            // 角色选择：自动选 1 号角色
+            // 独立选角色流程已移除：角色在房间内选择（默认 1 号）；直接进大厅
             yield return new WaitForSeconds(3f);
-            WriteProbe("[auto] select character 1");
-            UI.CharacterSelectEvents.Select(1);
+            WriteProbe("[auto] goto lobby (character select removed, default char 1)");
 
             yield return new WaitForSeconds(2f);
             WriteProbe("[auto] trigger join 127.0.0.1:7777");
@@ -213,10 +212,9 @@ namespace EmojiWar.GameMain
             WriteProbe("[auto] trigger start game");
             UI.MenuForm.TriggerStartGame();
 
-            // 角色选择：自动选 1 号角色
+            // 独立选角色流程已移除：角色在房间内选择（默认 1 号）；直接进大厅
             yield return new WaitForSeconds(3f);
-            WriteProbe("[auto] select character 1");
-            UI.CharacterSelectEvents.Select(1);
+            WriteProbe("[auto] goto lobby (character select removed, default char 1)");
 
             yield return new WaitForSeconds(2f);
             WriteProbe("[auto] trigger create room");

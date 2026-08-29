@@ -136,8 +136,14 @@ namespace EmojiWar.GameMain.Editor
         }
 
         /// <summary>
-        /// 生成 CharacterDockForm.prefab（角色选择侧边抽屉，QuickBind 绑定）。
-        /// 停靠屏幕右侧（与 RoomForm 共存）：4 个角色按钮 + 当前角色标签 + 简介面板。
+        /// 生成 CharacterDockForm.prefab（角色选择全屏面板，QuickBind 绑定）。
+        /// 结构：
+        ///   CharacterDockForm（全屏 Canvas 根，raycast 区域）
+        ///   ├── PanelSlide（滑动主体：右缘进/出，含全部内容）
+        ///   │   ├── 顶部：btn_Collapse 收起 + txt_SelectTitle 标题
+        ///   │   ├── 左栏：btn_Char1..4 + txt_Char1Name..4（角色卡片竖排）
+        ///   │   └── 右栏：txt_DetailIcon（大 emoji）+ txt_DetailName/Desc/Stats
+        ///   └── btn_Tab（右侧窄条标签，常驻；点击滑出全屏面板）
         /// </summary>
         private static void CreateCharacterDockFormPrefab()
         {
@@ -157,53 +163,69 @@ namespace EmojiWar.GameMain.Editor
             root.AddComponent<CharacterDockForm>();
             root.AddComponent<QuickBind>();
 
-            // 停靠屏幕右侧（与 RoomForm 同侧；锚右缘，宽度 420）
+            // 根：全屏（raycast 覆盖整屏；SlideTarget 为 PanelSlide 子物体）
             var rootRect = root.GetComponent<RectTransform>();
-            rootRect.anchorMin = new Vector2(1f, 0f);
-            rootRect.anchorMax = new Vector2(1f, 1f);
-            rootRect.pivot = new Vector2(1f, 0.5f);
-            rootRect.anchoredPosition = Vector2.zero;
-            rootRect.sizeDelta = new Vector2(420f, 0f);
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
 
-            // 半透明背景
-            var bg = new GameObject("bg_Panel");
-            bg.transform.SetParent(root.transform, false);
-            var bgRect = bg.AddComponent<RectTransform>();
-            bgRect.anchorMin = Vector2.zero;
-            bgRect.anchorMax = Vector2.one;
-            bgRect.offsetMin = Vector2.zero;
-            bgRect.offsetMax = Vector2.zero;
-            var bgImg = bg.AddComponent<Image>();
-            bgImg.color = new Color(0.05f, 0.1f, 0.16f, 0.9f);
+            // ===== 滑动主体 panel_PanelSlide（锚右缘，宽 1920 全屏；向右滑出） =====
+            // 命名含 panel_ 前缀 → QuickBind 生成 RectTransform 字段 m_PanelSlide
+            var slide = new GameObject("panel_PanelSlide");
+            slide.transform.SetParent(root.transform, false);
+            var slideRect = slide.AddComponent<RectTransform>();
+            slideRect.anchorMin = new Vector2(1f, 0f);
+            slideRect.anchorMax = new Vector2(1f, 1f);
+            slideRect.pivot = new Vector2(1f, 0.5f);
+            slideRect.anchoredPosition = Vector2.zero;
+            slideRect.sizeDelta = new Vector2(1920f, 0f);
+            slide.AddComponent<Image>().color = new Color(0.05f, 0.1f, 0.16f, 0.92f);
 
-            // 收起态标签（约定：txt_；"角色: xxx"）
-            CreateText("txt_CurrentChar", root.transform, "角色", 28, new Vector2(0, 420));
+            // 顶部：标题 + 收起按钮
+            CreateText("txt_SelectTitle", slide.transform, "选择角色", 44, new Vector2(0, 460));
+            CreateButton("btn_Collapse", slide.transform, "收起", new Vector2(-820, 460));
 
-            // 标题
-            CreateText("txt_SelectTitle", root.transform, "选择角色", 36, new Vector2(0, 340));
+            // ===== 左栏：4 个角色卡片（竖排） =====
+            CreateButton("btn_Char1", slide.transform, "角色 1", new Vector2(-500, 250));
+            CreateButton("btn_Char2", slide.transform, "角色 2", new Vector2(-500, 90));
+            CreateButton("btn_Char3", slide.transform, "角色 3", new Vector2(-500, -70));
+            CreateButton("btn_Char4", slide.transform, "角色 4", new Vector2(-500, -230));
+            CreateText("txt_Char1Name", slide.transform, "流汗黄豆", 24, new Vector2(-500, 250));
+            CreateText("txt_Char2Name", slide.transform, "好吃黄豆", 24, new Vector2(-500, 90));
+            CreateText("txt_Char3Name", slide.transform, "硬汉黄豆", 24, new Vector2(-500, -70));
+            CreateText("txt_Char4Name", slide.transform, "快枪黄豆", 24, new Vector2(-500, -230));
 
-            // 4 个角色按钮（约定：btn_）
-            CreateButton("btn_Char1", root.transform, "角色 1", new Vector2(0, 200));
-            CreateButton("btn_Char2", root.transform, "角色 2", new Vector2(0, 100));
-            CreateButton("btn_Char3", root.transform, "角色 3", new Vector2(0, 0));
-            CreateButton("btn_Char4", root.transform, "角色 4", new Vector2(0, -100));
+            // ===== 右栏：选中角色详情 =====
+            CreateText("txt_DetailIcon", slide.transform, "😅", 120, new Vector2(400, 280));
+            CreateText("txt_DetailName", slide.transform, "角色名", 40, new Vector2(400, 120));
+            CreateText("txt_DetailDesc", slide.transform, "描述", 24, new Vector2(400, 20));
+            CreateText("txt_DetailStats", slide.transform, "生命 / 移速 / 金币", 24, new Vector2(400, -100));
 
-            // 角色名（约定：txt_，与按钮同位置）
-            CreateText("txt_Char1Name", root.transform, "流汗黄豆", 22, new Vector2(0, 200));
-            CreateText("txt_Char2Name", root.transform, "好吃黄豆", 22, new Vector2(0, 100));
-            CreateText("txt_Char3Name", root.transform, "硬汉黄豆", 22, new Vector2(0, 0));
-            CreateText("txt_Char4Name", root.transform, "快枪黄豆", 22, new Vector2(0, -100));
+            // 收起态标签（右侧窄条内）
+            CreateText("txt_CurrentChar", root.transform, "角色", 22, new Vector2(0, 0));
 
-            // 简介面板（约定：txt_）
-            CreateText("txt_DetailName", root.transform, "角色名", 28, new Vector2(0, -220));
-            CreateText("txt_DetailDesc", root.transform, "描述", 20, new Vector2(0, -300));
-            CreateText("txt_DetailStats", root.transform, "生命 / 移速", 20, new Vector2(0, -360));
+            // ===== 右侧窄条 Tab（常驻，点击滑出全屏面板） =====
+            var tab = new GameObject("btn_Tab");
+            tab.transform.SetParent(root.transform, false);
+            var tabRect = tab.AddComponent<RectTransform>();
+            tabRect.anchorMin = new Vector2(1f, 0.5f);
+            tabRect.anchorMax = new Vector2(1f, 0.5f);
+            tabRect.pivot = new Vector2(1f, 0.5f);
+            tabRect.anchoredPosition = new Vector2(-8f, 0f);
+            tabRect.sizeDelta = new Vector2(64f, 180f);
+            var tabImg = tab.AddComponent<Image>();
+            tabImg.color = new Color(0.1f, 0.2f, 0.3f, 0.85f);
+            var tabBtn = tab.AddComponent<Button>();
+            tabBtn.targetGraphic = tabImg;
+            var tabLabel = CreateText("TabLabel", tab.transform, "选角色", 20, Vector2.zero);
+            tabLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(56, 160);
 
             QuickBindGenerator.Process(root);
             PrefabUtility.SaveAsPrefabAsset(root, path);
 
             Object.DestroyImmediate(root);
-            Debug.Log("[RoomSetup] CharacterDockForm prefab 已生成（侧边抽屉）: " + path);
+            Debug.Log("[RoomSetup] CharacterDockForm prefab 已生成（全屏面板 + 右侧窄条 Tab）: " + path);
         }
 
         /// <summary>生成 CharacterSelectForm.prefab（4 个角色按钮）。</summary>
@@ -340,3 +362,5 @@ namespace EmojiWar.GameMain.Editor
         }
     }
 }
+
+// touch 22:36: force editor recompile

@@ -7,8 +7,8 @@ namespace EmojiWar.GameMain.UI
 {
 public partial class CharacterDockForm
 {
-    [SerializeField] private UnityEngine.UI.Text m_TxtCurrentChar = null;
     [SerializeField] private UnityEngine.UI.Text m_TxtSelectTitle = null;
+    [SerializeField] private UnityEngine.UI.Button m_BtnCollapse = null;
     [SerializeField] private UnityEngine.UI.Button m_BtnChar1 = null;
     [SerializeField] private UnityEngine.UI.Button m_BtnChar2 = null;
     [SerializeField] private UnityEngine.UI.Button m_BtnChar3 = null;
@@ -17,22 +17,25 @@ public partial class CharacterDockForm
     [SerializeField] private UnityEngine.UI.Text m_TxtChar2Name = null;
     [SerializeField] private UnityEngine.UI.Text m_TxtChar3Name = null;
     [SerializeField] private UnityEngine.UI.Text m_TxtChar4Name = null;
+    [SerializeField] private UnityEngine.UI.Text m_TxtDetailIcon = null;
     [SerializeField] private UnityEngine.UI.Text m_TxtDetailName = null;
     [SerializeField] private UnityEngine.UI.Text m_TxtDetailDesc = null;
     [SerializeField] private UnityEngine.UI.Text m_TxtDetailStats = null;
+    [SerializeField] private UnityEngine.UI.Text m_TxtCurrentChar = null;
+    [SerializeField] private UnityEngine.UI.Button m_BtnTab = null;
 
     /// <summary>由 QuickBind 生成：应用绑定引用。</summary>
     public void QuickBindApplyBindings(EmojiWar.GameMain.UI.QuickBind bind)
     {
-        var go_m_TxtCurrentChar = bind.GetTarget("m_TxtCurrentChar");
-        if (go_m_TxtCurrentChar != null)
-        {
-            m_TxtCurrentChar = go_m_TxtCurrentChar.GetComponent<UnityEngine.UI.Text>();
-        }
         var go_m_TxtSelectTitle = bind.GetTarget("m_TxtSelectTitle");
         if (go_m_TxtSelectTitle != null)
         {
             m_TxtSelectTitle = go_m_TxtSelectTitle.GetComponent<UnityEngine.UI.Text>();
+        }
+        var go_m_BtnCollapse = bind.GetTarget("m_BtnCollapse");
+        if (go_m_BtnCollapse != null)
+        {
+            m_BtnCollapse = go_m_BtnCollapse.GetComponent<UnityEngine.UI.Button>();
         }
         var go_m_BtnChar1 = bind.GetTarget("m_BtnChar1");
         if (go_m_BtnChar1 != null)
@@ -74,6 +77,11 @@ public partial class CharacterDockForm
         {
             m_TxtChar4Name = go_m_TxtChar4Name.GetComponent<UnityEngine.UI.Text>();
         }
+        var go_m_TxtDetailIcon = bind.GetTarget("m_TxtDetailIcon");
+        if (go_m_TxtDetailIcon != null)
+        {
+            m_TxtDetailIcon = go_m_TxtDetailIcon.GetComponent<UnityEngine.UI.Text>();
+        }
         var go_m_TxtDetailName = bind.GetTarget("m_TxtDetailName");
         if (go_m_TxtDetailName != null)
         {
@@ -88,6 +96,16 @@ public partial class CharacterDockForm
         if (go_m_TxtDetailStats != null)
         {
             m_TxtDetailStats = go_m_TxtDetailStats.GetComponent<UnityEngine.UI.Text>();
+        }
+        var go_m_TxtCurrentChar = bind.GetTarget("m_TxtCurrentChar");
+        if (go_m_TxtCurrentChar != null)
+        {
+            m_TxtCurrentChar = go_m_TxtCurrentChar.GetComponent<UnityEngine.UI.Text>();
+        }
+        var go_m_BtnTab = bind.GetTarget("m_BtnTab");
+        if (go_m_BtnTab != null)
+        {
+            m_BtnTab = go_m_BtnTab.GetComponent<UnityEngine.UI.Button>();
         }
     }
 }

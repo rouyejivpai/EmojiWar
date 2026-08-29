@@ -1,7 +1,8 @@
 //------------------------------------------------------------
 // EmojiWar GameMain - 通用侧边抽屉 UI 基类（DOTween 动效）
-// 挂在侧边栏根物体上：提供 展开/收起 两种状态，带滑入/滑出 + 透明度动效。
-// 用法：子类重写 GetPanelRect / GetHiddenPos，调用 TogglePanel(show, animate)。
+// 根物体 = 全屏 Canvas（raycast 区域），SlideTarget = 实际滑动的面板主体。
+// 提供 展开/收起 两种状态，带滑入/滑出 + 透明度动效。
+// 子类重写 GetVisiblePos/GetHiddenPos 决定停靠方向与滑出量。
 // 依赖：DOTween（Packages/com.gameframex.unity.demigiant.dotween）
 //------------------------------------------------------------
 
@@ -33,8 +34,10 @@ namespace EmojiWar.GameMain.UI
         /// <summary>面板是否处于展开（可见）状态。</summary>
         public bool IsVisible { get { return m_IsVisible; } }
 
-        /// <summary>面板 RectTransform（根物体）。</summary>
-        protected RectTransform PanelRect
+        /// <summary>
+        /// 滑动目标：实际移动的面板主体（子类可改为子物体，根 Canvas 保持全屏 raycast）。
+        /// </summary>
+        protected virtual RectTransform SlideTarget
         {
             get
             {
@@ -46,36 +49,54 @@ namespace EmojiWar.GameMain.UI
             }
         }
 
+        /// <summary>根 CanvasGroup（控制整体透明度与 raycast 开关）。</summary>
+        protected CanvasGroup PanelCanvasGroup
+        {
+            get
+            {
+                if (m_CanvasGroup == null)
+                {
+                    m_CanvasGroup = GetComponent<CanvasGroup>();
+                    if (m_CanvasGroup == null)
+                    {
+                        m_CanvasGroup = gameObject.AddComponent<CanvasGroup>();
+                    }
+                }
+                return m_CanvasGroup;
+            }
+        }
+
         /// <summary>展开时的目标位置（子类按停靠边实现）。</summary>
         protected abstract Vector2 GetVisiblePos();
 
         /// <summary>收起时的隐藏位置（滑出屏幕外）。</summary>
         protected abstract Vector2 GetHiddenPos();
 
+        /// <summary>
+        /// raycast 控制器：展开时拦截点击（面板可交互），收起时释放（不挡下层 UI）。
+        /// 默认根 CanvasGroup；若根需常驻可点元素（如收起 Tab），子类可改为 SlideTarget 上的 CanvasGroup。
+        /// </summary>
+        protected virtual CanvasGroup RaycastBlocker
+        {
+            get { return PanelCanvasGroup; }
+        }
+
         protected override void OnInit(object userData)
         {
             base.OnInit(userData);
-            m_CanvasGroup = GetComponent<CanvasGroup>();
-            if (m_CanvasGroup == null)
-            {
-                m_CanvasGroup = gameObject.AddComponent<CanvasGroup>();
-            }
 
             if (m_StartHidden)
             {
                 // 初始隐藏：直接置于屏外（无动效）
                 m_IsVisible = false;
-                if (m_CanvasGroup != null)
-                {
-                    m_CanvasGroup.alpha = 0f;
-                    m_CanvasGroup.blocksRaycasts = false;
-                }
-                PanelRect.anchoredPosition = GetHiddenPos();
+                PanelCanvasGroup.alpha = 0f;
+                RaycastBlocker.blocksRaycasts = false;
+                SlideTarget.anchoredPosition = GetHiddenPos();
             }
             else
             {
                 m_IsVisible = true;
-                PanelRect.anchoredPosition = GetVisiblePos();
+                SlideTarget.anchoredPosition = GetVisiblePos();
             }
         }
 
@@ -96,29 +117,23 @@ namespace EmojiWar.GameMain.UI
 
             if (!animate)
             {
-                PanelRect.anchoredPosition = show ? GetVisiblePos() : GetHiddenPos();
-                if (m_CanvasGroup != null)
-                {
-                    m_CanvasGroup.alpha = show ? 1f : 0f;
-                    m_CanvasGroup.blocksRaycasts = show;
-                }
+                SlideTarget.anchoredPosition = show ? GetVisiblePos() : GetHiddenPos();
+                PanelCanvasGroup.alpha = show ? 1f : 0f;
+                RaycastBlocker.blocksRaycasts = show;
                 return;
             }
 
             // DOTween：位置滑动 + 透明度淡入淡出
             Vector2 targetPos = show ? GetVisiblePos() : GetHiddenPos();
             float targetAlpha = show ? 1f : 0f;
-            m_CanvasGroup.blocksRaycasts = false;   // 动画期间不可交互
+            RaycastBlocker.blocksRaycasts = false;   // 动画期间不可交互
 
             m_AnimTween = DOTween.Sequence()
-                .Join(PanelRect.DOAnchorPos(targetPos, m_AnimDuration).SetEase(m_AnimEase))
-                .Join(m_CanvasGroup.DOFade(targetAlpha, m_AnimDuration))
+                .Join(SlideTarget.DOAnchorPos(targetPos, m_AnimDuration).SetEase(m_AnimEase))
+                .Join(PanelCanvasGroup.DOFade(targetAlpha, m_AnimDuration))
                 .OnComplete(() =>
                 {
-                    if (m_CanvasGroup != null)
-                    {
-                        m_CanvasGroup.blocksRaycasts = m_IsVisible;
-                    }
+                    RaycastBlocker.blocksRaycasts = m_IsVisible;
                     m_AnimTween = null;
                 });
         }
@@ -132,12 +147,9 @@ namespace EmojiWar.GameMain.UI
                 m_AnimTween = null;
             }
             m_IsVisible = true;
-            PanelRect.anchoredPosition = GetVisiblePos();
-            if (m_CanvasGroup != null)
-            {
-                m_CanvasGroup.alpha = 1f;
-                m_CanvasGroup.blocksRaycasts = true;
-            }
+            SlideTarget.anchoredPosition = GetVisiblePos();
+            PanelCanvasGroup.alpha = 1f;
+            RaycastBlocker.blocksRaycasts = true;
         }
 
         protected override void OnClose(bool isShutdown, object userData)

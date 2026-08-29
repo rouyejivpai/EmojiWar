@@ -1,8 +1,12 @@
 //------------------------------------------------------------
-// EmojiWar GameMain - 角色选择侧边抽屉（准备阶段可随时切换角色）
-// 停靠屏幕右侧：展开时展示 4 个角色卡片 + 选中角色简介面板；
-// 收起时滑出屏幕右缘（只露一个"角色"标签按钮）。
-// 动效：DOTween 滑入/滑出（继承 SidePanelForm）。
+// EmojiWar GameMain - 角色选择全屏面板（准备阶段可随时切换角色）
+// 形态：
+//   - 默认展开：全屏面板（左右分栏：左=4 角色卡片竖排，右=选中角色详情），
+//     顶部有"收起"按钮。
+//   - 收起后：面板主体向右滑出屏幕，仅右侧边缘露出一个窄条标签
+//     （btn_Tab，"角色"），点击标签再次滑入全屏面板。
+//   - 与房间面板（RoomForm 右侧窄条）共存：展开时本面板置顶覆盖。
+// 动效：DOTween 滑入/滑出（SidePanelForm 基类，滑动 SlideTarget 子面板）。
 //------------------------------------------------------------
 
 using System;
@@ -18,7 +22,7 @@ namespace EmojiWar.GameMain.UI
         /// <summary>玩家切换角色（参数：角色 ID）。</summary>
         public static event Action<int> OnCharacterChanged;
 
-        /// <summary>角色抽屉已打开（参数：抽屉实例；房间页据此绑定/展开）。</summary>
+        /// <summary>角色面板已打开（参数：面板实例；房间页据此绑定/展开）。</summary>
         public static event Action<CharacterDockForm> OnDockOpened;
 
         public static void Change(int characterId) { OnCharacterChanged?.Invoke(characterId); }
@@ -27,7 +31,7 @@ namespace EmojiWar.GameMain.UI
     }
 
     /// <summary>
-    /// 角色选择侧边抽屉（partial：UI 字段由 QuickBind 生成，见 CharacterDockForm.QuickBind.cs）。
+    /// 角色选择全屏面板（partial：UI 字段由 QuickBind 生成，见 CharacterDockForm.QuickBind.cs）。
     /// </summary>
     public partial class CharacterDockForm : SidePanelForm
     {
@@ -37,19 +41,69 @@ namespace EmojiWar.GameMain.UI
         /// <summary>当前选中角色 ID。</summary>
         public int SelectedCharacterId { get { return m_SelectedCharacterId; } }
 
-        // ============ 侧边抽屉定位（右侧停靠） ============
+        // ============ 面板定位（全屏，右缘滑入/滑出） ============
+
+        /// <summary>滑动主体（panel_PanelSlide 子物体；按名查找，不依赖 QuickBind 字段）。</summary>
+        protected override RectTransform SlideTarget
+        {
+            get
+            {
+                if (m_SlideTarget == null)
+                {
+                    var t = transform.Find("panel_PanelSlide");
+                    if (t == null)
+                    {
+                        t = transform.Find("PanelSlide");
+                    }
+                    if (t != null)
+                    {
+                        m_SlideTarget = t as RectTransform;
+                    }
+                }
+                return m_SlideTarget != null ? m_SlideTarget : base.SlideTarget;
+            }
+        }
+
+        private RectTransform m_SlideTarget = null;
+        private CanvasGroup m_SlideCanvasGroup = null;
+
+        /// <summary>
+        /// raycast 控制器：指向 PanelSlide 上的 CanvasGroup——
+        /// 展开时 PanelSlide 拦截点击（全屏面板可交互），收起时释放（右侧窄条 Tab 保持可点）。
+        /// </summary>
+        protected override CanvasGroup RaycastBlocker
+        {
+            get
+            {
+                var target = SlideTarget;
+                if (target == null)
+                {
+                    return PanelCanvasGroup;
+                }
+                if (m_SlideCanvasGroup == null)
+                {
+                    m_SlideCanvasGroup = target.GetComponent<CanvasGroup>();
+                    if (m_SlideCanvasGroup == null)
+                    {
+                        m_SlideCanvasGroup = target.gameObject.AddComponent<CanvasGroup>();
+                    }
+                }
+                return m_SlideCanvasGroup;
+            }
+        }
 
         protected override Vector2 GetVisiblePos()
         {
-            // 展开：完全在屏幕内（锚右缘），anchoredPosition.x = 0
+            // 展开：面板主体完全在屏幕内（锚 (1,0.5) 右缘，anchoredPosition.x = 0）
             return new Vector2(0f, 0f);
         }
 
         protected override Vector2 GetHiddenPos()
         {
-            // 收起：向右滑出屏幕（面板自身宽度）
-            float panelWidth = PanelRect != null ? PanelRect.rect.width : 420f;
-            return new Vector2(panelWidth + 20f, 0f);
+            // 收起：面板主体向右滑出（宽度 + 余量）；右缘窄条 Tab 常驻可见
+            var target = SlideTarget;
+            float w = target != null ? target.rect.width : 1920f;
+            return new Vector2(w + 30f, 0f);
         }
 
         protected override void OnOpen(object userData)
@@ -58,9 +112,22 @@ namespace EmojiWar.GameMain.UI
 
             LoadCharacters();
             BindButtons();
+
+            // 收起按钮 + 右侧窄条 Tab
+            if (m_BtnCollapse != null)
+            {
+                m_BtnCollapse.onClick.RemoveAllListeners();
+                m_BtnCollapse.onClick.AddListener(() => RequestCollapse());
+            }
+            if (m_BtnTab != null)
+            {
+                m_BtnTab.onClick.RemoveAllListeners();
+                m_BtnTab.onClick.AddListener(() => TogglePanel(true, true));
+            }
+
             SelectCharacter(Procedure.ProcedureBattle.SelectedCharacterId, false);
 
-            // 打开后自动展开（滑入动效），并通知房间页绑定本实例
+            // 默认展开（用户需求：进房间即全屏角色面板），并通知房间页绑定本实例
             ShowImmediate();
             CharacterDockEvents.DockOpened(this);
         }
@@ -143,11 +210,29 @@ namespace EmojiWar.GameMain.UI
                     m_TxtDetailStats.text = string.Format("生命 {0}  ·  移速 {1:F0}  ·  初始金币 {2}",
                         row.MaxHealth, row.MoveSpeed, row.Coin);
                 }
+                if (m_TxtDetailIcon != null && !string.IsNullOrEmpty(row.Icon))
+                {
+                    m_TxtDetailIcon.text = GetIconEmoji(row.Icon);
+                }
             }
 
             if (notify)
             {
                 CharacterDockEvents.Change(characterId);
+            }
+        }
+
+        /// <summary>emoji 码点 → 显示字符（1f605 → 😅 等）。</summary>
+        private static string GetIconEmoji(string code)
+        {
+            try
+            {
+                int cp = Convert.ToInt32(code, 16);
+                return char.ConvertFromUtf32(cp);
+            }
+            catch
+            {
+                return "?";
             }
         }
 
@@ -162,7 +247,7 @@ namespace EmojiWar.GameMain.UI
             }
         }
 
-        /// <summary>抽屉自收起（供"收起"按钮/点击空白区调用）。</summary>
+        /// <summary>面板自收起（顶部"收起"按钮 / 外部调用）。</summary>
         public void RequestCollapse()
         {
             TogglePanel(false, true);

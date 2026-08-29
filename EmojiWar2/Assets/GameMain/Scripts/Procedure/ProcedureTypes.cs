@@ -32,12 +32,12 @@ namespace EmojiWar.GameMain.Procedure
         /// <summary>
         /// 可用流程注册顺序（与 Menu 场景 ProcedureComponent.m_AvailableProcedureTypeNames 一致）。
         /// 数组下标 = 注册顺序（GF 反射创建顺序），入口必须位于其中。
+        /// 注意：独立选角色流程已移除（角色在房间内选择，见 CharacterDockForm）。
         /// </summary>
         public static readonly string[] Available =
         {
             "EmojiWar.GameMain.Procedure.ProcedureLaunch",
             "EmojiWar.GameMain.Procedure.ProcedureMenu",
-            "EmojiWar.GameMain.Procedure.ProcedureCharacterSelect",
             "EmojiWar.GameMain.Procedure.ProcedureLobby",
             "EmojiWar.GameMain.Procedure.ProcedureRoom",
             "EmojiWar.GameMain.Procedure.ProcedureBattle",
