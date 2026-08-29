@@ -103,10 +103,11 @@ namespace EmojiWar.GameMain.Editor
             // 离开/解散按钮（约定：btn_）
             CreateButton("btn_Leave", root.transform, "离开房间", new Vector2(200, -320));
 
-            PrefabUtility.SaveAsPrefabAsset(root, RoomFormPrefabPath);
-
-            // QuickBind：扫描子物体 → 生成 RoomForm.QuickBind.cs 绑定代码
+            // QuickBind：先扫描子物体填充绑定表 + 生成 RoomForm.QuickBind.cs 绑定代码，
+            // 再保存 prefab —— 顺序不能反：若先 SaveAsPrefabAsset，保存的是空绑定表，
+            // 构建版 AssetBundle 里的 prefab 无按钮引用，点击事件不会挂载（按钮无反应）。
             QuickBindGenerator.Process(root);
+            PrefabUtility.SaveAsPrefabAsset(root, RoomFormPrefabPath);
 
             Object.DestroyImmediate(root);
             Debug.Log("[RoomSetup] RoomForm prefab 已生成（QuickBind）: " + RoomFormPrefabPath);

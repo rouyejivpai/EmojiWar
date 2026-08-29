@@ -52,6 +52,15 @@ namespace EmojiWar.GameMain.UI
 
             RoomEvents.OnPlayerListUpdated += OnPlayerListUpdated;
 
+            // 诊断：验证按钮引用是否在构建版正确绑定（QuickBind 绑定表 → m_BtnReady）
+            // 若为 null，说明 AssetBundle(game.dat) 里的 prefab 绑定表为空（未重建资源），
+            // 点击监听不会挂载 → 按钮无反应。
+            var bindComp = GetComponent<QuickBind>();
+            WriteProbe("[roomform] OnOpen: m_BtnReady=" + (m_BtnReady != null ? "OK" : "NULL")
+                + " m_BtnLeave=" + (m_BtnLeave != null ? "OK" : "NULL")
+                + " quickBind=" + (bindComp != null ? "YES" : "NO")
+                + " bindCount=" + (bindComp != null ? bindComp.Bindings.Count.ToString() : "-"));
+
             if (m_TxtTitle != null)
             {
                 m_TxtTitle.text = "联机房间";
@@ -70,6 +79,21 @@ namespace EmojiWar.GameMain.UI
             }
 
             RefreshPlayerList(LastPlayerList);
+        }
+
+        /// <summary>运行时探针（按进程分文件）。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath,
+                    "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
+            }
         }
 
         protected override void OnClose(bool isShutdown, object userData)
