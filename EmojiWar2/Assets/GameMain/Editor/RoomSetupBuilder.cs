@@ -34,9 +34,10 @@ namespace EmojiWar.GameMain.Editor
         {
             UpdateProcedureList();
             CreateRoomFormPrefab();
+            CreateCharacterDockFormPrefab();
             CreateCharacterSelectFormPrefab();
             AssetDatabase.SaveAssets();
-            Debug.Log("[RoomSetup] 完成：流程列表已更新 + RoomForm/CharacterSelectForm prefab 已生成");
+            Debug.Log("[RoomSetup] 完成：流程列表已更新 + RoomForm/CharacterDockForm/CharacterSelectForm prefab 已生成");
         }
 
         /// <summary>更新 Menu 场景的 ProcedureComponent 流程列表（加入 ProcedureRoom）。</summary>
@@ -87,21 +88,42 @@ namespace EmojiWar.GameMain.Editor
             root.AddComponent<RoomForm>();
             root.AddComponent<QuickBind>();
 
+            // ===== 房间面板：停靠屏幕右侧边缘（窄条，不遮挡中央场景） =====
+            var rootRect = root.GetComponent<RectTransform>();
+            rootRect.anchorMin = new Vector2(1f, 0f);      // 锚右缘
+            rootRect.anchorMax = new Vector2(1f, 1f);
+            rootRect.pivot = new Vector2(1f, 0.5f);
+            rootRect.anchoredPosition = Vector2.zero;
+            rootRect.sizeDelta = new Vector2(420f, 0f);    // 右侧 420px 窄条
+
+            // 半透明背景（右侧面板）
+            var bg = new GameObject("bg_Panel");
+            bg.transform.SetParent(root.transform, false);
+            var bgRect = bg.AddComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = Vector2.zero;
+            bgRect.offsetMax = Vector2.zero;
+            var bgImg = bg.AddComponent<Image>();
+            bgImg.color = new Color(0.06f, 0.08f, 0.12f, 0.85f);
+
             // 标题（约定：txt_）
-            CreateText("txt_Title", root.transform, "联机房间", 56, new Vector2(0, 380));
+            CreateText("txt_Title", root.transform, "联机房间", 40, new Vector2(0, 380));
 
             // 玩家列表（约定：txt_）
-            var playerList = CreateText("txt_PlayerList", root.transform, "等待玩家加入...", 32, new Vector2(0, 120));
-            playerList.GetComponent<RectTransform>().sizeDelta = new Vector2(600, 400);
+            var playerList = CreateText("txt_PlayerList", root.transform, "等待玩家加入...", 26, new Vector2(0, 120));
+            playerList.GetComponent<RectTransform>().sizeDelta = new Vector2(380, 400);
             playerList.GetComponent<Text>().alignment = TextAnchor.UpperCenter;
 
             // 状态提示（约定：txt_）
-            CreateText("txt_Status", root.transform, "全部准备后自动开始", 24, new Vector2(0, -180));
+            CreateText("txt_Status", root.transform, "全部准备后自动开始", 20, new Vector2(0, -180));
 
             // 准备按钮（约定：btn_）
-            CreateButton("btn_Ready", root.transform, "准备", new Vector2(-200, -320));
+            CreateButton("btn_Ready", root.transform, "准备", new Vector2(0, -320));
+            // 切换角色按钮（约定：btn_；展开/收起右侧角色抽屉）
+            CreateButton("btn_ChangeChar", root.transform, "切换角色", new Vector2(-100, -420));
             // 离开/解散按钮（约定：btn_）
-            CreateButton("btn_Leave", root.transform, "离开房间", new Vector2(200, -320));
+            CreateButton("btn_Leave", root.transform, "离开房间", new Vector2(100, -420));
 
             // QuickBind：先扫描子物体填充绑定表 + 生成 RoomForm.QuickBind.cs 绑定代码，
             // 再保存 prefab —— 顺序不能反：若先 SaveAsPrefabAsset，保存的是空绑定表，
@@ -110,7 +132,78 @@ namespace EmojiWar.GameMain.Editor
             PrefabUtility.SaveAsPrefabAsset(root, RoomFormPrefabPath);
 
             Object.DestroyImmediate(root);
-            Debug.Log("[RoomSetup] RoomForm prefab 已生成（QuickBind）: " + RoomFormPrefabPath);
+            Debug.Log("[RoomSetup] RoomForm prefab 已生成（右侧边缘布局 + 切换角色按钮，QuickBind）: " + RoomFormPrefabPath);
+        }
+
+        /// <summary>
+        /// 生成 CharacterDockForm.prefab（角色选择侧边抽屉，QuickBind 绑定）。
+        /// 停靠屏幕右侧（与 RoomForm 共存）：4 个角色按钮 + 当前角色标签 + 简介面板。
+        /// </summary>
+        private static void CreateCharacterDockFormPrefab()
+        {
+            const string path = "Assets/GameMain/UI/CharacterDockForm.prefab";
+            EnsureFolder("Assets/GameMain/UI");
+
+            var root = new GameObject("CharacterDockForm");
+            root.layer = LayerMask.NameToLayer("UI");
+
+            var canvas = root.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = root.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            root.AddComponent<GraphicRaycaster>();
+            root.AddComponent<CanvasGroup>();
+            root.AddComponent<CharacterDockForm>();
+            root.AddComponent<QuickBind>();
+
+            // 停靠屏幕右侧（与 RoomForm 同侧；锚右缘，宽度 420）
+            var rootRect = root.GetComponent<RectTransform>();
+            rootRect.anchorMin = new Vector2(1f, 0f);
+            rootRect.anchorMax = new Vector2(1f, 1f);
+            rootRect.pivot = new Vector2(1f, 0.5f);
+            rootRect.anchoredPosition = Vector2.zero;
+            rootRect.sizeDelta = new Vector2(420f, 0f);
+
+            // 半透明背景
+            var bg = new GameObject("bg_Panel");
+            bg.transform.SetParent(root.transform, false);
+            var bgRect = bg.AddComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = Vector2.zero;
+            bgRect.offsetMax = Vector2.zero;
+            var bgImg = bg.AddComponent<Image>();
+            bgImg.color = new Color(0.05f, 0.1f, 0.16f, 0.9f);
+
+            // 收起态标签（约定：txt_；"角色: xxx"）
+            CreateText("txt_CurrentChar", root.transform, "角色", 28, new Vector2(0, 420));
+
+            // 标题
+            CreateText("txt_SelectTitle", root.transform, "选择角色", 36, new Vector2(0, 340));
+
+            // 4 个角色按钮（约定：btn_）
+            CreateButton("btn_Char1", root.transform, "角色 1", new Vector2(0, 200));
+            CreateButton("btn_Char2", root.transform, "角色 2", new Vector2(0, 100));
+            CreateButton("btn_Char3", root.transform, "角色 3", new Vector2(0, 0));
+            CreateButton("btn_Char4", root.transform, "角色 4", new Vector2(0, -100));
+
+            // 角色名（约定：txt_，与按钮同位置）
+            CreateText("txt_Char1Name", root.transform, "流汗黄豆", 22, new Vector2(0, 200));
+            CreateText("txt_Char2Name", root.transform, "好吃黄豆", 22, new Vector2(0, 100));
+            CreateText("txt_Char3Name", root.transform, "硬汉黄豆", 22, new Vector2(0, 0));
+            CreateText("txt_Char4Name", root.transform, "快枪黄豆", 22, new Vector2(0, -100));
+
+            // 简介面板（约定：txt_）
+            CreateText("txt_DetailName", root.transform, "角色名", 28, new Vector2(0, -220));
+            CreateText("txt_DetailDesc", root.transform, "描述", 20, new Vector2(0, -300));
+            CreateText("txt_DetailStats", root.transform, "生命 / 移速", 20, new Vector2(0, -360));
+
+            QuickBindGenerator.Process(root);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+
+            Object.DestroyImmediate(root);
+            Debug.Log("[RoomSetup] CharacterDockForm prefab 已生成（侧边抽屉）: " + path);
         }
 
         /// <summary>生成 CharacterSelectForm.prefab（4 个角色按钮）。</summary>

@@ -29,6 +29,7 @@ namespace EmojiWar.GameMain.Editor
         {
             "Assets/GameMain/UI/MenuForm.prefab",
             "Assets/GameMain/UI/CharacterSelectForm.prefab",
+            "Assets/GameMain/UI/CharacterDockForm.prefab",
             "Assets/GameMain/UI/LobbyForm.prefab",
             "Assets/GameMain/UI/RoomForm.prefab",
             "Assets/GameMain/UI/ShopForm.prefab",

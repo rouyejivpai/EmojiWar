@@ -50,12 +50,40 @@ namespace EmojiWar.GameMain.Procedure
             UI.RoomFormEvents.OnLeaveRequested += OnLeaveRequested;
             UI.RoomEvents.OnBattleStart += OnBattleStart;
             UI.RoomEvents.OnRoomClosed += OnRoomClosed;
+            UI.CharacterDockEvents.OnCharacterChanged += OnCharacterChanged;
             if (m_IsHost)
             {
                 Network.NetHostLogic.OnBattleStartRequested += OnBattleStart;
             }
 
             OpenRoomForm();
+        }
+
+        /// <summary>准备阶段切换角色：Host 本机直接改 / 客户端上报 Host（广播同步全端）。</summary>
+        private void OnCharacterChanged(int characterId)
+        {
+            WriteProbe("[room] 切换角色 -> " + characterId);
+
+            if (m_IsHost)
+            {
+                var hostLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetHostLogic>()
+                    : null;
+                if (hostLogic != null)
+                {
+                    hostLogic.SetLocalCharacter(characterId);
+                }
+            }
+            else
+            {
+                var clientLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetClientLogic>()
+                    : null;
+                if (clientLogic != null)
+                {
+                    clientLogic.RequestChangeCharacter(characterId);
+                }
+            }
         }
 
         /// <summary>
@@ -252,6 +280,7 @@ namespace EmojiWar.GameMain.Procedure
             UI.RoomFormEvents.OnLeaveRequested -= OnLeaveRequested;
             UI.RoomEvents.OnBattleStart -= OnBattleStart;
             UI.RoomEvents.OnRoomClosed -= OnRoomClosed;
+            UI.CharacterDockEvents.OnCharacterChanged -= OnCharacterChanged;
             if (m_IsHost)
             {
                 Network.NetHostLogic.OnBattleStartRequested -= OnBattleStart;

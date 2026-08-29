@@ -20,6 +20,7 @@ namespace EmojiWar.GameMain.Network
         BuyItem = 1201,         // 购买 { shopItemIndex }
         EquipMod = 1202,        // 装备 Mod { modId }
         ReadyChange = 1103,     // 准备/取消准备 { ready }
+        ChangeCharacter = 1104, // 房间内切换角色 { characterId }（C2S + S2C 共用 ID，按方向区分）
 
         // ---- S2C ----
         RoomState = 2001,       // 房间状态 { roomId, players[] }

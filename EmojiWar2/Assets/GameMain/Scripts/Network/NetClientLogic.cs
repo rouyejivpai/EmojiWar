@@ -171,6 +171,16 @@ namespace EmojiWar.GameMain.Network
             Simulation = null;
         }
 
+        /// <summary>房间内切换角色：上报 Host（Host 广播同步全端）。</summary>
+        public void RequestChangeCharacter(int characterId)
+        {
+            if (m_Service != null && m_Service.IsConnected)
+            {
+                m_Service.Send(new C2SChangeCharacter { CharacterId = characterId });
+                WriteProbe("[net] 发送切换角色 char=" + characterId);
+            }
+        }
+
         private void Update()
         {
             if (m_Reconnecting)
@@ -451,6 +461,21 @@ namespace EmojiWar.GameMain.Network
                         };
                         Simulation.ApplyWeapon(wu.EntityId, cfg);
                         WriteProbe("[net] 武器更新 -> entity " + wu.EntityId + " " + wu.WeaponName);
+                    }
+                    break;
+
+                case MsgId.ChangeCharacter:
+                    var cc = message as S2CChangeCharacter;
+                    if (cc != null && Simulation != null)
+                    {
+                        Simulation.ApplyCharacter(cc.EntityId, cc.CharacterId);
+                        // 若切的是本机，同步本地选择与 UI 标签
+                        if (cc.EntityId == m_MyEntityId)
+                        {
+                            Procedure.ProcedureBattle.SelectedCharacterId = cc.CharacterId;
+                            UI.CharacterDockEvents.Change(cc.CharacterId);
+                        }
+                        WriteProbe("[net] 角色变更 -> entity " + cc.EntityId + " char=" + cc.CharacterId);
                     }
                     break;
 

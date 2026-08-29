@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.gameframex.unity.demigiant.dotween": "file:./com.gameframex.unity.demigiant.dotween",
     "com.jiangyin.gameframework": "file:./com.jiangyin.gameframework",
     "com.unity.2d.animation": "9.0.4",
     "com.unity.2d.pixel-perfect": "5.0.3",

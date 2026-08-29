@@ -161,6 +161,24 @@ namespace EmojiWar.GameMain.Network
         }
     }
 
+    /// <summary>房间内切换角色（客户端 → Host；Host 广播 S2CChangeCharacter）。</summary>
+    public sealed class C2SChangeCharacter : NetMessage
+    {
+        public int CharacterId;
+
+        public override MsgId Id { get { return MsgId.ChangeCharacter; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(CharacterId);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            CharacterId = reader.ReadInt32();
+        }
+    }
+
     // ==================== S2C ====================
 
     /// <summary>房间状态。</summary>
@@ -502,6 +520,27 @@ namespace EmojiWar.GameMain.Network
             ReloadTime = reader.ReadSingle();
             BulletSpeed = reader.ReadSingle();
             Spread = reader.ReadSingle();
+        }
+    }
+
+    /// <summary>角色变更广播（Host → 全端；各端同步更新模拟玩家角色）。</summary>
+    public sealed class S2CChangeCharacter : NetMessage
+    {
+        public int EntityId;
+        public int CharacterId;
+
+        public override MsgId Id { get { return MsgId.ChangeCharacter; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(EntityId);
+            writer.Write(CharacterId);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            EntityId = reader.ReadInt32();
+            CharacterId = reader.ReadInt32();
         }
     }
 

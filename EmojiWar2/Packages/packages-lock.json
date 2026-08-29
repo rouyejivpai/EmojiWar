@@ -16,6 +16,12 @@
         "com.unity.test-framework": "1.1.31"
       }
     },
+    "com.gameframex.unity.demigiant.dotween": {
+      "version": "file:com.gameframex.unity.demigiant.dotween",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.jiangyin.gameframework": {
       "version": "file:com.jiangyin.gameframework",
       "depth": 0,

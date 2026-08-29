@@ -200,6 +200,15 @@ namespace EmojiWar.GameMain.Network
             }
         }
 
+        /// <summary>Host 本机切换角色（不走网络；直接走同一处理链，广播给客户端）。</summary>
+        public void SetLocalCharacter(int characterId)
+        {
+            if (m_Players.TryGetValue(0, out var state) && state.CharacterId != characterId)
+            {
+                HandleChangeCharacter(0, new C2SChangeCharacter { CharacterId = characterId });
+            }
+        }
+
         /// <summary>Host 本机（session 0）的网络实体 ID。</summary>
         public int GetLocalEntityId()
         {
@@ -466,7 +475,49 @@ namespace EmojiWar.GameMain.Network
                 case MsgId.ReadyChange:
                     HandleReadyChange(sessionId, message as C2SReadyChange);
                     break;
+
+                case MsgId.ChangeCharacter:
+                    HandleChangeCharacter(sessionId, message as C2SChangeCharacter);
+                    break;
             }
+        }
+
+        /// <summary>
+        /// 处理房间内切换角色：更新玩家状态 + 广播 S2CChangeCharacter（各端同步模拟）。
+        /// 仅房间阶段生效（战斗开始后禁止）。
+        /// </summary>
+        private void HandleChangeCharacter(int sessionId, C2SChangeCharacter change)
+        {
+            if (change == null || !m_Players.TryGetValue(sessionId, out var state))
+            {
+                return;
+            }
+            if (m_BattleStartBroadcasted)
+            {
+                WriteProbe("[net-host] ChangeCharacter ignored (battle already started)");
+                return;
+            }
+            if (change.CharacterId <= 0)
+            {
+                return;
+            }
+
+            state.CharacterId = change.CharacterId;
+
+            // 本地模拟同步（房间阶段 seed=0 模拟中更新该玩家角色）
+            if (Simulation != null)
+            {
+                Simulation.ApplyCharacter(state.EntityId, state.CharacterId);
+            }
+
+            // 广播：所有端（含客户端）同步更新
+            m_Service.BroadcastToClients(new S2CChangeCharacter
+            {
+                EntityId = state.EntityId,
+                CharacterId = state.CharacterId,
+            });
+
+            WriteProbe("[net-host] 玩家 " + sessionId + " 切换角色 -> " + state.CharacterId);
         }
 
         /// <summary>

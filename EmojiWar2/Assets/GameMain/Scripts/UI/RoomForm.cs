@@ -23,6 +23,8 @@ namespace EmojiWar.GameMain.UI
 
     /// <summary>
     /// 联机房间界面（partial：UI 字段由 QuickBind 生成）。
+    /// 布局：停靠屏幕右侧边缘（窄条），包含：标题、玩家列表、准备/离开按钮、
+    /// "切换角色"按钮（展开/收起右侧角色抽屉 CharacterDockForm，准备阶段可随时换角色）。
     /// </summary>
     public partial class RoomForm : UGuiForm
     {
@@ -33,6 +35,12 @@ namespace EmojiWar.GameMain.UI
 
         /// <summary>本机是否已准备。</summary>
         public bool LocalReady { get { return m_LocalReady; } }
+
+        /// <summary>角色抽屉当前是否展开。</summary>
+        public bool IsCharDockOpen { get; private set; } = false;
+
+        /// <summary>角色抽屉（右侧，与房间面板共存；打开时滑入，关闭时滑出）。</summary>
+        private CharacterDockForm m_CharDock = null;
 
         protected override void OnInit(object userData)
         {
@@ -51,6 +59,8 @@ namespace EmojiWar.GameMain.UI
             base.OnOpen(userData);
 
             RoomEvents.OnPlayerListUpdated += OnPlayerListUpdated;
+            CharacterDockEvents.OnDockOpened += OnCharDockOpened;
+            CharacterDockEvents.OnCharacterChanged += OnDockCharChanged;
 
             // 诊断：验证按钮引用是否在构建版正确绑定（QuickBind 绑定表 → m_BtnReady）
             // 若为 null，说明 AssetBundle(game.dat) 里的 prefab 绑定表为空（未重建资源），
@@ -78,6 +88,12 @@ namespace EmojiWar.GameMain.UI
                 m_BtnLeave.onClick.AddListener(OnLeaveClick);
             }
 
+            if (m_BtnChangeChar != null)
+            {
+                m_BtnChangeChar.onClick.RemoveAllListeners();
+                m_BtnChangeChar.onClick.AddListener(OnChangeCharClick);
+            }
+
             RefreshPlayerList(LastPlayerList);
         }
 
@@ -99,6 +115,20 @@ namespace EmojiWar.GameMain.UI
         protected override void OnClose(bool isShutdown, object userData)
         {
             RoomEvents.OnPlayerListUpdated -= OnPlayerListUpdated;
+            CharacterDockEvents.OnDockOpened -= OnCharDockOpened;
+            CharacterDockEvents.OnCharacterChanged -= OnDockCharChanged;
+
+            // 关闭房间时一并收起/关闭角色抽屉
+            if (m_CharDock != null)
+            {
+                var dockForm = m_CharDock;
+                m_CharDock = null;
+                if (dockForm != null && dockForm.gameObject != null)
+                {
+                    UnityEngine.Object.Destroy(dockForm.gameObject);
+                }
+            }
+
             base.OnClose(isShutdown, userData);
         }
 
@@ -110,6 +140,81 @@ namespace EmojiWar.GameMain.UI
         private void OnLeaveClick()
         {
             RoomFormEvents.RequestLeave();
+        }
+
+        /// <summary>切换角色按钮：展开/收起角色抽屉（DOTween 滑入/滑出）。</summary>
+        private void OnChangeCharClick()
+        {
+            ToggleCharDock(!IsCharDockOpen);
+        }
+
+        /// <summary>展开/收起角色抽屉（懒创建，挂到本窗体下保持共存）。</summary>
+        public void ToggleCharDock(bool show)
+        {
+            IsCharDockOpen = show;
+
+            if (show)
+            {
+                if (m_CharDock == null)
+                {
+                    m_CharDock = CreateCharDock();
+                }
+                if (m_CharDock != null)
+                {
+                    m_CharDock.gameObject.SetActive(true);
+                    m_CharDock.TogglePanel(true, true);
+                }
+            }
+            else
+            {
+                if (m_CharDock != null)
+                {
+                    m_CharDock.TogglePanel(false, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 创建角色抽屉：经 UI 框架异步加载 CharacterDockForm.prefab，
+        /// 打开完成（OnDockOpened 事件）后由 OnCharDockOpened 绑定实例并展开。
+        /// </summary>
+        private CharacterDockForm CreateCharDock()
+        {
+            if (GameEntry.UI != null)
+            {
+                GameEntry.UI.OpenUIForm(Constant.UIFormAssetPath.CharacterDockForm, Constant.UIGroup.Default, this);
+            }
+            return null;   // 实例在打开完成后经事件绑定
+        }
+
+        /// <summary>角色抽屉打开完成回调（DockOpened 事件）。</summary>
+        private void OnCharDockOpened(CharacterDockForm dock)
+        {
+            if (dock == null)
+            {
+                return;
+            }
+            m_CharDock = dock;
+            dock.RefreshCurrentLabel(Procedure.ProcedureBattle.SelectedCharacterId);
+            dock.TogglePanel(true, true);
+            IsCharDockOpen = true;
+        }
+
+        /// <summary>角色抽屉内切换角色：更新标签并收起抽屉（网络同步由流程层处理）。</summary>
+        private void OnDockCharChanged(int characterId)
+        {
+            if (m_CharDock != null)
+            {
+                m_CharDock.RefreshCurrentLabel(characterId);
+                m_CharDock.TogglePanel(false, true);   // 选完自动收起
+            }
+            IsCharDockOpen = false;
+        }
+
+        /// <summary>关闭角色抽屉（供抽屉自身"收起"按钮回调）。</summary>
+        public void CloseCharDock()
+        {
+            ToggleCharDock(false);
         }
 
         private void OnPlayerListUpdated(string players)

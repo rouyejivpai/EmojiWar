@@ -712,5 +712,43 @@ namespace EmojiWar.GameMain.Simulation
             player.ReloadTimer = 0f;
             player.FireCooldown = 0f;
         }
+
+        /// <summary>
+        /// 切换玩家角色（房间内准备阶段；各端收到同一 S2CChangeCharacter 后调用，保持确定性）。
+        /// 通过 SimConfigFactory 从数据表重建角色属性与默认武器（单一逻辑源），
+        /// 全端同角色 ID → 同属性，随后模拟 Tick 结果一致。
+        /// </summary>
+        public void ApplyCharacter(int entityId, int characterId)
+        {
+            var player = GetPlayerByEntityId(entityId);
+            if (player == null)
+            {
+                return;
+            }
+
+            var cfg = EmojiWar.GameMain.Simulation.SimConfigFactory.Build(player.SessionId, entityId, characterId);
+            if (cfg == null)
+            {
+                return;
+            }
+
+            player.CharacterId = characterId;
+            player.MoveSpeed = cfg.MoveSpeed;
+            player.WeaponId = cfg.WeaponId;
+            player.WeaponName = cfg.WeaponName;
+            player.WeaponIcon = cfg.WeaponIcon;
+            player.WeaponDamage = cfg.WeaponDamage;
+            player.FireRate = cfg.FireRate;
+            player.MaxAmmo = cfg.MaxAmmo;
+            player.ReloadTime = cfg.ReloadTime;
+            player.BulletSpeed = cfg.BulletSpeed;
+            player.Spread = cfg.Spread;
+
+            // 换武器并重置冷却（确定性）
+            player.Ammo = player.MaxAmmo;
+            player.IsReloading = false;
+            player.ReloadTimer = 0f;
+            player.FireCooldown = 0f;
+        }
     }
 }

@@ -11,6 +11,7 @@ public partial class RoomForm
     [SerializeField] private UnityEngine.UI.Text m_TxtPlayerList = null;
     [SerializeField] private UnityEngine.UI.Text m_TxtStatus = null;
     [SerializeField] private UnityEngine.UI.Button m_BtnReady = null;
+    [SerializeField] private UnityEngine.UI.Button m_BtnChangeChar = null;
     [SerializeField] private UnityEngine.UI.Button m_BtnLeave = null;
 
     /// <summary>由 QuickBind 生成：应用绑定引用。</summary>
@@ -35,6 +36,11 @@ public partial class RoomForm
         if (go_m_BtnReady != null)
         {
             m_BtnReady = go_m_BtnReady.GetComponent<UnityEngine.UI.Button>();
+        }
+        var go_m_BtnChangeChar = bind.GetTarget("m_BtnChangeChar");
+        if (go_m_BtnChangeChar != null)
+        {
+            m_BtnChangeChar = go_m_BtnChangeChar.GetComponent<UnityEngine.UI.Button>();
         }
         var go_m_BtnLeave = bind.GetTarget("m_BtnLeave");
         if (go_m_BtnLeave != null)

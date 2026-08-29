@@ -36,6 +36,7 @@ namespace EmojiWar.GameMain.Network
             Register<C2SPlayerInput>();
             Register<C2SBuyItem>();
             Register<C2SReadyChange>();
+            Register<C2SChangeCharacter>();
             Register<S2CRoomState>();
             Register<S2CBattleStart>();
             Register<S2CPlayerJoined>();
@@ -49,6 +50,7 @@ namespace EmojiWar.GameMain.Network
             Register<S2CRunRestart>();
             Register<S2CMyEntity>();
             Register<S2CWeaponUpdate>();
+            Register<S2CChangeCharacter>();
             Register<S2CInputFrame>();
             Register<S2CPlayerList>();
             Register<S2CRoomClosed>();
