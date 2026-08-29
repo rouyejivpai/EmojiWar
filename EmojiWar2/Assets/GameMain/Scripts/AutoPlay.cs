@@ -11,17 +11,27 @@ using UnityEngine;
 namespace EmojiWar.GameMain
 {
     /// <summary>
-    /// 自动化流程辅助（仅 -autocreate 启动参数时激活）。
+    /// 自动化流程辅助（仅 -autocreate/-autojoin 启动参数时激活）。
+    /// 默认只自动走到"进入房间"；**不自动点准备**（避免单人房间 30 秒后自动开战，
+    /// 以及"意外进入战斗"的观感）。仅当额外传 -autoready 参数时才自动准备/自动开战
+    /// （供双实例一致性等需要全自动验证的场景）。
     /// </summary>
     public class AutoPlay : MonoBehaviour
     {
         private static bool s_Started = false;
         private static bool s_IsJoiner = false;
+        private static bool s_AutoReady = false;
 
         /// <summary>AutoPlay 是否激活（流程据此决定是否保留自动移动，用于回环测试）。</summary>
         public static bool IsActive
         {
             get { return s_Started; }
+        }
+
+        /// <summary>是否自动准备/自动开战（-autoready 参数开启）。</summary>
+        public static bool AutoReady
+        {
+            get { return s_AutoReady; }
         }
 
         public static void TryStart()
@@ -41,7 +51,21 @@ namespace EmojiWar.GameMain
                     var go = new GameObject("AutoPlay");
                     go.AddComponent<AutoPlay>();
                     Debug.Log("[AutoPlay] " + arg + " 参数检测到，启动自动流程");
-                    return;
+                    break;
+                }
+            }
+
+            // 自动准备为显式开关：默认关闭（不自动点准备/不开战），传 -autoready 才启用
+            if (s_Started)
+            {
+                foreach (var arg in args)
+                {
+                    if (arg == "-autoready")
+                    {
+                        s_AutoReady = true;
+                        Debug.Log("[AutoPlay] -autoready 参数检测到，启用自动准备/自动开战");
+                        break;
+                    }
                 }
             }
         }
@@ -112,6 +136,13 @@ namespace EmojiWar.GameMain
             yield return new WaitForSeconds(2f);
             WriteProbe("[auto] trigger join 127.0.0.1:7777");
             UI.LobbyForm.TriggerJoinRoom("127.0.0.1", Network.NetworkService.DefaultPort);
+
+            // 自动准备为显式开关（-autoready）：默认不自动准备，等待手动点"准备"
+            if (!s_AutoReady)
+            {
+                WriteProbe("[auto] joiner 进入房间，等待手动准备（未传 -autoready）");
+                yield break;
+            }
 
             // 进入房间后自动准备
             yield return new WaitForSeconds(3f);
@@ -190,6 +221,14 @@ namespace EmojiWar.GameMain
             yield return new WaitForSeconds(2f);
             WriteProbe("[auto] trigger create room");
             UI.LobbyForm.TriggerCreateRoom();
+
+            // 自动准备为显式开关（-autoready）：默认不自动准备，等待手动点"准备"。
+            // （此前固定 30 秒自动准备会导致单人房间在 30 秒后自动开战，即"意外进入战斗"的根因）
+            if (!s_AutoReady)
+            {
+                WriteProbe("[auto] host 进入房间，等待手动准备（未传 -autoready）");
+                yield break;
+            }
 
             // 进入房间后自动准备（延迟等待其他玩家加入；全部准备后自动开始）
             yield return new WaitForSeconds(30f);

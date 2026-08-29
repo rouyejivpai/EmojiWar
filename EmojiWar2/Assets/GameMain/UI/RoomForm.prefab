@@ -134,11 +134,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_TransitionDuration: 0.2
-  m_BtnReady: {fileID: 0}
-  m_BtnLeave: {fileID: 0}
+  m_TxtTitle: {fileID: 0}
   m_TxtPlayerList: {fileID: 0}
   m_TxtStatus: {fileID: 0}
-  m_TxtTitle: {fileID: 0}
+  m_BtnReady: {fileID: 0}
+  m_BtnLeave: {fileID: 0}
 --- !u!114 &104866177849147090
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -151,7 +151,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 77acb98e68feb004daa4214a8f887012, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_Bindings: []
+  m_Bindings:
+  - fieldName: m_TxtTitle
+    target: {fileID: 8138337030127338936}
+    typeName: UnityEngine.UI.Text
+  - fieldName: m_TxtPlayerList
+    target: {fileID: 8692610139105995523}
+    typeName: UnityEngine.UI.Text
+  - fieldName: m_TxtStatus
+    target: {fileID: 8477216470407733960}
+    typeName: UnityEngine.UI.Text
+  - fieldName: m_BtnReady
+    target: {fileID: 5850676662282839840}
+    typeName: UnityEngine.UI.Button
+  - fieldName: m_BtnLeave
+    target: {fileID: 2285910774568615244}
+    typeName: UnityEngine.UI.Button
 --- !u!1 &2285910774568615244
 GameObject:
   m_ObjectHideFlags: 0

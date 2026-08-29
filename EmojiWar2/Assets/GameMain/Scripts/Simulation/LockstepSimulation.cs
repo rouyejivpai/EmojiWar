@@ -124,6 +124,14 @@ namespace EmojiWar.GameMain.Simulation
         public bool ShopOpen { get; private set; }
         public bool BattleOver { get; private set; }
 
+        /// <summary>
+        /// 波次是否已启动（仅战斗开始后为 true）。
+        /// 房间阶段（seed=0 房间模拟）未调用 StartWave，此标志为 false：
+        /// UpdateWave 不会自动开波/生成敌人/开商店，模拟仅驱动玩家移动。
+        /// 修复：此前房间模拟会在无敌人时自动 ShopOpen→StartWave(1)，导致"停在房间却自动开战"。
+        /// </summary>
+        public bool WaveStarted { get; private set; }
+
         private SimRandom m_Rng;
         private readonly List<SimPlayer> m_Players = new List<SimPlayer>();
         private readonly List<SimEnemy> m_Enemies = new List<SimEnemy>();
@@ -192,6 +200,7 @@ namespace EmojiWar.GameMain.Simulation
             WaveIndex = 0;
             ShopOpen = false;
             BattleOver = false;
+            WaveStarted = false;   // 房间阶段不自动开波（战斗开始经 StartWave 置位）
             m_EnemiesToSpawn = 0;
             m_SpawnTimer = 0f;
             m_ShopTimer = 0f;
@@ -502,6 +511,13 @@ namespace EmojiWar.GameMain.Simulation
         /// <summary>波次状态机（确定性：按 tick 计数，不用协程）。</summary>
         private void UpdateWave()
         {
+            // 房间阶段守卫：未 StartWave 前不推进波次（不生成敌人/不开商店/不自动开战），
+            // 模拟仅驱动玩家移动。战斗开始后（WaveStarted=true）才进入波次循环。
+            if (!WaveStarted)
+            {
+                return;
+            }
+
             if (ShopOpen)
             {
                 m_ShopTimer -= TickInterval;
@@ -562,6 +578,7 @@ namespace EmojiWar.GameMain.Simulation
         public void StartWave(int waveIndex)
         {
             WaveIndex = waveIndex;
+            WaveStarted = true;
             int count = 3 + (waveIndex - 1) * 2;
             EnemiesPerWaveCount = count;
             m_EnemiesToSpawn = count;
