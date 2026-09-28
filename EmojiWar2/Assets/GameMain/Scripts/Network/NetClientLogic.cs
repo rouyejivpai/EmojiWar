@@ -181,6 +181,16 @@ namespace EmojiWar.GameMain.Network
             }
         }
 
+        /// <summary>商店阶段"继续"：上报 Host（Host 权威开始下一波并广播 S2CShopContinue）。</summary>
+        public void RequestShopContinue()
+        {
+            if (m_Service != null && m_Service.IsConnected)
+            {
+                m_Service.Send(new C2SShopContinue());
+                WriteProbe("[net] 发送商店继续请求");
+            }
+        }
+
         private void Update()
         {
             if (m_Reconnecting)
@@ -299,6 +309,17 @@ namespace EmojiWar.GameMain.Network
         private C2SPlayerInput m_InputMsg = null;   // 复用的上行输入消息（避免高频分配）
         private float m_InputSendTimer = 0f;        // 上行输入 20Hz 节流计时
         private readonly Dictionary<int, SimIntent> m_InputsCache = new Dictionary<int, SimIntent>(4);   // 复用输入帧字典
+
+        // ---- 定期状态对账（帧哈希环）----
+        private const int HashRingSize = 256;                  // 环容量（256 帧 ≈ 12.8 秒回溯窗口，覆盖 TCP 合帧/缓冲延迟）
+        private readonly int[] m_HashRingFrame = new int[HashRingSize];    // 环：帧号（int.MinValue=空）
+        private readonly long[] m_HashRingValue = new long[HashRingSize];  // 环：该帧状态哈希
+        private int m_HashRingHead = 0;                                     // 下一个写入槽
+        private int m_CheckFrame = -1;                          // 待校验帧号（-1 无）
+        private long m_CheckHash = 0;                           // 待校验 Host 哈希
+        private int m_DesyncCount = 0;                          // 累计不同步次数
+        private bool m_OutOfSyncWithBattle = false;              // ★ 收到 StateCheck 却仍停在房间模拟 = 已脱节
+        private int m_StaleFrameStreak = 0;                      // ★ 连续"帧号倒退"计数（脱节检测用）
 
         /// <summary>本机角色 ID（本地玩家当前角色；无玩家时用上次选择）。</summary>
         private int GetLocalCharacterId()
@@ -443,6 +464,10 @@ namespace EmojiWar.GameMain.Network
                     HandleInputFrame(message as S2CInputFrame);
                     break;
 
+                case MsgId.StateCheck:
+                    HandleStateCheck(message as S2CStateCheck);
+                    break;
+
                 case MsgId.WeaponUpdate:
                     var wu = message as S2CWeaponUpdate;
                     if (wu != null && Simulation != null)
@@ -451,16 +476,20 @@ namespace EmojiWar.GameMain.Network
                         {
                             WeaponId = wu.WeaponId,
                             WeaponName = wu.WeaponName,
-                            WeaponIcon = wu.WeaponIcon,
                             WeaponDamage = wu.Damage,
                             FireRate = wu.FireRate,
-                            MaxAmmo = wu.MaxAmmo,
-                            ReloadTime = wu.ReloadTime,
                             BulletSpeed = wu.BulletSpeed,
-                            Spread = wu.Spread,
                         };
                         Simulation.ApplyWeapon(wu.EntityId, cfg);
                         WriteProbe("[net] 武器更新 -> entity " + wu.EntityId + " " + wu.WeaponName);
+                    }
+                    break;
+
+                case MsgId.ShopContinue:
+                    if (Simulation != null)
+                    {
+                        Simulation.RequestNextWave();
+                        WriteProbe("[net-client] 商店继续 → 开始下一波 wave=" + Simulation.WaveIndex);
                     }
                     break;
 
@@ -469,11 +498,14 @@ namespace EmojiWar.GameMain.Network
                     if (cc != null && Simulation != null)
                     {
                         Simulation.ApplyCharacter(cc.EntityId, cc.CharacterId);
-                        // 若切的是本机，同步本地选择与 UI 标签
+                        // 若切的是本机：同步静态选择值。
+                        // 注意：不能再次触发 CharacterDockEvents.Change —— 该事件被 ProcedureRoom
+                        // 订阅用于"上行请求"，而本消息正是自己上行请求的 Host 回包（Host 广播给所有
+                        // 客户端含发起者）；再次触发会造成"回包→再上行→再回包"无限循环（仅非主机发生，
+                        // 主机走本地 SetLocalCharacter 无回包）。UI 标签已在点击卡片时刷新，回包无需再刷。
                         if (cc.EntityId == m_MyEntityId)
                         {
                             Procedure.ProcedureBattle.SelectedCharacterId = cc.CharacterId;
-                            UI.CharacterDockEvents.Change(cc.CharacterId);
                         }
                         WriteProbe("[net] 角色变更 -> entity " + cc.EntityId + " char=" + cc.CharacterId);
                     }
@@ -486,6 +518,18 @@ namespace EmojiWar.GameMain.Network
                     m_Reconnecting = false;
                     ClearSimulation();
                     UI.RoomEvents.RoomClosed();
+                    break;
+
+                case MsgId.JoinRejected:
+                    var jr = message as S2CJoinRejected;
+                    string reason = jr != null ? jr.Reason : "未知原因";
+                    WriteProbe("[net] 加入被拒绝: " + reason);
+                    Debug.LogWarning("[NetClientLogic] 加入被拒绝: " + reason);
+                    m_IntentionalLeave = true;
+                    m_Joined = false;
+                    m_Reconnecting = false;
+                    ClearSimulation();
+                    UI.RoomEvents.RoomClosed();   // 复用既有链路：ProcedureRoom.OnRoomClosed → 返回多人游戏页
                     break;
 
                 case MsgId.MyEntity:
@@ -512,6 +556,43 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
 
+            // ★ 已确认脱节：冻结本地模拟，不再消费战斗输入帧。
+            //   以前会让房间模拟继续 tick，甚至替玩家朝空气开火（2026-09-28 实测 bullets=2~3）。
+            if (m_OutOfSyncWithBattle)
+            {
+                return;
+            }
+
+            // 帧号连续性守卫：TCP 保序下帧号应恒为 本地+1。
+            //  - 重复/过期帧（<= 本地）：丢弃，防止重复推进导致双端错位。
+            //  - 跳帧（> 本地+1）：战斗阶段记录告警（不同步排查线索）；仍按收到的帧推进（不重放缺口帧输入，
+            //    因为缺口意味着确定性已被破坏，重放也无法恢复——交给状态对账检测）。
+            //    房间阶段迟到加入的客户端本地帧号落后是常态（自己加入后才建模拟），不告警。
+            int localFrame = Simulation.FrameIndex;
+            bool inBattle = Simulation.Seed != 0;
+            if (frame.FrameIndex <= localFrame)
+            {
+                WriteProbe("[net] 丢弃过期输入帧 recv=" + frame.FrameIndex + " local=" + localFrame);
+                // ★ 脱节检测（比 StateCheck 版本更快，不依赖那 1 秒节奏）：
+                //   房主帧号"倒退"= 它重置过模拟（开战 BattleStart，或重开 RunRestart）。
+                //   正常房间阶段客户端帧号恒落后于房主（本地从 0 起、房主已跑了 H 帧），
+                //   所以连续多次 <= 本地帧 只可能是"我漏掉了那次重置"。
+                if (Simulation.Seed == 0 && ++m_StaleFrameStreak >= 5 && !m_OutOfSyncWithBattle)
+                {
+                    m_OutOfSyncWithBattle = true;
+                    string err = "[net] ⚠ 连续 " + m_StaleFrameStreak + " 帧帧号倒退（recv=" + frame.FrameIndex
+                        + " local=" + localFrame + "）且本地仍是房间模拟（seed=0）→ 漏掉了 S2CBattleStart/RunRestart，已与对局脱节！";
+                    WriteProbe(err);
+                    Debug.LogError("[NetClientLogic] " + err);
+                }
+                return;
+            }
+            m_StaleFrameStreak = 0;
+            if (inBattle && frame.FrameIndex > localFrame + 1)
+            {
+                WriteProbe("[net] 输入帧跳号 recv=" + frame.FrameIndex + " local=" + localFrame + "（缺口，确定性可能已破坏）");
+            }
+
             m_LastFrameTime = Time.realtimeSinceStartup;   // 插值计时基准
 
             // 复用输入字典（20Hz 每帧调用，避免高频分配）
@@ -532,6 +613,98 @@ namespace EmojiWar.GameMain.Network
             }
 
             Simulation.Tick(m_InputsCache);
+
+            // 记录本帧状态哈希到环形缓冲（定期对账用：StateCheck 到达时按帧号精确回查，
+            // 避免 TCP 合并送达导致"本地已跨过该帧"而无法对比当前哈希）。
+            RecordFrameHash(Simulation.FrameIndex);
+
+            // 对账帧若恰好落在本 tick：从环中取该帧哈希对比
+            if (m_CheckFrame >= 0 && Simulation.FrameIndex >= m_CheckFrame)
+            {
+                TryVerifyFrame(m_CheckFrame, m_CheckHash);
+                m_CheckFrame = -1;
+            }
+        }
+
+        /// <summary>处理定期状态对账：按帧号从哈希环回查对比，不等即不同步。</summary>
+        private void HandleStateCheck(S2CStateCheck check)
+        {
+            if (check == null || Simulation == null)
+            {
+                return;
+            }
+            // Host 仅在战斗阶段下发 StateCheck；房间模拟（seed=0，玩家加入时序不同哈希天然不等）不比对。
+            // ★ 但"收到 StateCheck 却仍是 seed=0 房间模拟"= 我错过了 S2CBattleStart，已与对局脱节。
+            //   以前这里静默 return → 两端处于完全不同的世界却一条告警都没有（2026-09-28 实测 P0）。
+            if (Simulation.Seed == 0)
+            {
+                if (!m_OutOfSyncWithBattle)
+                {
+                    m_OutOfSyncWithBattle = true;
+                    string err = "[net] ⚠ 收到 StateCheck 但本地仍是房间模拟（seed=0）→ 错过了 S2CBattleStart，已与对局脱节！"
+                        + " hostFrame=" + check.FrameIndex + " localFrame=" + Simulation.FrameIndex;
+                    WriteProbe(err);
+                    Debug.LogError("[NetClientLogic] " + err);
+                }
+                return;
+            }
+            if (check.FrameIndex <= Simulation.FrameIndex)
+            {
+                // 本地已推进到该帧或更远：立即从环回查
+                TryVerifyFrame(check.FrameIndex, check.StateHash);
+            }
+            else
+            {
+                // 本地尚未到达该帧：缓存，待 HandleInputFrame tick 到该帧后对比
+                m_CheckFrame = check.FrameIndex;
+                m_CheckHash = check.StateHash;
+            }
+        }
+
+        /// <summary>从帧哈希环中查找指定帧的本地哈希并对比 Host 值。</summary>
+        private void TryVerifyFrame(int frameIndex, long hostHash)
+        {
+            for (int i = 0; i < HashRingSize; i++)
+            {
+                if (m_HashRingFrame[i] == frameIndex)
+                {
+                    long localHash = m_HashRingValue[i];
+                    if (localHash != hostHash)
+                    {
+                        m_DesyncCount++;
+                        string msg = string.Format("[net] 不同步! frame={0} host={1} local={2} total={3}",
+                            frameIndex, hostHash, localHash, m_DesyncCount);
+                        WriteProbe(msg);
+                        Debug.LogError("[NetClientLogic] " + msg);
+                    }
+                    else
+                    {
+                        WriteProbe("[net] 对账一致 frame=" + frameIndex + " hash=" + hostHash);
+                    }
+                    return;
+                }
+            }
+            // 帧不在环（本地落后过远/换模拟清空）：本轮跳过，下个 StateCheck 会再对
+            WriteProbe("[net] 对账跳过 frame=" + frameIndex + "（不在本地哈希环）");
+        }
+
+        /// <summary>记录一帧的状态哈希（环形缓冲；每 tick 一次，战斗阶段开销可忽略）。</summary>
+        private void RecordFrameHash(int frameIndex)
+        {
+            m_HashRingFrame[m_HashRingHead] = frameIndex;
+            m_HashRingValue[m_HashRingHead] = Simulation.ComputeStateHash();
+            m_HashRingHead = (m_HashRingHead + 1) % HashRingSize;
+        }
+
+        /// <summary>清空哈希环与待校验帧（换模拟/重建时调用，防旧帧号误命中）。</summary>
+        private void ResetHashRing()
+        {
+            for (int i = 0; i < HashRingSize; i++)
+            {
+                m_HashRingFrame[i] = int.MinValue;
+            }
+            m_HashRingHead = 0;
+            m_CheckFrame = -1;
         }
 
         /// <summary>处理实体生成：玩家进名册并加入本地模拟（玩家位置由模拟驱动）。</summary>
@@ -565,6 +738,9 @@ namespace EmojiWar.GameMain.Network
         private void InitializeBattleSimulation(int seed)
         {
             Simulation = new Simulation.LockstepSimulation();
+            ResetHashRing();   // 换模拟：清空哈希环，防旧帧号误命中
+            // 注入波次平衡参数（与 Host 同资产同值，确定性一致）
+            Simulation.ApplyBattleConfig(GameEntry.Data != null ? GameEntry.Data.Battle : null);
 
             var configs = new List<Simulation.SimPlayerConfig>();
             foreach (var kv in m_Roster)
@@ -578,7 +754,8 @@ namespace EmojiWar.GameMain.Network
             }
 
             Simulation.Initialize(seed, configs);
-            Simulation.StartWave(1);
+            // 开局先进**准备阶段商店**（WaveIndex=0，不出敌人），玩家点"继续"才 StartWave(1)
+            Simulation.PrepareFirstWave();
             WriteProbe("[net] 战斗模拟初始化 seed=" + seed + " players=" + configs.Count);
             Debug.Log("[NetClientLogic] 战斗确定性模拟已初始化，玩家数 " + configs.Count);
 
@@ -600,6 +777,7 @@ namespace EmojiWar.GameMain.Network
                 return;
             }
             Simulation = new Simulation.LockstepSimulation();
+            ResetHashRing();   // 换模拟：清空哈希环
             Simulation.Initialize(0, null);
             if (m_MyEntityId >= 0)
             {
@@ -669,6 +847,12 @@ namespace EmojiWar.GameMain.Network
         public bool IsReconnecting
         {
             get { return m_Reconnecting; }
+        }
+
+        /// <summary>是否已确认与对局脱节（停在房间模拟却收到了战斗对账/帧号倒退）。供 HUD 告警用。</summary>
+        public bool IsOutOfSyncWithBattle
+        {
+            get { return m_OutOfSyncWithBattle; }
         }
     }
 }

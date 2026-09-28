@@ -136,25 +136,20 @@ namespace EmojiWar.GameMain.Shop
         /// <summary>
         /// 权重随机抽取武器。
         /// </summary>
-        private static Data.DRWeapon RollWeapon()
+        private static Data.WeaponSO RollWeapon()
         {
-            var weapons = new List<Data.DRWeapon>();
-            var table = GameEntry.DataTable != null
-                ? GameEntry.DataTable.GetDataTable<Data.DRWeapon>("Weapon")
-                : null;
-            if (table == null)
+            var weapons = GameEntry.Data != null ? GameEntry.Data.GetAllWeapons() : null;
+            if (weapons == null || weapons.Count == 0)
             {
                 return null;
             }
-            table.GetAllDataRows(weapons);
-
             return WeightedPick(weapons, w => w.Weight);
         }
 
         /// <summary>
         /// 权重随机抽取 Mod。
         /// </summary>
-        private static Data.DRMod RollMod()
+        private static Data.ModSO RollMod()
         {
             var mods = GameEntry.Data.GetAllMods();
             return WeightedPick(mods, m => m.Weight);

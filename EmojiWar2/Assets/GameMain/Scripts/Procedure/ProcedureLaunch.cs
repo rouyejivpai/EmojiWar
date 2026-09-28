@@ -61,11 +61,19 @@ namespace EmojiWar.GameMain.Procedure
             Log.Info("[ProcedureLaunch] 资源初始化完成，加载数据表...");
             WriteProbe("[launch] resources init complete");
 
-            // 初始化数据组件（加载 Character/Weapon 等 DataTable）
+            // 初始化数据组件（加载 Resources/Data/** 下的 SO 配置：角色/武器/Mod/选角展示/战斗参数）
             if (GameEntry.Data != null)
             {
                 GameEntry.Data.Init();
             }
+
+            // 配置服务：建索引 + 启动校验 + 计算配置版本哈希（联机一致性用）
+            Data.ConfigService.Rebuild();
+
+            // 初始装备：必须在**配置就绪之后、任何 SimPlayerConfig 构建之前**发放
+            // （建房时 AddPlayer → SimConfigFactory.Build 就会编译双手施法程序）。
+            // 放到 GameEntry 初始化里会因 GameEntry.Data 尚未就绪而发不出去。
+            ItemSystem.GrantStartingLoadout();
 
             // 进入主菜单流程
             ChangeState<ProcedureMenu>(m_ProcedureFsm);

@@ -59,7 +59,11 @@ namespace EmojiWar.GameMain.UI
 
             if (m_InfoText != null)
             {
-                m_InfoText.text = "波间商店：购买强化，继续闯关";
+                // WaveIndex=0 = **准备阶段商店**（开局先买/先搭配序列），点继续才开始第 1 波
+                int wave = sim != null ? sim.WaveIndex : -1;
+                m_InfoText.text = wave == 0
+                    ? "准备阶段：先装备与编排法术序列，点「继续」开始第 1 波"
+                    : "波间商店：购买强化，继续闯关";
             }
 
             if (m_ContinueButton != null)
@@ -157,7 +161,7 @@ namespace EmojiWar.GameMain.UI
                 var weapon = GameEntry.Data.GetWeapon(item.DataId);
                 if (weapon != null)
                 {
-                    return Art.ArtManager.GetWeaponSprite(weapon.Icon);
+                    return weapon.IconSprite;
                 }
             }
             else
@@ -165,7 +169,7 @@ namespace EmojiWar.GameMain.UI
                 var mod = GameEntry.Data.GetMod(item.DataId);
                 if (mod != null)
                 {
-                    return Art.ArtManager.GetWeaponSprite(mod.Icon);
+                    return mod.IconSprite;
                 }
             }
             return null;
@@ -261,10 +265,24 @@ namespace EmojiWar.GameMain.UI
                 GameEntry.UI.CloseUIForm(UIForm);
             }
 
-            // 网络模式：波次由确定性模拟自动推进（商店计时到即开下一波），无需额外恢复
-            var sim = GameEntry.SimView != null ? GameEntry.SimView.Simulation : null;
-            if (sim != null)
+            // 网络模式：由玩家显式确认开始下一波（修复：此前靠 ShopDuration 计时自动开波 → 波间错误刷敌人）
+            var net = GameEntry.NetworkService;
+            if (net != null && net.Mode != Network.NetMode.Offline)
             {
+                if (net.Mode == Network.NetMode.Host)
+                {
+                    var hostLogic = GameEntry.Instance != null
+                        ? GameEntry.Instance.GetComponentInChildren<Network.NetHostLogic>()
+                        : null;
+                    if (hostLogic != null) { hostLogic.RequestShopContinue(); }
+                }
+                else
+                {
+                    var clientLogic = GameEntry.Instance != null
+                        ? GameEntry.Instance.GetComponentInChildren<Network.NetClientLogic>()
+                        : null;
+                    if (clientLogic != null) { clientLogic.RequestShopContinue(); }
+                }
                 return;
             }
 

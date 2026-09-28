@@ -1,6 +1,6 @@
 //------------------------------------------------------------
 // EmojiWar GameMain - 武器基类（数据驱动重构）
-// 武器参数来自 DRWeapon 数据表，逻辑与表现分离。
+// 武器参数来自 WeaponSO（ScriptableObject），逻辑与表现分离。
 //------------------------------------------------------------
 
 using UnityEngine;
@@ -80,12 +80,12 @@ namespace EmojiWar.GameMain.Weapon
             }
         }
 
-        /// <summary>是否可开火。</summary>
+        /// <summary>是否可开火（弹药已取消：无限释放，只受射速冷却限制）。</summary>
         public bool CanFire
         {
             get
             {
-                return !m_IsReloading && m_CurrentAmmo > 0 && Time.time - m_LastFireTime >= 1f / Mathf.Max(0.01f, FireRate);
+                return Time.time - m_LastFireTime >= 1f / Mathf.Max(0.01f, FireRate);
             }
         }
 
@@ -110,7 +110,7 @@ namespace EmojiWar.GameMain.Weapon
         /// <summary>
         /// 从数据行配置武器参数。
         /// </summary>
-        public void Configure(Data.DRWeapon row)
+        public void Configure(Data.WeaponSO row)
         {
             if (row == null)
             {
@@ -135,7 +135,7 @@ namespace EmojiWar.GameMain.Weapon
         }
 
         /// <summary>
-        /// 尝试开火（含冷却与弹药检查）。
+        /// 尝试开火（弹药已取消：无限释放，只受射速冷却限制，不消耗弹药）。
         /// </summary>
         public virtual bool TryFire(Vector2 target)
         {
@@ -147,7 +147,6 @@ namespace EmojiWar.GameMain.Weapon
             if (Fire(target))
             {
                 m_LastFireTime = Time.time;
-                m_CurrentAmmo--;
                 return true;
             }
 
@@ -157,25 +156,10 @@ namespace EmojiWar.GameMain.Weapon
         /// <summary>具体开火逻辑（子类实现）。</summary>
         protected abstract bool Fire(Vector2 target);
 
-        /// <summary>
-        /// 装弹。
-        /// </summary>
+        /// <summary>装弹（弹药已取消：空操作保留，避免调用方报错）。</summary>
         public virtual void Reload()
         {
-            if (m_IsReloading || m_CurrentAmmo == m_MaxAmmo)
-            {
-                return;
-            }
-
-            StartCoroutine(ReloadCoroutine());
-        }
-
-        protected virtual System.Collections.IEnumerator ReloadCoroutine()
-        {
-            m_IsReloading = true;
-            yield return new WaitForSeconds(m_ReloadTime);
-            m_CurrentAmmo = m_MaxAmmo;
-            m_IsReloading = false;
+            // 无限弹药：无需装弹
         }
 
         /// <summary>开火进度（0~1，用于 UI 冷却条）。</summary>
@@ -186,11 +170,11 @@ namespace EmojiWar.GameMain.Weapon
             return Mathf.Clamp01(progress);
         }
 
-        /// <summary>武器信息（UI 展示）。</summary>
+        /// <summary>武器信息（UI 展示；弹药已取消 → ∞）。</summary>
         public virtual string GetWeaponInfo()
         {
-            return string.Format("{0} - 弹药 {1}/{2} - 伤害 {3} - 射速 {4:F1}/s",
-                m_WeaponName, m_CurrentAmmo, m_MaxAmmo, m_Damage, FireRate);
+            return string.Format("{0} - 弹药 ∞ - 伤害 {1} - 射速 {2:F1}/s",
+                m_WeaponName, m_Damage, FireRate);
         }
     }
 }

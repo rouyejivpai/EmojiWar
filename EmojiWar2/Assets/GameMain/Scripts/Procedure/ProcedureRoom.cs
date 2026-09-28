@@ -41,6 +41,21 @@ namespace EmojiWar.GameMain.Procedure
             m_IsHost = GameEntry.NetworkService != null && GameEntry.NetworkService.Mode == Network.NetMode.Host;
             m_LocalReady = false;
 
+            // 注入本机玩家名（RoomForm 列表高亮自己）：
+            //   Host = 房主名（session0）；Client = Multiplayer 页填的名字（或 ClientLogic 名）
+            if (m_IsHost)
+            {
+                var hostLogic = GameEntry.Instance != null
+                    ? GameEntry.Instance.GetComponentInChildren<Network.NetHostLogic>()
+                    : null;
+                UI.RoomForm.LocalPlayerName = hostLogic != null ? hostLogic.GetHostName() : "房主";
+            }
+            else
+            {
+                string name = Procedure.ProcedureMultiplayer.PlayerName;
+                UI.RoomForm.LocalPlayerName = string.IsNullOrEmpty(name) ? "玩家" : name;
+            }
+
             // 房间页：激活菜单场景 + 启用菜单相机（玩家由确定性模拟 + SimView 渲染，
             // 移动由模拟驱动，多端位置天然一致）
             SceneCameraHelper.ActivateScene("Menu");
@@ -148,12 +163,14 @@ namespace EmojiWar.GameMain.Procedure
                 return;
             }
 
-            if (!GameEntry.UI.HasUIGroup(Constant.UIGroup.Default))
+            // 房间准备 UI = "附加悬浮层"：放最高 depth 的 Top 组 → Canvas 永远渲染在最上层，
+            // 不被 Default（选角 Dock 等）遮挡；玩家列表/准备按钮在任何界面之上常驻可见可点。
+            if (!GameEntry.UI.HasUIGroup(Constant.UIGroup.Top))
             {
-                GameEntry.UI.AddUIGroup(Constant.UIGroup.Default);
+                GameEntry.UI.AddUIGroup(Constant.UIGroup.Top, 100);
             }
 
-            GameEntry.UI.OpenUIForm(Constant.UIFormAssetPath.RoomForm, Constant.UIGroup.Default, this);
+            GameEntry.UI.OpenUIForm(Constant.UIFormAssetPath.RoomForm, Constant.UIGroup.Top, this);
         }
 
         /// <summary>准备/取消准备。</summary>
@@ -207,9 +224,9 @@ namespace EmojiWar.GameMain.Procedure
                 clientLogic.LeaveRoom();
             }
 
-            // 回大厅（菜单场景常驻，直接切流程）
+            // 回多人游戏界面（菜单场景常驻，直接切流程）
             UI.UIFormCloser.CloseByName("RoomForm(Clone)");
-            ChangeState<ProcedureLobby>(m_ProcedureFsm);
+            ChangeState<ProcedureMultiplayer>(m_ProcedureFsm);
         }
 
         /// <summary>全部准备 → 开始战斗（Host 广播或本机触发）。</summary>
@@ -257,11 +274,11 @@ namespace EmojiWar.GameMain.Procedure
             ChangeState<ProcedureBattle>(m_ProcedureFsm);
         }
 
-        /// <summary>房主退出/连接断开 → 返回大厅。</summary>
+        /// <summary>房主退出/连接断开 → 返回多人游戏界面。</summary>
         private void OnRoomClosed()
         {
-            Log.Info("[ProcedureRoom] 房间解散/断开，返回大厅");
-            WriteProbe("[room] RoomClosed -> 返回大厅");
+            Log.Info("[ProcedureRoom] 房间解散/断开，返回多人游戏");
+            WriteProbe("[room] RoomClosed -> 返回多人游戏");
 
             DestroyRoomPlayer();
 
@@ -271,7 +288,7 @@ namespace EmojiWar.GameMain.Procedure
             }
 
             UI.UIFormCloser.CloseByName("RoomForm(Clone)");
-            ChangeState<ProcedureLobby>(m_ProcedureFsm);
+            ChangeState<ProcedureMultiplayer>(m_ProcedureFsm);
         }
 
         protected override void OnLeave(IFsm<IProcedureManager> procedureOwner, bool isShutdown)

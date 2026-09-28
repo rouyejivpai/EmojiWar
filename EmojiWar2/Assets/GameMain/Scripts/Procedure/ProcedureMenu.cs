@@ -39,6 +39,9 @@ namespace EmojiWar.GameMain.Procedure
 
             m_ProcedureFsm = procedureOwner;
             UI.MenuForm.OnStartGameRequested += OnStartGameRequested;
+            UI.MenuForm.OnSingleGameRequested += OnSingleGameRequested;
+            UI.MenuForm.OnMultiplayerRequested += OnMultiplayerRequested;
+            UI.MenuForm.OnQuitRequested += OnQuitRequested;
 
             // 菜单/大厅/房间共用 Menu 场景：激活 + 启用对应相机
             SceneCameraHelper.ActivateScene("Menu");
@@ -76,8 +79,30 @@ namespace EmojiWar.GameMain.Procedure
 
         private void OnStartGameRequested()
         {
-            Log.Info("[ProcedureMenu] 开始游戏请求，进入大厅（角色在房间内选择）");
+            // 旧入口（AutoPlay 回归/TriggerStartGame）：直接进 Lobby 大厅（LobbyForm 创建/加入仍可用）
+            Log.Info("[ProcedureMenu] 开始游戏请求（旧入口/AutoPlay），进入大厅");
             ChangeState<ProcedureLobby>(m_ProcedureFsm);
+        }
+
+        private void OnSingleGameRequested()
+        {
+            Log.Info("[ProcedureMenu] 单人游戏请求（占位：暂未实现）");
+            // 单人模式开发中：仅提示（UI 已显示提示，流程不切换）
+        }
+
+        private void OnMultiplayerRequested()
+        {
+            Log.Info("[ProcedureMenu] 多人游戏请求，进入多人游戏界面");
+            ChangeState<ProcedureMultiplayer>(m_ProcedureFsm);
+        }
+
+        private void OnQuitRequested()
+        {
+            Log.Info("[ProcedureMenu] 退出游戏");
+            Application.Quit();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#endif
         }
 
         private void OpenMenuForm()
@@ -112,6 +137,9 @@ namespace EmojiWar.GameMain.Procedure
         protected override void OnLeave(IFsm<IProcedureManager> procedureOwner, bool isShutdown)
         {
             UI.MenuForm.OnStartGameRequested -= OnStartGameRequested;
+            UI.MenuForm.OnSingleGameRequested -= OnSingleGameRequested;
+            UI.MenuForm.OnMultiplayerRequested -= OnMultiplayerRequested;
+            UI.MenuForm.OnQuitRequested -= OnQuitRequested;
             if (GameEntry.Event != null)
             {
                 GameEntry.Event.Unsubscribe(LoadSceneSuccessEventArgs.EventId, OnLoadSceneSuccess);

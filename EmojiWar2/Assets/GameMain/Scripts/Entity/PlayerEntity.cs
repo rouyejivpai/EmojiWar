@@ -1,4 +1,4 @@
-//------------------------------------------------------------
+﻿//------------------------------------------------------------
 // EmojiWar GameMain - 玩家实体
 // 读取输入：WASD 移动 + 鼠标瞄准/射击。
 // 注意：为后续网络化，输入逻辑与数据分离（Move 调用由数据驱动）。
@@ -57,24 +57,12 @@ namespace EmojiWar.GameMain.Entity
 
         protected override void ApplyArtSprite()
         {
-            // 角色专属美术：不同角色使用不同 emoji（数据表 Icon 列）
-            string icon = null;
+            // 角色专属美术：直接用 CharacterSO.IconSprite 资产引用
             var character = CharacterId > 0 && GameEntry.Data != null
                 ? GameEntry.Data.GetCharacter(CharacterId)
                 : null;
-            if (character != null)
-            {
-                icon = character.Icon;
-            }
-
-            if (!string.IsNullOrEmpty(icon))
-            {
-                SetSprite(Art.ArtManager.GetCharacterSprite(icon));
-            }
-            else
-            {
-                SetSprite(Art.ArtManager.GetPlayerSprite());
-            }
+            var sprite = character != null ? character.IconSprite : null;
+            SetSprite(sprite != null ? sprite : Art.ArtManager.GetPlayerSprite());
         }
 
         private void Update()
@@ -124,11 +112,7 @@ namespace EmojiWar.GameMain.Entity
                 m_SecondaryWeapon.TryFire(new Vector2(mouseWorldPos.x, mouseWorldPos.y));
             }
 
-            // R 键装弹
-            if (Input.GetKeyDown(KeyCode.R))
-            {
-                m_PrimaryWeapon.Reload();
-            }
+            // R 键装弹已取消（无限弹药，2026-09-02 需求）
         }
 
         /// <summary>玩家死亡事件（供流程切换）。</summary>

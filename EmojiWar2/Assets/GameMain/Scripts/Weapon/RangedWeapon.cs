@@ -16,15 +16,12 @@ namespace EmojiWar.GameMain.Weapon
         private float m_BulletSpeed = 15f;
 
         [SerializeField]
-        private float m_Spread = 0.05f;
-
-        [SerializeField]
         private GameObject m_ProjectilePrefab = null;
 
         /// <summary>
-        /// 从数据行配置远程参数（子弹速度/散射）。
+        /// 从数据行配置远程参数（子弹速度）。散射已取消（无随机偏角）。
         /// </summary>
-        public void InitRanged(Data.DRWeapon row)
+        public void InitRanged(Data.WeaponSO row)
         {
             if (row == null)
             {
@@ -34,7 +31,6 @@ namespace EmojiWar.GameMain.Weapon
             {
                 m_BulletSpeed = row.BulletSpeed;
             }
-            m_Spread = row.Spread;
         }
 
         protected override bool Fire(Vector2 target)
@@ -51,7 +47,7 @@ namespace EmojiWar.GameMain.Weapon
                 direction = m_FirePoint.right;
             }
 
-            // 散射 Mod：一次发射多颗子弹（扇形分布）
+            // 散射 Mod：一次发射多颗子弹（均匀扇形，无随机偏角——随机偏角已取消）
             int spreadCount = m_ModComponent != null ? m_ModComponent.GetSpreadCount() : 1;
             float baseAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
 
@@ -59,13 +55,7 @@ namespace EmojiWar.GameMain.Weapon
             {
                 float angleOffset = 0f;
 
-                // 随机扩散（基础）
-                if (m_Spread > 0f)
-                {
-                    angleOffset += Random.Range(-m_Spread, m_Spread);
-                }
-
-                // 散射 Mod：均匀扇形分布
+                // 散射 Mod：均匀扇形分布（多颗间隔固定，非随机）
                 if (spreadCount > 1)
                 {
                     float spreadAngle = 25f;

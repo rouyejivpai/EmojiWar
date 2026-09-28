@@ -1,4 +1,4 @@
-//------------------------------------------------------------
+﻿//------------------------------------------------------------
 // EmojiWar GameMain - 确定性模拟表现层（SimView）
 // 每帧把 LockstepSimulation 的状态渲染为场景实体：
 //   玩家 → 角色 emoji（CharacterId 区分）
@@ -41,6 +41,9 @@ namespace EmojiWar.GameMain.Simulation
         private readonly Dictionary<int, SpriteRenderer> m_EnemyViews = new Dictionary<int, SpriteRenderer>();
         private readonly Dictionary<int, SpriteRenderer> m_BulletViews = new Dictionary<int, SpriteRenderer>();
 
+        // 玩家当前渲染角色 ID（换角色时刷新精灵；避免每帧重建 GameObject）
+        private readonly Dictionary<int, int> m_PlayerCharacterIds = new Dictionary<int, int>();
+
         // 对象池（文档 §5：子弹/敌人频繁增删复用 GameObject，避免每帧 Instantiate/Destroy）
         private readonly Stack<SpriteRenderer> m_EnemyPool = new Stack<SpriteRenderer>();
         private readonly Stack<SpriteRenderer> m_BulletPool = new Stack<SpriteRenderer>();
@@ -80,6 +83,7 @@ namespace EmojiWar.GameMain.Simulation
             DestroyViews(m_PlayerViews);
             ReturnToPool(m_EnemyViews, m_EnemyPool);
             ReturnToPool(m_BulletViews, m_BulletPool);
+            m_PlayerCharacterIds.Clear();
         }
 
         private static void DestroyViews(Dictionary<int, SpriteRenderer> views)
@@ -175,11 +179,22 @@ namespace EmojiWar.GameMain.Simulation
                 {
                     view = CreatePlayerView(player);
                     m_PlayerViews[player.EntityId] = view;
+                    m_PlayerCharacterIds[player.EntityId] = player.CharacterId;
                 }
 
                 if (view != null)
                 {
                     view.transform.position = Interpolate(player.PrevPosition, player.Position, InterpolationFactor);
+
+                    // 实时更换角色精灵：CharacterId 变化（房间切角色/战斗中换装广播后）即刷新 sprite。
+                    // 房间阶段玩家也会因 S2CChangeCharacter 更新 CharacterId，这里保证所有端视觉一致。
+                    int prevChar = m_PlayerCharacterIds.TryGetValue(player.EntityId, out var c) ? c : -1;
+                    if (prevChar != player.CharacterId)
+                    {
+                        ApplyCharacterSprite(view, player.CharacterId);
+                        m_PlayerCharacterIds[player.EntityId] = player.CharacterId;
+                        WriteProbe("[simview] 玩家 " + player.EntityId + " 角色 " + prevChar + " -> " + player.CharacterId + " 精灵已刷新");
+                    }
                 }
             }
 
@@ -199,6 +214,30 @@ namespace EmojiWar.GameMain.Simulation
                     Destroy(m_PlayerViews[id].gameObject);
                 }
                 m_PlayerViews.Remove(id);
+                m_PlayerCharacterIds.Remove(id);
+            }
+        }
+
+        /// <summary>按角色 ID 设置玩家精灵（含等比例缩放，保持体型一致）。</summary>
+        private void ApplyCharacterSprite(SpriteRenderer sr, int characterId)
+        {
+            if (sr == null)
+            {
+                return;
+            }
+            var character = characterId > 0 && GameEntry.Data != null
+                ? GameEntry.Data.GetCharacter(characterId)
+                : null;
+            sr.sprite = character != null && character.IconSprite != null
+                ? character.IconSprite
+                : Art.ArtManager.GetPlayerSprite();
+            if (sr.sprite != null)
+            {
+                float w = sr.sprite.bounds.size.x;
+                if (w > 0.01f)
+                {
+                    sr.transform.localScale = Vector3.one * (1f / w);
+                }
             }
         }
 
@@ -209,25 +248,8 @@ namespace EmojiWar.GameMain.Simulation
             go.transform.SetParent(transform, false);   // 常驻：跟随 SimView（GameEntry 下），跨场景可见
             var sr = go.AddComponent<SpriteRenderer>();
 
-            string icon = null;
-            var character = player.CharacterId > 0 && GameEntry.Data != null
-                ? GameEntry.Data.GetCharacter(player.CharacterId)
-                : null;
-            if (character != null)
-            {
-                icon = character.Icon;
-            }
-            sr.sprite = Art.ArtManager.GetCharacterSprite(icon);
+            ApplyCharacterSprite(sr, player.CharacterId);
             sr.sortingOrder = 10;
-
-            if (sr.sprite != null)
-            {
-                float w = sr.sprite.bounds.size.x;
-                if (w > 0.01f)
-                {
-                    go.transform.localScale = Vector3.one * (1f / w);
-                }
-            }
 
             // 本机玩家附加小标记（子弹精灵放在头顶，标识自己）
             if (player.EntityId == m_LocalEntityId)
@@ -354,6 +376,20 @@ namespace EmojiWar.GameMain.Simulation
                 return null;
             }
             return m_Sim.GetPlayerByEntityId(m_LocalEntityId);
+        }
+
+        /// <summary>运行时探针（按进程分文件）。</summary>
+        private static void WriteProbe(string message)
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/runtime_probe_" + System.Diagnostics.Process.GetCurrentProcess().Id + ".txt");
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.AppendAllText(path, message + "\n");
+            }
+            catch
+            {
+            }
         }
     }
 }

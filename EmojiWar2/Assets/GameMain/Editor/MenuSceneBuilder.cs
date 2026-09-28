@@ -30,8 +30,11 @@ namespace EmojiWar.GameMain.Editor
         private const string GameFrameworkPrefabPath = "Packages/com.jiangyin.gameframework/GameFramework.prefab";
         private const string MenuScenePath = "Assets/GameMain/Scenes/Menu.unity";
         private const string MenuFormPrefabPath = "Assets/GameMain/UI/MenuForm.prefab";
+        private const string MultiplayerFormPrefabPath = "Assets/GameMain/UI/MultiplayerForm.prefab";
+        private const string JoinListFormPrefabPath = "Assets/GameMain/UI/JoinListForm.prefab";
         private const string LobbyFormPrefabPath = "Assets/GameMain/UI/LobbyForm.prefab";
         private const string GameOverFormPrefabPath = "Assets/GameMain/UI/GameOverForm.prefab";
+        private const string SettingsFormPrefabPath = "Assets/GameMain/UI/SettingsForm.prefab";
 
         // 流程类型全名（供 ProcedureComponent 反射创建）——单一来源：ProcedureTypes（GF 规范）
         private static readonly string[] ProcedureTypeNames = Procedure.ProcedureTypes.Available;
@@ -101,7 +104,23 @@ namespace EmojiWar.GameMain.Editor
                 Object.DestroyImmediate(menuFormGo);
             }
 
-            // 5.5 生成大厅 UI prefab
+            // 5.5 生成多人游戏 UI prefab（创建房间 / 加入游戏）
+            GameObject multiFormGo = CreateMultiplayerForm();
+            if (multiFormGo != null)
+            {
+                PrefabUtility.SaveAsPrefabAsset(multiFormGo, MultiplayerFormPrefabPath);
+                Object.DestroyImmediate(multiFormGo);
+            }
+
+            // 5.6 生成加入游戏（房间列表）UI prefab
+            GameObject joinListGo = CreateJoinListForm();
+            if (joinListGo != null)
+            {
+                PrefabUtility.SaveAsPrefabAsset(joinListGo, JoinListFormPrefabPath);
+                Object.DestroyImmediate(joinListGo);
+            }
+
+            // 5.7 生成大厅 UI prefab
             GameObject lobbyFormGo = CreateLobbyForm();
             if (lobbyFormGo != null)
             {
@@ -109,12 +128,20 @@ namespace EmojiWar.GameMain.Editor
                 Object.DestroyImmediate(lobbyFormGo);
             }
 
-            // 5.6 生成结算 UI prefab
+            // 5.8 生成结算 UI prefab
             GameObject gameOverFormGo = CreateGameOverForm();
             if (gameOverFormGo != null)
             {
                 PrefabUtility.SaveAsPrefabAsset(gameOverFormGo, GameOverFormPrefabPath);
                 Object.DestroyImmediate(gameOverFormGo);
+            }
+
+            // 5.9 生成设置 UI prefab（窗口化勾选）
+            GameObject settingsFormGo = CreateSettingsForm();
+            if (settingsFormGo != null)
+            {
+                PrefabUtility.SaveAsPrefabAsset(settingsFormGo, SettingsFormPrefabPath);
+                Object.DestroyImmediate(settingsFormGo);
             }
 
             // 6. 保存场景
@@ -143,19 +170,36 @@ namespace EmojiWar.GameMain.Editor
             var form = root.AddComponent<MenuForm>();
 
             // 标题
-            var title = CreateText("Title", root.transform, "Emoji War", 72, new Vector2(0, 200));
+            var title = CreateText("Title", root.transform, "Emoji War", 72, new Vector2(0, 330));
             form.GetType().GetField("m_TitleText", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
                 .SetValue(form, title.GetComponent<Text>());
 
             // 版本号
-            var version = CreateText("Version", root.transform, "v0.1.0 - 架构重构版", 28, new Vector2(0, 120));
+            var version = CreateText("Version", root.transform, "v0.3.0 - 多人联机版", 28, new Vector2(0, 240));
             form.GetType().GetField("m_VersionText", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
                 .SetValue(form, version.GetComponent<Text>());
 
-            // 开始按钮
-            var buttonGo = CreateButton("StartButton", root.transform, "开始游戏", new Vector2(0, -100));
-            form.GetType().GetField("m_StartButton", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                .SetValue(form, buttonGo.GetComponent<Button>());
+            // 提示行（单人占位提示等）
+            var hint = CreateText("HintText", root.transform, "", 26, new Vector2(0, -420));
+            form.GetType().GetField("m_HintText", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(form, hint.GetComponent<Text>());
+
+            // 主界面四个按钮：单人游戏 / 多人游戏 / 设置 / 退出游戏
+            var singleGo = CreateButton("SingleButton", root.transform, "单人游戏", new Vector2(0, 40));
+            form.GetType().GetField("m_SingleButton", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(form, singleGo.GetComponent<Button>());
+
+            var multiGo = CreateButton("MultiplayerButton", root.transform, "多人游戏", new Vector2(0, -80));
+            form.GetType().GetField("m_MultiplayerButton", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(form, multiGo.GetComponent<Button>());
+
+            var settingsGo = CreateButton("SettingsButton", root.transform, "设置", new Vector2(0, -200));
+            form.GetType().GetField("m_SettingsButton", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(form, settingsGo.GetComponent<Button>());
+
+            var quitGo = CreateButton("QuitButton", root.transform, "退出游戏", new Vector2(0, -320));
+            form.GetType().GetField("m_QuitButton", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(form, quitGo.GetComponent<Button>());
 
             // 确保 EventSystem 存在（按钮点击需要）
             if (Object.FindObjectOfType<EventSystem>() == null)
@@ -164,6 +208,180 @@ namespace EmojiWar.GameMain.Editor
                 es.AddComponent<EventSystem>();
                 es.AddComponent<StandaloneInputModule>();
             }
+
+            return root;
+        }
+
+        /// <summary>
+        /// 创建多人游戏 UI（玩家名输入 + 创建房间/加入游戏/返回）。
+        /// </summary>
+        private static GameObject CreateMultiplayerForm()
+        {
+            EnsureFolder("Assets/GameMain/UI");
+
+            var root = new GameObject("MultiplayerForm");
+            root.layer = LayerMask.NameToLayer("UI");
+
+            var canvas = root.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = root.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            root.AddComponent<GraphicRaycaster>();
+            root.AddComponent<CanvasGroup>();
+            var form = root.AddComponent<MultiplayerForm>();
+
+            // 标题
+            CreateText("Title", root.transform, "多人游戏", 56, new Vector2(0, 380));
+
+            // 玩家名输入
+            var nameInput = CreateInputField("NameInput", root.transform, "玩家名", new Vector2(0, 250), 500, 70);
+
+            // 按钮
+            var createBtn = CreateButton("CreateButton", root.transform, "创建房间", new Vector2(0, 80));
+            var joinBtn = CreateButton("JoinButton", root.transform, "加入游戏", new Vector2(0, -40));
+            var backBtn = CreateButton("BackButton", root.transform, "返回", new Vector2(0, -200));
+
+            // 通过反射绑定字段
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            form.GetType().GetField("m_NameInput", flags).SetValue(form, nameInput.GetComponent<InputField>());
+            form.GetType().GetField("m_CreateButton", flags).SetValue(form, createBtn.GetComponent<Button>());
+            form.GetType().GetField("m_JoinButton", flags).SetValue(form, joinBtn.GetComponent<Button>());
+            form.GetType().GetField("m_BackButton", flags).SetValue(form, backBtn.GetComponent<Button>());
+
+            return root;
+        }
+
+        /// <summary>
+        /// 创建加入游戏（房间列表）UI：列表容器 + 状态文本 + 刷新/返回。
+        /// 房间项为运行时按 RoomDiscovery 结果动态生成（占位约定见 doc §7）。
+        /// </summary>
+        private static GameObject CreateJoinListForm()
+        {
+            EnsureFolder("Assets/GameMain/UI");
+
+            var root = new GameObject("JoinListForm");
+            root.layer = LayerMask.NameToLayer("UI");
+
+            var canvas = root.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = root.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            root.AddComponent<GraphicRaycaster>();
+            root.AddComponent<CanvasGroup>();
+            var form = root.AddComponent<JoinListForm>();
+
+            // 半透明背景
+            var bg = new GameObject("bg");
+            bg.transform.SetParent(root.transform, false);
+            var bgRect = bg.AddComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = Vector2.zero;
+            bgRect.offsetMax = Vector2.zero;
+            bg.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.72f);
+
+            // 标题
+            CreateText("Title", root.transform, "加入游戏 - 房间列表", 48, new Vector2(0, 430));
+
+            // 状态文本（扫描中/空列表提示）
+            var status = CreateText("StatusText", root.transform, "扫描房间中...", 28, new Vector2(0, 330));
+            status.GetComponent<RectTransform>().sizeDelta = new Vector2(1200, 60);
+
+            // 房间列表容器（占位：运行时空容器，运行时生成房间项）
+            var container = new GameObject("RoomContainer");
+            container.transform.SetParent(root.transform, false);
+            var containerRect = container.AddComponent<RectTransform>();
+            containerRect.anchorMin = new Vector2(0.5f, 0.5f);
+            containerRect.anchorMax = new Vector2(0.5f, 0.5f);
+            containerRect.pivot = new Vector2(0.5f, 0.5f);
+            containerRect.anchoredPosition = new Vector2(0f, -40f);
+            containerRect.sizeDelta = new Vector2(1200f, 720f);
+
+            // 占位房间项（§7 约定：编辑器可观察层级；运行时先清空再按发现结果生成）
+            var template = new GameObject("RoomItem_Template");
+            template.transform.SetParent(container.transform, false);
+            var templateRect = template.AddComponent<RectTransform>();
+            templateRect.anchorMin = new Vector2(0.5f, 1f);
+            templateRect.anchorMax = new Vector2(0.5f, 1f);
+            templateRect.pivot = new Vector2(0.5f, 0.5f);
+            templateRect.anchoredPosition = new Vector2(0f, -90f);
+            templateRect.sizeDelta = new Vector2(900f, 70f);
+            var templateImage = template.AddComponent<Image>();
+            templateImage.color = new Color(0.15f, 0.45f, 0.8f, 0.35f);
+            template.AddComponent<Button>().targetGraphic = templateImage;
+            var templateLabel = new GameObject("Label");
+            templateLabel.transform.SetParent(template.transform, false);
+            var templateLabelRect = templateLabel.AddComponent<RectTransform>();
+            templateLabelRect.anchorMin = Vector2.zero;
+            templateLabelRect.anchorMax = Vector2.one;
+            templateLabelRect.offsetMin = Vector2.zero;
+            templateLabelRect.offsetMax = Vector2.zero;
+            var templateText = templateLabel.AddComponent<Text>();
+            templateText.text = "房间示例（运行时填充）";
+            templateText.fontSize = 30;
+            templateText.alignment = TextAnchor.MiddleCenter;
+            templateText.color = new Color(1f, 1f, 1f, 0.5f);
+            templateText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+            // 按钮：刷新 / 返回
+            var refreshBtn = CreateButton("RefreshButton", root.transform, "刷新列表", new Vector2(-280, -430));
+            var backBtn = CreateButton("BackButton", root.transform, "返回", new Vector2(280, -430));
+
+            // 通过反射绑定字段（容器不绑定，运行时 Find）
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            form.GetType().GetField("m_StatusText", flags).SetValue(form, status.GetComponent<Text>());
+            form.GetType().GetField("m_RefreshButton", flags).SetValue(form, refreshBtn.GetComponent<Button>());
+            form.GetType().GetField("m_BackButton", flags).SetValue(form, backBtn.GetComponent<Button>());
+
+            return root;
+        }
+
+        /// <summary>
+        /// 创建设置 UI 层级（窗口化勾选用 Button 显示勾选态，非 Toggle）。
+        /// </summary>
+        private static GameObject CreateSettingsForm()
+        {
+            EnsureFolder("Assets/GameMain/UI");
+
+            var root = new GameObject("SettingsForm");
+            root.layer = LayerMask.NameToLayer("UI");
+
+            var canvas = root.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = root.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            root.AddComponent<GraphicRaycaster>();
+            root.AddComponent<CanvasGroup>();
+            var form = root.AddComponent<SettingsForm>();
+
+            // 半透明背景
+            var bg = new GameObject("bg");
+            bg.transform.SetParent(root.transform, false);
+            var bgRect = bg.AddComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = Vector2.zero;
+            bgRect.offsetMax = Vector2.zero;
+            bg.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.7f);
+
+            // 标题
+            CreateText("Title", root.transform, "设置", 56, new Vector2(0, 300));
+
+            // 窗口化勾选（btn_ 前缀显示勾选态；label 是其子 Text）
+            var windowedBtn = CreateButton("WindowedButton", root.transform, "✓ 窗口化", new Vector2(0, 80));
+            var windowedLabel = windowedBtn.GetComponentInChildren<Text>();
+            form.GetType().GetField("m_WindowedButton", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(form, windowedBtn.GetComponent<Button>());
+            form.GetType().GetField("m_WindowedLabel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(form, windowedLabel);
+
+            // 返回按钮
+            var backBtn = CreateButton("BackButton", root.transform, "返回", new Vector2(0, -120));
+            form.GetType().GetField("m_BackButton", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(form, backBtn.GetComponent<Button>());
 
             return root;
         }

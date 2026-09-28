@@ -188,33 +188,31 @@ namespace EmojiWar.GameMain.Editor
                 sb.AppendLine("GameEntry.DataTable static: " + (GameEntry.DataTable != null ? "SET" : "NULL"));
                 sb.AppendLine("GameEntry.Data static: " + (GameEntry.Data != null ? "SET" : "NULL"));
 
-                // DataTable 数据验证
-                if (GameEntry.DataTable != null)
+                // SO 数据验证（2026-09-02 起数据源为 ScriptableObject，替代 DataTable txt）
+                if (GameEntry.Data != null)
                 {
-                    var charTable = GameEntry.DataTable.GetDataTable<EmojiWar.GameMain.Data.DRCharacter>("Character");
-                    sb.AppendLine("CharacterTable: " + (charTable != null ? "FOUND count=" + charTable.Count : "NULL"));
-                    if (charTable != null && charTable.Count > 0)
+                    var chars = GameEntry.Data.GetAllCharacters();
+                    sb.AppendLine("CharacterSO: count=" + chars.Count);
+                    if (chars.Count > 0)
                     {
-                        var first = charTable.GetDataRow(1);
-                        sb.AppendLine("  Row1: id=" + first.Id + " name=" + first.CharacterName + " hp=" + first.MaxHealth + " speed=" + first.MoveSpeed);
+                        var first = chars[0];
+                        sb.AppendLine("  [0]: id=" + first.Id + " name=" + first.CharacterName + " hp=" + first.MaxHealth + " speed=" + first.MoveSpeed);
                     }
 
-                    var weaponTable = GameEntry.DataTable.GetDataTable<EmojiWar.GameMain.Data.DRWeapon>("Weapon");
-                    sb.AppendLine("WeaponTable: " + (weaponTable != null ? "FOUND count=" + weaponTable.Count : "NULL"));
-                    if (weaponTable != null && weaponTable.Count > 0)
+                    var weapons = GameEntry.Data.GetAllWeapons();
+                    sb.AppendLine("WeaponSO: count=" + weapons.Count);
+                    if (weapons.Count > 0)
                     {
-                        var firstW = weaponTable.GetDataRow(1);
-                        sb.AppendLine("  Row1: id=" + firstW.Id + " name=" + firstW.WeaponName + " dmg=" + firstW.Damage);
-                        var lastW = weaponTable.GetDataRow(weaponTable.Count);
-                        sb.AppendLine("  Row" + weaponTable.Count + ": id=" + lastW.Id + " name=" + lastW.WeaponName);
+                        var firstW = weapons[0];
+                        sb.AppendLine("  [0]: id=" + firstW.Id + " name=" + firstW.WeaponName + " dmg=" + firstW.Damage);
                     }
 
-                    var modTable = GameEntry.DataTable.GetDataTable<EmojiWar.GameMain.Data.DRMod>("Mod");
-                    sb.AppendLine("ModTable: " + (modTable != null ? "FOUND count=" + modTable.Count : "NULL"));
-                    if (modTable != null && modTable.Count > 0)
+                    var mods = GameEntry.Data.GetAllMods();
+                    sb.AppendLine("ModSO: count=" + mods.Count);
+                    if (mods.Count > 0)
                     {
-                        var lastM = modTable.GetDataRow(modTable.Count);
-                        sb.AppendLine("  Row" + modTable.Count + ": id=" + lastM.Id + " name=" + lastM.ModName + " effect=" + lastM.EffectType);
+                        var lastM = mods[mods.Count - 1];
+                        sb.AppendLine("  [last]: id=" + lastM.Id + " name=" + lastM.ModName + " effect=" + lastM.EffectType);
                     }
                 }
             }

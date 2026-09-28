@@ -1,7 +1,7 @@
-//------------------------------------------------------------
+﻿//------------------------------------------------------------
 // EmojiWar GameMain - 角色卡片（动态实例化的独立模板）
-// 由 CharacterDockForm 按 character_select.json 动态实例化：
-//   每张卡 = emoji 图标 + 名字 + 简略属性（生命/移速，查 Character.txt）
+// 由 CharacterDockForm 按 CharacterSelectConfigSO 动态实例化：
+//   每张卡 = emoji 图标 + 名字 + 简略属性（生命/移速，查 CharacterSO）
 //          + 选中高亮 + 整卡可点（Button）。
 // 参考：生产级技能系统「模板复用」——卡片 prefab 改一处，所有角色卡样式统一。
 //------------------------------------------------------------
@@ -37,7 +37,7 @@ namespace EmojiWar.GameMain.UI
         public int CharacterId { get { return m_CharacterId; } }
 
         /// <summary>绑定角色数据 + 点击回调（由 Docked 面板调用）。</summary>
-        public void Setup(int characterId, string name, string iconCode, string statsLine,
+        public void Setup(int characterId, string name, string statsLine,
             Sprite iconSprite, Action<int> onClick)
         {
             m_CharacterId = characterId;

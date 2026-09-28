@@ -38,8 +38,44 @@ namespace EmojiWar.GameMain.UI
         [SerializeField]
         private List<BindEntry> m_Bindings = new List<BindEntry>();
 
+        /// <summary>
+        /// UI 逻辑脚本引用（范式：QuickBind 作为 UI 的唯一装配点 —— 逻辑脚本 + 全部 UI 引用都挂这里）。
+        /// 由编辑器工具（如 Rebind Backpack UI）自动填充；运行时逻辑脚本可用 GetLogic&lt;T&gt;() 自校验。
+        /// </summary>
+        [SerializeField]
+        private MonoBehaviour m_Logic = null;
+
         /// <summary>绑定列表（Inspector / 生成器使用）。</summary>
         public List<BindEntry> Bindings { get { return m_Bindings; } }
+
+        /// <summary>UI 逻辑脚本（未绑定返回 null）。</summary>
+        public MonoBehaviour Logic { get { return m_Logic; } }
+
+        /// <summary>设置/更新逻辑脚本引用（编辑器工具使用）。</summary>
+        public void SetLogic(MonoBehaviour logic)
+        {
+            m_Logic = logic;
+        }
+
+        /// <summary>取逻辑脚本（类型不符/未绑定返回 null）。</summary>
+        public T GetLogic<T>() where T : MonoBehaviour
+        {
+            return m_Logic as T;
+        }
+
+        /// <summary>按字段名取组件（类型不符/未绑定返回 null）。</summary>
+        public T Get<T>(string fieldName) where T : Component
+        {
+            var go = GetTarget(fieldName);
+            return go != null ? go.GetComponent<T>() : null;
+        }
+
+        /// <summary>按字段名取 RectTransform（未绑定返回 null）。</summary>
+        public RectTransform GetRect(string fieldName)
+        {
+            var go = GetTarget(fieldName);
+            return go != null ? go.transform as RectTransform : null;
+        }
 
         /// <summary>按字段名查找绑定物体。</summary>
         public GameObject GetTarget(string fieldName)

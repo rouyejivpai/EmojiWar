@@ -276,6 +276,11 @@ namespace EmojiWar.GameMain.Procedure
             var net = GameEntry.NetworkService;
             if (net != null && net.Mode != Network.NetMode.Offline)
             {
+                // 物品系统（P4）：战斗开始前确保有初始装备（左键法杖 + 背包法术卡）。
+                // 以前只在单机 BattleManager 里发放，导致 Host/联机流程"武器槽是空的"。
+                // P5 会把这一步收敛为 Host 权威的 loadout 初始化 + S2CLoadoutSync 下发。
+                ItemSystem.GrantStartingLoadout();
+
                 // 进入战斗：兜底关闭所有旧界面（菜单/角色选择/大厅/房间），避免残留遮挡战斗
                 UI.UIFormCloser.CloseAllExcept("BattleHudForm(Clone)");
                 EnsureNetworkSimulationBound();

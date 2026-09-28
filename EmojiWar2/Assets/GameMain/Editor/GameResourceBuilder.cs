@@ -4,9 +4,10 @@
 // 用途：构建 GameFramework Package 模式所需的 AssetBundle + version list，
 //       并把 Package 输出拷贝到 StreamingAssets，供构建版 exe 加载。
 // 资源分组（重要：场景与普通资源必须分属不同 AssetBundle）：
-//   game  = UI 窗体 prefab（5 个）+ 数据表 txt（3 个）
+//   game  = UI 窗体 prefab + UI/items 小预制体（Cell/列表项，如 PlayerCell/CharacterCard/RoomItemRow）
 //   scene = 场景（Menu/Battle，GameFramework SceneComponent 构建版经 Resource 模块加载）
-// 实体 prefab 与 emoji 美术走 Unity 原生 Resources（Assets/GameMain/Resources/）。
+// 实体 prefab、emoji 美术与 SO 数据配置（角色/武器/Mod/展示/战斗参数）走
+// Unity 原生 Resources（Assets/GameMain/Resources/），自动进构建版，无需打包 AssetBundle。
 //------------------------------------------------------------
 
 using System.IO;
@@ -28,17 +29,31 @@ namespace EmojiWar.GameMain.Editor
         private static readonly string[] AssetPaths =
         {
             "Assets/GameMain/UI/MenuForm.prefab",
+            "Assets/GameMain/UI/MultiplayerForm.prefab",
+            "Assets/GameMain/UI/JoinListForm.prefab",
+            "Assets/GameMain/UI/SettingsForm.prefab",
             "Assets/GameMain/UI/CharacterSelectForm.prefab",
             "Assets/GameMain/UI/CharacterDockForm.prefab",
+            "Assets/GameMain/UI/BackpackForm.prefab",
             "Assets/GameMain/UI/LobbyForm.prefab",
             "Assets/GameMain/UI/RoomForm.prefab",
             "Assets/GameMain/UI/ShopForm.prefab",
             "Assets/GameMain/UI/BattleHudForm.prefab",
             "Assets/GameMain/UI/GameOverForm.prefab",
-            "Assets/GameMain/DataTables/Character.txt",
-            "Assets/GameMain/DataTables/Weapon.txt",
-            "Assets/GameMain/DataTables/Mod.txt",
+            // UI/items：Cell/列表项小预制体（不经 UI 组，运行时经 UiPrefab(GameEntry.Resource) 按全路径实例化）
+            "Assets/GameMain/UI/items/PlayerCell.prefab",
+            "Assets/GameMain/UI/items/CharacterCard.prefab",
+            "Assets/GameMain/UI/items/RoomItemRow.prefab",
+            "Assets/GameMain/UI/items/WeaponSlot.prefab",
+            "Assets/GameMain/UI/items/InventorySlot.prefab",
+            "Assets/GameMain/UI/items/SlotCell.prefab",
+            "Assets/GameMain/UI/items/WandHandCell.prefab",
+            "Assets/GameMain/UI/items/ItemDetailPanel.prefab",
+            "Assets/GameMain/UI/items/ItemDetailCell.prefab",
         };
+        // 注：数据配置（角色/武器/Mod/展示/战斗参数）自 2026-09-02 起为 ScriptableObject，
+        // 位于 Assets/GameMain/Resources/Data/**，随 Unity Resources 自动进构建版，
+        // 不再需要打包进 AssetBundle（原 Character/Weapon/Mod.txt 已废弃）。
 
         private static readonly string[] ScenePaths =
         {

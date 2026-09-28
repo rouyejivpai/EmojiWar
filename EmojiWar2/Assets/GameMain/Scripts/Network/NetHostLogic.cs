@@ -47,6 +47,13 @@ namespace EmojiWar.GameMain.Network
         // tick 循环（20Hz）
         private float m_TickAccumulator = 0f;
 
+        // 定期状态对账计数（每 20 tick = 1 秒广播一次状态哈希）
+        private int m_StateCheckCounter = 0;
+
+        [Header("联机")]
+        [SerializeField]
+        private int m_ExpectedPlayers = 1;   // ★ 期待人数：未达标前即使全部已准备也不开战（防"一人开战"）
+
         [Header("波次配置")]
         [SerializeField]
         private int m_EnemiesPerWave = 3;
@@ -56,6 +63,7 @@ namespace EmojiWar.GameMain.Network
 
         private bool m_BattleStartBroadcasted = false;
         private bool m_LocalAutoMove = true;   // Host 本地无输入时自动转圈（回环测试用；真实联机由 DisableLocalAutoMove 关闭）
+        private bool m_AutoFire = false;        // -autofire：自动按住左键（验证无限释放/连发）
 
         /// <summary>房间内全部准备后触发（Host 本地切流程用）。</summary>
         public static event System.Action OnBattleStartRequested;
@@ -224,10 +232,32 @@ namespace EmojiWar.GameMain.Network
         /// <summary>当前房间玩家数（诊断）。</summary>
         public int PlayerCount { get { return m_Players.Count; } }
 
+        /// <summary>设置期望人数（联机测试/房主设置用；下限 1 = 保持单人可玩）。</summary>
+        public void SetExpectedPlayers(int n)
+        {
+            m_ExpectedPlayers = Mathf.Max(1, n);
+            WriteProbe("[net-host] 期望人数设为 " + m_ExpectedPlayers);
+        }
+
+        /// <summary>当前期望人数（下限 1）。</summary>
+        public int ExpectedPlayers { get { return Mathf.Max(1, m_ExpectedPlayers); } }
+
+        /// <summary>房主名（session 0 玩家；用于房间发现广播）。</summary>
+        public string GetHostName()
+        {
+            return m_Players.TryGetValue(0, out var s) ? s.PlayerName : "房主";
+        }
+
         /// <summary>关闭 Host 本地空闲自动移动（正式联机）。</summary>
         public void DisableLocalAutoMove()
         {
             m_LocalAutoMove = false;
+        }
+
+        /// <summary>开启自动开火（-autofire 自动化验证用：模拟持续按住左键）。</summary>
+        public void EnableAutoFire()
+        {
+            m_AutoFire = true;
         }
 
         /// <summary>
@@ -235,6 +265,20 @@ namespace EmojiWar.GameMain.Network
         /// </summary>
         private void Update()
         {
+            // 局域网房间发现：Host 处于"房间阶段"（未开战/非战斗中）时应答扫描请求。
+            // 开战（BattleStart 后）不再应答——战斗中不可再加入新玩家。
+            // 非 Host / 无模拟时停止监听。
+            bool inRoomPhase = m_Service != null && m_Service.Mode == NetMode.Host
+                && BattleRunning && !m_BattleStartBroadcasted;
+            if (inRoomPhase)
+            {
+                RoomDiscovery.TickAdvertiser(true, GetHostName(), m_Players.Count, NetworkService.DefaultPort);
+            }
+            else
+            {
+                RoomDiscovery.TickAdvertiser(false, null, 0, NetworkService.DefaultPort);
+            }
+
             if (m_Service == null || m_Service.Mode != NetMode.Host || !BattleRunning)
             {
                 return;
@@ -412,10 +456,30 @@ namespace EmojiWar.GameMain.Network
             if (Simulation != null)
             {
                 Simulation.Tick(m_InputsCache);
+
+                // 定期状态对账：每 20 tick（1 秒）广播一次本端确定性状态哈希。
+                // 客户端在同一逻辑帧算本地哈希对比，不等即不同步（TCP 保序保证客户端处理 StateCheck 前
+                // 必已处理同帧的 InputFrame 并 tick 到该帧，故 FrameIndex 恒等）。
+                // 仅战斗开始后启用：房间阶段各端玩家加入（S2CSpawnEntity）时序不同，哈希天然不等，
+                // 不是不同步；BattleStart 后全端同 seed + 同玩家集重建，模拟同构才可对账。
+                m_StateCheckCounter++;
+                if (m_StateCheckCounter >= 20 && m_BattleStartBroadcasted)
+                {
+                    m_StateCheckCounter = 0;
+                    if (m_Service != null && m_Service.Mode == NetMode.Host)
+                    {
+                        m_Service.BroadcastToClients(new S2CStateCheck
+                        {
+                            FrameIndex = Simulation.FrameIndex,
+                            StateHash = Simulation.ComputeStateHash(),
+                        });
+                    }
+                }
             }
         }
 
-        /// <summary>读取 Host 本地玩家输入意图（WASD + 鼠标瞄准 + 左键射击 + R 装弹；无输入时自动转圈供测试）。</summary>
+        /// <summary>读取 Host 本地玩家输入意图（WASD + 鼠标瞄准 + 左键射击；无输入时自动转圈供测试）。
+        /// 弹药已取消（无限释放）：R 键装弹采集已移除，Reload 字段恒 false（模拟层忽略）。</summary>
         private Simulation.PlayerIntent ReadLocalInput()
         {
             float inputX = Input.GetAxisRaw("Horizontal");
@@ -427,6 +491,16 @@ namespace EmojiWar.GameMain.Network
                 float frame = Simulation != null ? Simulation.FrameIndex : Time.frameCount;
                 inputX = Mathf.Cos(frame * 0.05f);
                 inputY = Mathf.Sin(frame * 0.05f);
+            }
+
+            // 自动开火（-autofire 验证用）：无人操作时按住左键，验证无限释放；
+            // 同时按住右键以验证**副武器**逻辑（主/副各自独立冷却）。
+            bool fire = Input.GetMouseButton(0);
+            bool fireSecondary = Input.GetMouseButton(1);
+            if (m_AutoFire)
+            {
+                if (!fire) { fire = true; }
+                if (!fireSecondary) { fireSecondary = true; }
             }
 
             // 鼠标瞄准（世界坐标方向）
@@ -444,9 +518,9 @@ namespace EmojiWar.GameMain.Network
                 MoveY = inputY,
                 AimX = aim.x,
                 AimY = aim.y,
-                FirePrimary = Input.GetMouseButton(0),
-                FireSecondary = Input.GetMouseButton(1),
-                Reload = Input.GetKeyDown(KeyCode.R),
+                FirePrimary = fire,
+                FireSecondary = fireSecondary,
+                Reload = false,
             };
         }
 
@@ -480,10 +554,26 @@ namespace EmojiWar.GameMain.Network
                     HandleReadyChange(sessionId, message as C2SReadyChange);
                     break;
 
-                case MsgId.ChangeCharacter:
+                case MsgId.ChangeCharacterReq:
                     HandleChangeCharacter(sessionId, message as C2SChangeCharacter);
                     break;
+
+                case MsgId.ShopContinueReq:
+                    RequestShopContinue();          // 客户端点"继续"→ Host 权威推进并广播
+                    break;
             }
+        }
+
+        /// <summary>
+        /// 商店阶段"继续"：Host 权威开始下一波，并广播各端做同样的确定性推进。
+        /// （修复：此前商店靠 ShopDuration 计时自动开下一波，导致波间商店阶段错误刷敌人。）
+        /// </summary>
+        public void RequestShopContinue()
+        {
+            if (Simulation == null || !Simulation.ShopOpen) { return; }
+            Simulation.RequestNextWave();
+            if (m_Service != null) { m_Service.BroadcastToClients(new S2CShopContinue()); }
+            WriteProbe("[net-host] 商店继续 → 开始下一波 wave=" + Simulation.WaveIndex);
         }
 
         /// <summary>
@@ -521,7 +611,16 @@ namespace EmojiWar.GameMain.Network
                 CharacterId = state.CharacterId,
             });
 
+            // 玩家列表（emoji/名字/准备状态）随角色变化一起刷新（本机 + 客户端 Cell 更新）
+            BroadcastPlayerList();
+
             WriteProbe("[net-host] 玩家 " + sessionId + " 切换角色 -> " + state.CharacterId);
+        }
+
+        /// <summary>主动广播一次当前玩家列表（RoomForm 打开后调用，让本机/客户端立即可见已有玩家）。</summary>
+        public void BroadcastPlayerListNow()
+        {
+            BroadcastPlayerList();
         }
 
         /// <summary>
@@ -546,7 +645,10 @@ namespace EmojiWar.GameMain.Network
             Debug.Log("[NetHostLogic] 玩家 " + sessionId + "(" + state.PlayerName + ") 准备=" + state.Ready);
             BroadcastPlayerList();
 
-            if (m_Players.Count >= 1 && AllReady())
+            // ★ 以前是 `m_Players.Count >= 1 && AllReady()` —— 房间里只有房主一人时该条件即为真，
+            //   房主一准备就立刻开战，后加入的客户端永远收不到 S2CBattleStart（2026-09-28 实测 P0：
+            //   两端两个世界：Host wave=1/enemies=3，Client wave=0/enemies=0，且零告警）。
+            if (m_Players.Count >= ExpectedPlayers && AllReady())
             {
                 m_BattleStartBroadcasted = true;
                 int seed = UnityEngine.Random.Range(0, 100000);
@@ -554,9 +656,10 @@ namespace EmojiWar.GameMain.Network
                 Debug.Log("[NetHostLogic] 全部玩家已准备，广播战斗开始 seed=" + seed);
                 WriteProbe("[net-host] 全部准备，广播 BattleStart seed=" + seed);
 
-                // 战斗开始：用新种子重建确定性模拟（所有端一致）并开启波次
+                // 战斗开始：用新种子重建确定性模拟（所有端一致），然后进**准备阶段商店**
+                // （WaveIndex=0，不出敌人）；玩家点"继续"才 StartWave(1)
                 InitializeSimulation(seed);
-                Simulation.StartWave(1);
+                Simulation.PrepareFirstWave();
 
                 // 输入流录像开始（文档 §3：初始状态 + 输入流）
                 try
@@ -589,6 +692,9 @@ namespace EmojiWar.GameMain.Network
         private void InitializeSimulation(int seed)
         {
             Simulation = new Simulation.LockstepSimulation();
+            // 注入波次平衡参数（BattleConfigSO；双端同资产同值 → 确定性一致）
+            Simulation.ApplyBattleConfig(GameEntry.Data != null ? GameEntry.Data.Battle : null);
+
             var configs = new List<Simulation.SimPlayerConfig>();
 
             foreach (var kv in m_Players)
@@ -654,7 +760,7 @@ namespace EmojiWar.GameMain.Network
             return true;
         }
 
-        /// <summary>广播房间玩家列表（"名字:准备;..."）。</summary>
+        /// <summary>广播房间玩家列表（"名字:准备:角色ID;..."，角色 ID 供 UI 显示角色 emoji）。</summary>
         private void BroadcastPlayerList()
         {
             if (m_Service == null)
@@ -669,7 +775,8 @@ namespace EmojiWar.GameMain.Network
                 {
                     sb.Append(';');
                 }
-                sb.Append(p.PlayerName).Append(':').Append(p.Ready ? "1" : "0");
+                sb.Append(p.PlayerName).Append(':').Append(p.Ready ? "1" : "0")
+                  .Append(':').Append(p.CharacterId);
             }
 
             var msg = new S2CPlayerList { Count = m_Players.Count, Players = sb.ToString() };
@@ -732,13 +839,9 @@ namespace EmojiWar.GameMain.Network
                 {
                     WeaponId = weapon.Id,
                     WeaponName = weapon.WeaponName,
-                    WeaponIcon = weapon.Icon,
                     WeaponDamage = weapon.Damage,
                     FireRate = weapon.FireRate,
-                    MaxAmmo = weapon.MaxAmmo,
-                    ReloadTime = weapon.ReloadTime,
                     BulletSpeed = weapon.BulletSpeed,
-                    Spread = weapon.Spread,
                 };
                 Simulation.ApplyWeapon(state.EntityId, cfg);
 
@@ -747,13 +850,9 @@ namespace EmojiWar.GameMain.Network
                     EntityId = state.EntityId,
                     WeaponId = weapon.Id,
                     WeaponName = weapon.WeaponName,
-                    WeaponIcon = weapon.Icon,
                     Damage = weapon.Damage,
                     FireRate = weapon.FireRate,
-                    MaxAmmo = weapon.MaxAmmo,
-                    ReloadTime = weapon.ReloadTime,
                     BulletSpeed = weapon.BulletSpeed,
-                    Spread = weapon.Spread,
                 });
                 WriteProbe("[net-host] 购买武器 " + weapon.WeaponName + " -> entity " + state.EntityId);
             }
@@ -770,6 +869,17 @@ namespace EmojiWar.GameMain.Network
         {
             if (join == null)
             {
+                return;
+            }
+
+            // ★ 对局已开始后拒绝中途加入。
+            //   以前这里只查人数上限，于是新客户端被分配实体、收到 spawn，
+            //   却永远收不到 S2CBattleStart（只在 HandleReadyChange 里一次性发出）→ 它停在 seed=0 房间模拟，
+            //   而房主照常广播战斗输入帧 → 两端两个世界且零告警（2026-09-28 实测 P0）。
+            if (m_BattleStartBroadcasted)
+            {
+                m_Service.SendToClient(sessionId, new S2CJoinRejected { Reason = "对局已开始，无法加入" });
+                WriteProbe("[net-host] 拒绝 " + sessionId + " 中途加入（对局已开始）");
                 return;
             }
 

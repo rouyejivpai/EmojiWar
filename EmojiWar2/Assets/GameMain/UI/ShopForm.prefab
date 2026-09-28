@@ -644,6 +644,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: baecfe38557f7424ca1c80d13ca9b0b3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_TransitionDuration: 0.2
   m_CoinText: {fileID: 3739471392707350174}
   m_InfoText: {fileID: 6166972023106012578}
   m_ContinueButton: {fileID: 4385688643762945457}

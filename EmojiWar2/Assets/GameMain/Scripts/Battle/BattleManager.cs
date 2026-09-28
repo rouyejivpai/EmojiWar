@@ -87,6 +87,9 @@ namespace EmojiWar.GameMain.Battle
             }
             session.StartRun(characterId);
 
+            // 物品系统（P4）：初始装备（左键法杖 + 背包法术卡）。已装备时不会重复发放。
+            ItemSystem.GrantStartingLoadout();
+
             SpawnPlayer(characterId);
             m_WaveLoop = StartCoroutine(WaveLoop());
         }

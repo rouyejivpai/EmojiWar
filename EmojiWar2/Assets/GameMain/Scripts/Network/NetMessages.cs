@@ -161,12 +161,15 @@ namespace EmojiWar.GameMain.Network
         }
     }
 
-    /// <summary>房间内切换角色（客户端 → Host；Host 广播 S2CChangeCharacter）。</summary>
+    /// <summary>房间内切换角色请求（客户端 → Host；Host 广播 S2CChangeCharacter）。
+    /// 注意：本消息必须用独立 MsgId（ChangeCharacterReq），不能与 S2CChangeCharacter 共用
+    /// ChangeCharacter(=1104)——NetCodec 工厂按单字典注册，同 ID 会被后注册者覆盖，
+    /// 导致 Host 收到本消息时按 S2C 类型反序列化越界 → 连接断开（Client 切角色即被踢）。</summary>
     public sealed class C2SChangeCharacter : NetMessage
     {
         public int CharacterId;
 
-        public override MsgId Id { get { return MsgId.ChangeCharacter; } }
+        public override MsgId Id { get { return MsgId.ChangeCharacterReq; } }
 
         public override void Serialize(BinaryWriter writer)
         {
@@ -180,6 +183,22 @@ namespace EmojiWar.GameMain.Network
     }
 
     // ==================== S2C ====================
+
+    /// <summary>商店阶段"继续"（C2S：客户端请求开始下一波；无负载）。</summary>
+    public sealed class C2SShopContinue : NetMessage
+    {
+        public override MsgId Id { get { return MsgId.ShopContinueReq; } }
+        public override void Serialize(BinaryWriter writer) { }
+        public override void Deserialize(BinaryReader reader) { }
+    }
+
+    /// <summary>商店阶段"继续"广播（S2C：Host 权威 → 各端 RequestNextWave 开始下一波；无负载）。</summary>
+    public sealed class S2CShopContinue : NetMessage
+    {
+        public override MsgId Id { get { return MsgId.ShopContinue; } }
+        public override void Serialize(BinaryWriter writer) { }
+        public override void Deserialize(BinaryReader reader) { }
+    }
 
     /// <summary>房间状态。</summary>
     public sealed class S2CRoomState : NetMessage
@@ -460,6 +479,26 @@ namespace EmojiWar.GameMain.Network
         }
     }
 
+    /// <summary>S2C: 加入被拒绝（例如对局已开始，无法中途加入）。
+    /// 修复：以前对局已开始后 HandleJoin 仍会接受新客户端（只查人数上限），
+    /// 但它永远收不到 S2CBattleStart → 停在 seed=0 房间模拟、与对局脱节且无告警。</summary>
+    public sealed class S2CJoinRejected : NetMessage
+    {
+        public string Reason;
+
+        public override MsgId Id { get { return MsgId.JoinRejected; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(Reason ?? string.Empty);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            Reason = reader.ReadString();
+        }
+    }
+
     /// <summary>S2C: host tells a joiner its own entity id (client skips rendering itself).</summary>
     public sealed class S2CMyEntity : NetMessage
     {
@@ -484,13 +523,9 @@ namespace EmojiWar.GameMain.Network
         public int EntityId;        // 持有者实体 ID
         public int WeaponId;        // 武器数据表 ID
         public string WeaponName;   // 武器名
-        public string WeaponIcon;   // 武器图标
         public float Damage;
         public float FireRate;
-        public int MaxAmmo;
-        public float ReloadTime;
         public float BulletSpeed;
-        public float Spread;
 
         public override MsgId Id { get { return MsgId.WeaponUpdate; } }
 
@@ -499,13 +534,9 @@ namespace EmojiWar.GameMain.Network
             writer.Write(EntityId);
             writer.Write(WeaponId);
             writer.Write(WeaponName ?? string.Empty);
-            writer.Write(WeaponIcon ?? string.Empty);
             writer.Write(Damage);
             writer.Write(FireRate);
-            writer.Write(MaxAmmo);
-            writer.Write(ReloadTime);
             writer.Write(BulletSpeed);
-            writer.Write(Spread);
         }
 
         public override void Deserialize(BinaryReader reader)
@@ -513,13 +544,9 @@ namespace EmojiWar.GameMain.Network
             EntityId = reader.ReadInt32();
             WeaponId = reader.ReadInt32();
             WeaponName = reader.ReadString();
-            WeaponIcon = reader.ReadString();
             Damage = reader.ReadSingle();
             FireRate = reader.ReadSingle();
-            MaxAmmo = reader.ReadInt32();
-            ReloadTime = reader.ReadSingle();
             BulletSpeed = reader.ReadSingle();
-            Spread = reader.ReadSingle();
         }
     }
 
@@ -541,6 +568,31 @@ namespace EmojiWar.GameMain.Network
         {
             EntityId = reader.ReadInt32();
             CharacterId = reader.ReadInt32();
+        }
+    }
+
+    /// <summary>
+    /// 定期状态对账（Host → 客户端）：每 N 帧下发一次"逻辑帧号 + 该帧确定性状态哈希"。
+    /// 客户端在同一逻辑帧计算本地哈希并对比；不等即判定不同步（告警/记录，供排查）。
+    /// 纯校验不下发状态：帧同步假设下双端哈希恒等；一旦不等说明确定性被破坏，需查输入序列/随机/顺序。
+    /// </summary>
+    public sealed class S2CStateCheck : NetMessage
+    {
+        public int FrameIndex;      // Host 计算哈希时的逻辑帧号
+        public long StateHash;      // 该帧确定性状态哈希（FNV-1a over 模拟实体）
+
+        public override MsgId Id { get { return MsgId.StateCheck; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(FrameIndex);
+            writer.Write(StateHash);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            FrameIndex = reader.ReadInt32();
+            StateHash = reader.ReadInt64();
         }
     }
 

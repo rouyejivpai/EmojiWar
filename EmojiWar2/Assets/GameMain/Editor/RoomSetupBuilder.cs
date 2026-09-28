@@ -1,4 +1,4 @@
-//------------------------------------------------------------
+﻿//------------------------------------------------------------
 // EmojiWar GameMain - 房间搭建工具（Editor）
 // 菜单：EmojiWar/Setup/02 - Build Room Setup
 // 功能：
@@ -160,7 +160,7 @@ namespace EmojiWar.GameMain.Editor
             }
             so.ApplyModifiedPropertiesWithoutUndo();
             EditorSceneManager.SaveScene(scene);
-            Debug.Log("[RoomSetup] Procedure 列表已更新（6 个流程）");
+            Debug.Log("[RoomSetup] Procedure 列表已更新（" + ProcedureTypeNames.Length + " 个流程）");
         }
 
         /// <summary>生成 RoomForm.prefab（QuickBind 命名约定：txt_/btn_ 前缀）。</summary>
@@ -230,7 +230,7 @@ namespace EmojiWar.GameMain.Editor
 
         /// <summary>
         /// 生成 CharacterDockForm.prefab（角色选择全屏面板骨架，QuickBind 绑定）。
-        /// 结构（角色卡片运行时按 character_select.json 动态实例化，见 CharacterDockForm.BuildCards）：
+        /// 结构（角色卡片运行时按 CharacterSelectConfigSO 动态实例化，见 CharacterDockForm.BuildCards）：
         ///   CharacterDockForm（全屏 Canvas 根，raycast 区域）
         ///   ├── panel_PanelSlide（滑动主体：右缘进/出，含全部内容）
         ///   │   ├── 顶部：btn_Collapse 收起 + btn_Confirm 确认选择 + txt_SelectTitle 标题
@@ -275,28 +275,50 @@ namespace EmojiWar.GameMain.Editor
             slide.AddComponent<Image>().color = new Color(0.05f, 0.1f, 0.16f, 0.92f);
             slide.AddComponent<CanvasGroup>();   // raycast 控制器（展开拦截/收起释放）
 
-            // 顶部：标题 + 收起 + 确认选择
-            CreateText("txt_SelectTitle", slide.transform, "选择角色", 44, new Vector2(0, 460));
-            CreateButton("btn_Collapse", slide.transform, "收起", new Vector2(-820, 460));
-            CreateButton("btn_Confirm", slide.transform, "确认选择", new Vector2(-600, 460));
+            // 顶部：标题（屏幕中心）+ 收起 + 确认选择（右侧）
+            CreateText("txt_SelectTitle", slide.transform, "选择角色", 44, new Vector2(-260, 460));
+            CreateButton("btn_Collapse", slide.transform, "收起", new Vector2(300, 460));
+            CreateButton("btn_Confirm", slide.transform, "确认选择", new Vector2(600, 460));
 
-            // ===== 卡片容器（运行时动态实例化 CharacterCard） =====
+            // ===== 卡片容器（运行时动态实例化 CharacterCard；锚左半屏，卡片居中竖排=左栏） =====
             var cardContainer = new GameObject("CardContainer");
             cardContainer.transform.SetParent(slide.transform, false);
             var ccRect = cardContainer.AddComponent<RectTransform>();
             ccRect.anchorMin = new Vector2(0f, 0f);
-            ccRect.anchorMax = new Vector2(1f, 1f);
+            ccRect.anchorMax = new Vector2(0.5f, 1f);
             ccRect.offsetMin = Vector2.zero;
             ccRect.offsetMax = Vector2.zero;
 
-            // ===== 右栏：选中角色详情 =====
-            CreateText("txt_DetailIcon", slide.transform, "😅", 120, new Vector2(400, 280));
-            CreateText("txt_DetailName", slide.transform, "角色名", 40, new Vector2(400, 120));
-            CreateText("txt_DetailDesc", slide.transform, "描述", 24, new Vector2(400, 20));
-            CreateText("txt_DetailStats", slide.transform, "生命 / 移速 / 金币", 24, new Vector2(400, -100));
+            // 占位卡片（开发习惯：动态生成的子物体在预制体里预留占位，便于观察父子级关系；
+            // 运行时 BuildCards 会先清空 CardContainer 再按 JSON 重新实例化）
+            // 必须实例化 CharacterCard.prefab（保持预制体关联 → Hierarchy 显示蓝色），
+            // 而非代码重建——这样修改 CharacterCard.prefab 会同步到占位卡（模板复用）。
+            var cardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/GameMain/Resources/UI/CharacterCard.prefab");
+            if (cardPrefab != null)
+            {
+                var templateCard = (GameObject)PrefabUtility.InstantiatePrefab(cardPrefab);
+                templateCard.name = "Card_Template";
+                templateCard.transform.SetParent(cardContainer.transform, false);
+                var tRect = templateCard.GetComponent<RectTransform>();
+                tRect.anchorMin = new Vector2(0.5f, 1f);
+                tRect.anchorMax = new Vector2(0.5f, 1f);
+                tRect.pivot = new Vector2(0.5f, 0.5f);
+                tRect.anchoredPosition = new Vector2(0f, -110f);
+                tRect.sizeDelta = new Vector2(380f, 180f);
+            }
+            else
+            {
+                Debug.LogWarning("[RoomSetup] CharacterCard.prefab 未找到，Card_Template 占位未生成");
+            }
 
-            // 收起态标签（右侧窄条内）
-            CreateText("txt_CurrentChar", root.transform, "角色", 22, new Vector2(0, 0));
+            // ===== 右栏：选中角色详情（屏幕中心偏右） =====
+            CreateText("txt_DetailIcon", slide.transform, "😅", 120, new Vector2(480, 280));
+            CreateText("txt_DetailName", slide.transform, "角色名", 40, new Vector2(480, 120));
+            CreateText("txt_DetailDesc", slide.transform, "描述", 24, new Vector2(480, 20));
+            CreateText("txt_DetailStats", slide.transform, "生命 / 移速 / 金币", 24, new Vector2(480, -100));
+
+            // 收起态标签（右侧窄条 Tab 旁边，显示当前角色名）
+            CreateText("txt_CurrentChar", root.transform, "角色", 18, new Vector2(-44, 0));
 
             // ===== 右侧窄条 Tab（常驻，点击滑出全屏面板） =====
             var tab = new GameObject("btn_Tab");

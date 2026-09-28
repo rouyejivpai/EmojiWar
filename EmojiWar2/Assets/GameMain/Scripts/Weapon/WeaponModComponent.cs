@@ -28,7 +28,7 @@ namespace EmojiWar.GameMain.Weapon
     /// </summary>
     public sealed class EquippedMod
     {
-        public Data.DRMod Row;
+        public Data.ModSO Row;
     }
 
     /// <summary>
@@ -58,7 +58,7 @@ namespace EmojiWar.GameMain.Weapon
         /// <summary>
         /// 加装 Mod。
         /// </summary>
-        public void AddMod(Data.DRMod row)
+        public void AddMod(Data.ModSO row)
         {
             if (row == null)
             {
@@ -71,7 +71,7 @@ namespace EmojiWar.GameMain.Weapon
         /// <summary>
         /// 卸载指定 Mod。
         /// </summary>
-        public void RemoveMod(Data.DRMod row)
+        public void RemoveMod(Data.ModSO row)
         {
             m_Mods.RemoveAll(m => m.Row != null && m.Row.Id == row.Id);
         }

@@ -49,6 +49,7 @@ namespace EmojiWar.GameMain
         public static Data.DataComponent Data { get; private set; }
         public static Network.NetworkService NetworkService { get; private set; }
         public static Simulation.SimView SimView { get; private set; }
+        public static UI.BackpackHotkey BackpackHotkey { get; private set; }
 
         private void Awake()
         {
@@ -118,11 +119,32 @@ namespace EmojiWar.GameMain
                 SimView = viewGo.AddComponent<Simulation.SimView>();
             }
 
+            // 背包热键（Tab；仅战斗流程内生效）
+            if (BackpackHotkey == null)
+            {
+                var hotkeyGo = new GameObject("BackpackHotkey");
+                hotkeyGo.transform.SetParent(transform);
+                BackpackHotkey = hotkeyGo.AddComponent<UI.BackpackHotkey>();
+            }
+
+            // 物品系统（P3）：服务 + 标准容器 + 拖拽管理器（常驻）
+            ItemSystem.EnsureCreated();
+            // 注：初始装备的发放放在 ProcedureLaunch（ConfigService 就绪之后），
+            // 否则此处 GameEntry.Data 还没初始化，GetItem 取不到 → 发不出去。
+            EmojiWar.GameMain.UI.UiDragManager.Ensure(gameObject);   // 注意：GameEntry.UI 是 UIComponent 属性，这里必须写全名
+
             // 初始化音效管理器
             Audio.SfxManager.Init();
+            // 音频监听器守卫：Menu/Battle 场景各带一个 listener + 叠加加载架构 → 必须保证全场只有一个
+            Audio.AudioListenerGuard.Ensure(gameObject);
 
             // 自动化联调辅助（-autocreate 启动参数）
             AutoPlay.TryStart();
+
+            // ★ 退出时收尾：DeterminismTracer / ReplayRecorder 的 BinaryWriter 以前只在
+            //   ResetRoom/HandleRunRestart 被 dispose → 退出后文件句柄泄漏（实测停止 Play 后仍被占用，
+            //   os error 32），且中途退出会丢尾部检查点（报告 B2）。
+            Application.quitting += OnApplicationQuitting;
 
             // 诊断：框架/场景实例计数（排查重复 GameFramework/场景叠加）
             try
@@ -143,6 +165,20 @@ namespace EmojiWar.GameMain
 
             Log.Info("GameEntry initialized. Procedure={0}, UI={1}, DataTable={2}, Scene={3}, Data={4}",
                 Procedure != null, UI != null, DataTable != null, Scene != null, Data != null);
+        }
+
+        /// <summary>退出时收尾：flush 打点与录像（修文件句柄泄漏 + 防丢尾部检查点）。</summary>
+        private static void OnApplicationQuitting()
+        {
+            try
+            {
+                EmojiWar.GameMain.Simulation.DeterminismTracer.End();
+                EmojiWar.GameMain.Simulation.ReplayRecorder.End();
+            }
+            catch (System.Exception e)
+            {
+                UnityEngine.Debug.LogWarning("[GameEntry] 退出收尾异常: " + e.Message);
+            }
         }
 
         private void OnDestroy()

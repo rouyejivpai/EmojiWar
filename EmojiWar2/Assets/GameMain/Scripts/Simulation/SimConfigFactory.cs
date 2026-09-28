@@ -39,13 +39,24 @@ namespace EmojiWar.GameMain.Simulation
                     {
                         config.WeaponId = weapon.Id;
                         config.WeaponName = weapon.WeaponName;
-                        config.WeaponIcon = weapon.Icon;
                         config.WeaponDamage = weapon.Damage;
                         config.FireRate = weapon.FireRate;
                         config.MaxAmmo = weapon.MaxAmmo;
                         config.ReloadTime = weapon.ReloadTime;
                         config.BulletSpeed = weapon.BulletSpeed;
-                        config.Spread = weapon.Spread;
+                    }
+
+                    // 双手法杖 loadout（决策：法术槽属于"手"，左手一套/右手一套；
+                    // 右手空手 = 没有副武器、右键不开火；副武器数值 = 右手杖 + 右手那套法术）。
+                    // 说明：本轮先按"本机 ItemSystem"编译，Host/Client 需装备一致（同机测试/单机成立）；
+                    // P5 收尾时改为 Host 权威编译 + S2CLoadoutSync 下发，消除两端各自编译的分叉风险。
+                    var itemService = EmojiWar.GameMain.ItemSystem.Service;
+                    if (itemService != null)
+                    {
+                        config.PrimaryProgram = Items.LoadoutCompiler.CompileHand(
+                            EmojiWar.GameMain.ItemSystem.HandLeftId, itemService.Table, itemService);
+                        config.SecondaryProgram = Items.LoadoutCompiler.CompileHand(
+                            EmojiWar.GameMain.ItemSystem.HandRightId, itemService.Table, itemService);
                     }
                 }
             }

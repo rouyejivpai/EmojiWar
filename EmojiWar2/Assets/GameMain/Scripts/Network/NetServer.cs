@@ -192,7 +192,11 @@ namespace EmojiWar.GameMain.Network
         private TcpListener m_Listener = null;
         private readonly Dictionary<int, NetServerSession> m_Sessions = new Dictionary<int, NetServerSession>();
         private readonly object m_SyncRoot = new object();
-        private readonly List<NetServerSession> m_SessionList = new List<NetServerSession>();   // 复用遍历列表（避免每帧分配）
+        private readonly List<NetServerSession> m_SessionList = new List<NetServerSession>();   // 复用遍历列表（Poll 用，避免每帧分配）
+        private readonly List<NetServerSession> m_BroadcastList = new List<NetServerSession>(); // 复用广播列表（与 Poll 分离：
+        // Poll 的 foreach 遍历 m_SessionList 处理消息时，消息回调里 Broadcast() 会清空/填充本列表；
+        // 若两者共用同一列表，会修改正在被枚举的集合 → InvalidOperationException: Collection was modified。
+        // 历史 bug：双实例联机时 HandleJoin/HandleReadyChange 内广播 → 崩溃。）
         private int m_NextSessionId = 1;
 
         public bool IsRunning { get; private set; }
@@ -320,18 +324,19 @@ namespace EmojiWar.GameMain.Network
         /// </summary>
         public void Broadcast(NetMessage message)
         {
-            // 复用列表避免每帧分配（InputFrame 20Hz 广播高频）
-            m_SessionList.Clear();
+            // 复用独立广播列表（与 Poll 的 m_SessionList 分离 —— Poll foreach 处理消息期间可能回调本方法，
+            // 若共用列表会修改正在枚举的集合导致 Collection was modified 崩溃）。
+            m_BroadcastList.Clear();
             lock (m_SyncRoot)
             {
-                m_SessionList.AddRange(m_Sessions.Values);
+                m_BroadcastList.AddRange(m_Sessions.Values);
             }
             // 高频消息（输入帧 20Hz）不打日志，避免每帧 Debug.Log 严重掉帧
             if (message.Id != MsgId.InputFrame)
             {
-                Debug.Log("[NetServer] Broadcast " + message.Id + " to " + m_SessionList.Count + " sessions");
+                Debug.Log("[NetServer] Broadcast " + message.Id + " to " + m_BroadcastList.Count + " sessions");
             }
-            foreach (var session in m_SessionList)
+            foreach (var session in m_BroadcastList)
             {
                 session.Send(message);
             }
