@@ -1,0 +1,68 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96e42f8e7772b3b4fbcfec465fbdd61e, type: 3}
+  m_Name: SpellSystemConfig
+  m_EditorClassIdentifier: 
+  MaxSpellSlots: 8
+  BackpackCapacity: 30
+  ShopCapacity: 6
+  ShopItemCount: 3
+  MaxTotalTriggers: 64
+  MaxTriggersPerItem: 8
+  MaxPassiveNesting: 3
+  DefaultBulletLifetime: 2
+  DefaultBulletRadius: 0.2
+  DefaultBulletSpeed: 12
+  DefaultBulletDamage: 8
+  MaxBulletLifetime: 10
+  DefaultPassiveLimitPerCast: 1
+  DefaultPassiveCooldownMs: 500
+  DefaultBuffMaxStacks: 1
+  GlobalMaxBuffStacks: 99
+  BuffDetonateDamagePerStack: 5
+  SequenceManaBudgetRatio: 0.7
+  SequenceManaTooLightRatio: 0.4
+  SequenceDurationMax: 1.2
+  DelaySumPerSlotMax: 0.15
+  TotalRechargeMin: 0.8
+  TotalRechargeMax: 1.6
+  RechargeSumRatioMax: 0.6
+  RegenSupportFactor: 0.5
+  LightBand:
+    ManaMin: 3
+    ManaMax: 8
+    DelayMin: -0.05
+    DelayMax: 0
+    RechargeMin: 0.05
+    RechargeMax: 0.15
+  MediumBand:
+    ManaMin: 8
+    ManaMax: 15
+    DelayMin: 0.05
+    DelayMax: 0.1
+    RechargeMin: 0.1
+    RechargeMax: 0.25
+  HeavyBand:
+    ManaMin: 15
+    ManaMax: 25
+    DelayMin: 0.15
+    DelayMax: 0.2
+    RechargeMin: 0.25
+    RechargeMax: 0.4
+  UtilityBand:
+    ManaMin: 0
+    ManaMax: 12
+    DelayMin: 0
+    DelayMax: 0.15
+    RechargeMin: -0.3
+    RechargeMax: 0.5
+  SchemaVersion: 1

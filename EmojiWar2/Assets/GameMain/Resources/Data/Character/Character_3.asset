@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 50c0bb4230d30744cbd57f0210be5f4a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Id: 3
+  CharacterId: player3
+  CharacterName: "\u786C\u6C49\u9EC4\u8C46"
+  Description: "\u76AE\u7CD9\u8089\u539A\uFF0C\u624B\u6301\u9730\u5F39"
+  Prefab: {fileID: 2469696511271791526, guid: 861d922d56045684bab31f43316af44d, type: 3}
+  DefaultWeaponId: 5
+  SecondWeaponId: 3
+  MaxHealth: 200
+  MoveSpeed: 4
+  Coin: 300
+  IconSprite: {fileID: 21300000, guid: bed2a62839770e74392411db903dfc00, type: 3}
+  PrefabPath: Assets/GameMain/Entities/Player.prefab
+  Icon: 1f621

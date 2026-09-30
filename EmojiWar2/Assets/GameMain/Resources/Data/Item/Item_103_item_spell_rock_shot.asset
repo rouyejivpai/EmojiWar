@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55349fcd03939f44392f083de908a5f7, type: 3}
+  m_Name: Item_103_item_spell_rock_shot
+  m_EditorClassIdentifier: 
+  Id: 103
+  ItemKey: item_spell_rock_shot
+  DisplayName: "\u5CA9\u77F3\u5F39"
+  Description: "\u7269\u7406\u4F24 + \u51FB\u9000\u3002"
+  Category: 1
+  Rarity: 0
+  Weight: 1
+  IconSprite: {fileID: 21300000, guid: 8f1dea0964a2c2949953e51148907e42, type: 3}
+  StackMax: 1
+  Price: 35
+  SellPrice: 17
+  Flags: 2
+  Wand: {fileID: 0}
+  Spell: {fileID: 11400000, guid: 9e0edb1d9d9fab642a488de1a5f552fa, type: 2}

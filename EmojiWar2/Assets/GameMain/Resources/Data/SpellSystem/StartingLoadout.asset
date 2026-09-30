@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 62371e96cbba9cd4085fb55cb68e43ed, type: 3}
+  m_Name: StartingLoadout
+  m_EditorClassIdentifier: 
+  LeftHand:
+    Wand: {fileID: 11400000, guid: 169beeded99aa2145b4f8274c98688e6, type: 2}
+    Spells:
+    - {fileID: 11400000, guid: 2aa61ef9617141445b6ea33b91f99203, type: 2}
+    - {fileID: 11400000, guid: 8d9d8da9dee93cf438eacb5d08a5227e, type: 2}
+    - {fileID: 11400000, guid: 8d9d8da9dee93cf438eacb5d08a5227e, type: 2}
+  RightHand:
+    Wand: {fileID: 11400000, guid: 8542d210f5177e747ad87624b9d2e9e2, type: 2}
+    Spells:
+    - {fileID: 11400000, guid: c1501785ce40e8c4fb26c84dfec60096, type: 2}
+    - {fileID: 11400000, guid: a0dbd06f07c19bc4ea0f77f524c371e4, type: 2}
+    - {fileID: 11400000, guid: 8968c87e51e52524a9c9ddb0ab9e3858, type: 2}
+    - {fileID: 11400000, guid: 8d9d8da9dee93cf438eacb5d08a5227e, type: 2}
+    - {fileID: 11400000, guid: 71271a0164499c04796044fc0194785b, type: 2}
+  BackpackItems:
+  - {fileID: 11400000, guid: fb0d12398d38c3a45bffdb1e79e9d0e6, type: 2}
+  - {fileID: 11400000, guid: df3aef1298e43e448a9dd5325babf5aa, type: 2}
+  - {fileID: 11400000, guid: c59984f7704a0c9419eb89dea20b01e5, type: 2}
+  - {fileID: 11400000, guid: 5419d02d84af4644380813d246a51636, type: 2}
+  StartingCoin: 0

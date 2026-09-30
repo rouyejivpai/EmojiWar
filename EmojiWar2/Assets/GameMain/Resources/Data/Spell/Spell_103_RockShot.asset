@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ec4e4d5fba3e2e40b36795bb7d90894, type: 3}
+  m_Name: Spell_103_RockShot
+  m_EditorClassIdentifier: 
+  Id: 103
+  SpellKey: spell_rock_shot
+  DisplayName: "\u5CA9\u77F3\u5F39"
+  Description: "\u7269\u7406\u4F24 + \u51FB\u9000\u3002"
+  IconSprite: {fileID: 21300000, guid: 8f1dea0964a2c2949953e51148907e42, type: 3}
+  SchemaVersion: 1
+  TriggerType: 0
+  DelayMs: 0
+  Condition:
+    RequiredTags: 0
+    RequiredStructTags: 0
+    MinManaCost: 0
+    Invert: 0
+  ManaCost: 12
+  ManaMul: 1
+  ManaAdd: 0
+  DelayMul: 1
+  DelayAdd: 0.1
+  RechargeAdd: 0.2
+  RechargeMul: 1
+  EffectKind: 1
+  EffectScale: 1
+  Projectile: {fileID: 11400000, guid: 75d066b200af1e348b71382b6115da46, type: 2}
+  SequenceOp: 0
+  Operand: 0
+  ManaDelta: 0
+  TargetScope: 0
+  AffectCount: 0
+  Tags: 4
+  StructTags: 1
+  ProjDamageAdd: 0
+  ProjDamageMul: 1
+  ProjSpeedMul: 1
+  ProjPierceAdd: 0
+  ProjSpreadAdd: 0
+  ProjHomingAdd: 0
+  AppliesBuff: 0
+  BuffApply:
+    BuffKey: 
+    DisplayName: 
+    Stat: 0
+    ValuePerStack: 0
+    MaxStacks: 0
+    Timing: 0
+    Duration: 0
+    DurationMs: 0
+    StackRule: 0
+    IsNegative: 0
+  IsPassive: 0
+  Passive:
+    Event: 0
+    LimitPerCast: 0
+    CooldownMs: 0
+    Scope: 0
+    AffectCount: 0
+    Order: 0
+    ManaCost: 0
+    IgnoreRecharge: 0
+  ItemFlags: 0
+  Rarity: 0
+  Weight: 1

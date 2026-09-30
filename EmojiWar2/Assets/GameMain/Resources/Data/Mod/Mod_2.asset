@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a185e66bad8513f44a566e147e5154d3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Id: 2
+  ModId: ratemul_mod
+  ModName: "\u653B\u901F\u589E\u5E45"
+  Description: "\u6B66\u5668\u653B\u901F\u4E58\u533A\u589E\u5E45"
+  Category: "\u6B66\u5668"
+  Rarity: 2
+  Weight: 1.5
+  EffectType: FireRateMul
+  Param1: 0.2
+  Param2: 0
+  IconSprite: {fileID: 21300000, guid: 5cd9e7a51a24c5441acaf2c49d953e2a, type: 3}
+  Icon: 1f525

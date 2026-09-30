@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ec4e4d5fba3e2e40b36795bb7d90894, type: 3}
+  m_Name: Spell_104_ManaSaveRune
+  m_EditorClassIdentifier: 
+  Id: 104
+  SpellKey: spell_mana_save_rune
+  DisplayName: "\u8282\u80FD\u7B26\u6587"
+  Description: "\u540E\u7EED 3 \u4E2A\u7269\u54C1\u8017\u84DD \xD70.5\u3002"
+  IconSprite: {fileID: 21300000, guid: c0a4382e302ba7645bd733c07f1a03bd, type: 3}
+  SchemaVersion: 1
+  TriggerType: 0
+  DelayMs: 0
+  Condition:
+    RequiredTags: 0
+    RequiredStructTags: 0
+    MinManaCost: 0
+    Invert: 0
+  ManaCost: 11
+  ManaMul: 0.5
+  ManaAdd: 0
+  DelayMul: 1
+  DelayAdd: 0.1
+  RechargeAdd: 0.1
+  RechargeMul: 1
+  EffectKind: 0
+  EffectScale: 1
+  Projectile: {fileID: 0}
+  SequenceOp: 0
+  Operand: 0
+  ManaDelta: 0
+  TargetScope: 1
+  AffectCount: 3
+  Tags: 0
+  StructTags: 2
+  ProjDamageAdd: 0
+  ProjDamageMul: 1
+  ProjSpeedMul: 1
+  ProjPierceAdd: 0
+  ProjSpreadAdd: 0
+  ProjHomingAdd: 0
+  AppliesBuff: 0
+  BuffApply:
+    BuffKey: 
+    DisplayName: 
+    Stat: 0
+    ValuePerStack: 0
+    MaxStacks: 0
+    Timing: 0
+    Duration: 0
+    DurationMs: 0
+    StackRule: 0
+    IsNegative: 0
+  IsPassive: 0
+  Passive:
+    Event: 0
+    LimitPerCast: 0
+    CooldownMs: 0
+    Scope: 0
+    AffectCount: 0
+    Order: 0
+    ManaCost: 0
+    IgnoreRecharge: 0
+  ItemFlags: 0
+  Rarity: 0
+  Weight: 1.2

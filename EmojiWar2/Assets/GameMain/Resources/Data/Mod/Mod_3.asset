@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a185e66bad8513f44a566e147e5154d3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Id: 3
+  ModId: kill_mod
+  ModName: "\u6740\u622E\u6012\u706B"
+  Description: "\u5B50\u5F39\u51FB\u6740\u654C\u4EBA\u540E\u83B7\u5F97\u653B\u901F\u52A0\u6210"
+  Category: "\u6B66\u5668"
+  Rarity: 2
+  Weight: 1.5
+  EffectType: OnKill
+  Param1: 0.5
+  Param2: 3
+  IconSprite: {fileID: 21300000, guid: 2096106881f46b44d9d17f590d253f23, type: 3}
+  Icon: 1f47b

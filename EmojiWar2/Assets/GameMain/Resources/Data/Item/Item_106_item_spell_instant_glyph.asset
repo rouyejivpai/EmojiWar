@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55349fcd03939f44392f083de908a5f7, type: 3}
+  m_Name: Item_106_item_spell_instant_glyph
+  m_EditorClassIdentifier: 
+  Id: 106
+  ItemKey: item_spell_instant_glyph
+  DisplayName: "\u77AC\u53D1\u94ED\u6587"
+  Description: "\u4E0B\u4E00\u4E2A\u7269\u54C1\u5EF6\u8FDF\u5F52\u96F6\u3002"
+  Category: 1
+  Rarity: 1
+  Weight: 1.2
+  IconSprite: {fileID: 21300000, guid: be73fc9f2dddcb647b93c9a320e1d641, type: 3}
+  StackMax: 1
+  Price: 30
+  SellPrice: 15
+  Flags: 2
+  Wand: {fileID: 0}
+  Spell: {fileID: 11400000, guid: c1501785ce40e8c4fb26c84dfec60096, type: 2}

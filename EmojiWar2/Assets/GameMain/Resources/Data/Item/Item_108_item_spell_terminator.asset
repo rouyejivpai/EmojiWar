@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55349fcd03939f44392f083de908a5f7, type: 3}
+  m_Name: Item_108_item_spell_terminator
+  m_EditorClassIdentifier: 
+  Id: 108
+  ItemKey: item_spell_terminator
+  DisplayName: "\u7EC8\u6B62\u7B26"
+  Description: "\u7ACB\u5373\u7ED3\u675F\u672C\u6B21\u65BD\u6CD5\uFF0C\u5145\u80FD
+    \u22120.1s\u3002"
+  Category: 1
+  Rarity: 0
+  Weight: 1
+  IconSprite: {fileID: 21300000, guid: 3561edaa78d14a642996458108416b35, type: 3}
+  StackMax: 1
+  Price: 25
+  SellPrice: 12
+  Flags: 2
+  Wand: {fileID: 0}
+  Spell: {fileID: 11400000, guid: ad4485f488ba1344f9c18879fe81fa2e, type: 2}

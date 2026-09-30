@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55349fcd03939f44392f083de908a5f7, type: 3}
+  m_Name: Item_107_item_spell_quick_recharge
+  m_EditorClassIdentifier: 
+  Id: 107
+  ItemKey: item_spell_quick_recharge
+  DisplayName: "\u5FEB\u901F\u5145\u80FD"
+  Description: "\u672C\u6B21\u65BD\u6CD5\u603B\u5145\u80FD \u22120.3s\u3002"
+  Category: 1
+  Rarity: 1
+  Weight: 0.9
+  IconSprite: {fileID: 21300000, guid: 04645da460c03d74295ff56114e3a55e, type: 3}
+  StackMax: 1
+  Price: 55
+  SellPrice: 27
+  Flags: 2
+  Wand: {fileID: 0}
+  Spell: {fileID: 11400000, guid: 71271a0164499c04796044fc0194785b, type: 2}

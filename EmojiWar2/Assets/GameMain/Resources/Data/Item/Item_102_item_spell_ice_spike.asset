@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55349fcd03939f44392f083de908a5f7, type: 3}
+  m_Name: Item_102_item_spell_ice_spike
+  m_EditorClassIdentifier: 
+  Id: 102
+  ItemKey: item_spell_ice_spike
+  DisplayName: "\u51B0\u9525"
+  Description: "\u51B0\u4F24 + \u8F7B\u51CF\u901F\u3002"
+  Category: 1
+  Rarity: 0
+  Weight: 1.1
+  IconSprite: {fileID: 21300000, guid: 7fec8fb41b052424285d54324868e6b7, type: 3}
+  StackMax: 1
+  Price: 30
+  SellPrice: 15
+  Flags: 2
+  Wand: {fileID: 0}
+  Spell: {fileID: 11400000, guid: a0dbd06f07c19bc4ea0f77f524c371e4, type: 2}
