@@ -481,3 +481,7 @@ S2C: RoomState / SpawnEntity / EntityState(位置/血量) / SpawnProjectile /
 | 无死流程类 | ✅（本次清理） |
 | 防重入守卫（m_Entered / s_BattleSession） | ✅ 自研增强（GF 未强制，本项目防重复 ChangeState） |
 | 跨流程数据（角色 ID 静态字段） | ⚠️ 简化实现，可演进为 ChangeState(userData)/DataNode |
+
+## 14. 下一步执行方案（2026-09-30）
+
+架构审查后的执行步骤（S0 补推缺失模块 → S1 测试安全网 → S2 同步修复 → S3–S9）及已定决策，见 [`doc/下一步执行方案.md`](doc/下一步执行方案.md)。
