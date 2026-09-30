@@ -1,4 +1,4 @@
-//------------------------------------------------------------
+﻿//------------------------------------------------------------
 // EmojiWar GameMain - 确定性打点器（文档 §4 确定性打点 + 自动 diff）
 // 在逻辑关键点埋 CheckID + 一小段数据，写入二进制 trace 文件：
 //   CheckID(int) | 数据长度(short) | 数据(bytes) | 逻辑帧号(int)
@@ -59,7 +59,7 @@ namespace EmojiWar.GameMain.Simulation
             }
             catch (Exception e)
             {
-                UnityEngine.Debug.LogWarning("[Trace] 开始打点失败: " + e.Message);
+                SimLog.LogWarning("[Trace] 开始打点失败: " + e.Message);
                 s_Enabled = false;
                 s_Writer = null;
             }
@@ -118,6 +118,46 @@ namespace EmojiWar.GameMain.Simulation
             catch { }
         }
 
+        /// <summary>
+        /// 记录两个整型数据（W-10/H2：避免 `new[]{a,b}` 的**每帧分配**）。
+        /// 原实现把数组字面量写在调用处，导致"即使打点关闭也在分配"（报告 H2 第 2 条）。
+        /// </summary>
+        public static void RecordInt2(int checkId, int a, int b, int frameIndex)
+        {
+            if (!s_Enabled || s_Writer == null)
+            {
+                return;
+            }
+            try
+            {
+                s_Writer.Write(checkId);
+                s_Writer.Write((short)8);
+                s_Writer.Write(a);
+                s_Writer.Write(b);
+                s_Writer.Write(frameIndex);
+            }
+            catch { }
+        }
+
+        /// <summary>记录三个整型数据（同上；替代 `RecordInts(..., new[]{...}, ...)`）。</summary>
+        public static void RecordInt3(int checkId, int a, int b, int c, int frameIndex)
+        {
+            if (!s_Enabled || s_Writer == null)
+            {
+                return;
+            }
+            try
+            {
+                s_Writer.Write(checkId);
+                s_Writer.Write((short)12);
+                s_Writer.Write(a);
+                s_Writer.Write(b);
+                s_Writer.Write(c);
+                s_Writer.Write(frameIndex);
+            }
+            catch { }
+        }
+
         /// <summary>记录浮点数组检查点（坐标等；float 位模式转换保证跨端可比）。</summary>
         public static void RecordFloats(int checkId, float[] data, int frameIndex)
         {
@@ -128,10 +168,13 @@ namespace EmojiWar.GameMain.Simulation
             try
             {
                 s_Writer.Write(checkId);
+                // W-10：原来声明 `data.Length * 4` 却写 `DoubleToInt64Bits`（8 字节/元素）
+                // → 任何调用方都会产出**结构损坏的 trace 流**（trace_diff.py 按 4 字节解析会错位）。
+                // 现在统一为 4 字节的 float 位模式，与声明一致、也与 diff 工具的解析一致。
                 s_Writer.Write((short)(data.Length * 4));
                 for (int i = 0; i < data.Length; i++)
                 {
-                    s_Writer.Write(BitConverter.DoubleToInt64Bits(data[i]));
+                    s_Writer.Write(BitConverter.SingleToInt32Bits(data[i]));
                 }
                 s_Writer.Write(frameIndex);
             }

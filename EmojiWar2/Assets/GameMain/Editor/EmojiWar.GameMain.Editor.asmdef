@@ -1,10 +1,11 @@
-{
+﻿{
     "name": "EmojiWar.GameMain.Editor",
     "rootNamespace": "EmojiWar.GameMain.Editor",
     "references": [
         "UnityGameFramework.Runtime",
         "UnityGameFramework.Editor",
-        "EmojiWar.GameMain"
+        "EmojiWar.GameMain",
+        "EmojiWar.Sim"
     ],
     "includePlatforms": [
         "Editor"

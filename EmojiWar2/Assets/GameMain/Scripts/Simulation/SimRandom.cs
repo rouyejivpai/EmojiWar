@@ -1,10 +1,9 @@
-//------------------------------------------------------------
+﻿//------------------------------------------------------------
 // EmojiWar GameMain - 确定性随机数生成器
 // xorshift32 实现：同一种子 + 相同调用序列 → 所有端结果一致。
 // 帧同步（Lockstep）核心依赖：绝不用 UnityEngine.Random。
 //------------------------------------------------------------
 
-using UnityEngine;
 
 namespace EmojiWar.GameMain.Simulation
 {
@@ -31,6 +30,13 @@ namespace EmojiWar.GameMain.Simulation
             return x;
         }
 
+        /// <summary>
+        /// 当前内部状态（W-10：确定性打点用；**不参与任何计算**）。
+        /// 报告 B1 指出"随机数状态必须入哈希/可对账" —— 打点用它可以精确定位
+        /// "两端从哪一次随机调用开始分叉"（此前 RandomCall 检查点定义了却从未写入）。
+        /// </summary>
+        public uint State { get { return m_State; } }
+
         /// <summary>[0,1) 浮点随机。</summary>
         public float NextFloat()
         {
@@ -54,18 +60,18 @@ namespace EmojiWar.GameMain.Simulation
         }
 
         /// <summary>单位圆内随机点（用于敌人生成位置）。</summary>
-        public Vector2 InsideUnitCircle()
+        public SimVec2 InsideUnitCircle()
         {
-            float angle = NextFloat() * Mathf.PI * 2f;
-            float radius = Mathf.Sqrt(NextFloat());   // 均匀分布
-            return new Vector2(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius);
+            float angle = NextFloat() * SimMath.PI * 2f;
+            float radius = SimMath.Sqrt(NextFloat());   // 均匀分布
+            return new SimVec2(SimMath.Cos(angle) * radius, SimMath.Sin(angle) * radius);
         }
 
         /// <summary>均匀随机方向（用于子弹散射）。</summary>
-        public Vector2 RandomDirection()
+        public SimVec2 RandomDirection()
         {
-            float angle = NextFloat() * Mathf.PI * 2f;
-            return new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            float angle = NextFloat() * SimMath.PI * 2f;
+            return new SimVec2(SimMath.Cos(angle), SimMath.Sin(angle));
         }
     }
 }

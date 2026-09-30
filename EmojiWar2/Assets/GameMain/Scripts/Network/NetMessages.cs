@@ -3,6 +3,7 @@
 // 具体消息类：序列化/反序列化。
 //------------------------------------------------------------
 
+using System.Collections.Generic;
 using System.IO;
 
 namespace EmojiWar.GameMain.Network
@@ -15,18 +16,32 @@ namespace EmojiWar.GameMain.Network
         public string PlayerName;
         public int CharacterId = 1;
 
+        /// <summary>[W-07] 本端配置版本哈希（`ConfigService.VersionHash`）。</summary>
+        public ulong ConfigHash;
+
+        /// <summary>
+        /// [W-07] 本端逻辑层**代码**哈希（`SimBuildInfo.CodeHash`）—— 配置哈希发现不了"代码不一致"。
+        /// [W-11b] 它只哈希**跨后端一致**的比较用指纹（语义版本 + 逻辑帧率），
+        /// 不含 MVID/buildGUID 这类"构建标识" —— 否则"编辑器(Mono) 与 IL2CPP 包同源"会被误判成版本不一致。
+        /// </summary>
+        public ulong CodeHash;
+
         public override MsgId Id { get { return MsgId.JoinRoom; } }
 
         public override void Serialize(BinaryWriter writer)
         {
             writer.Write(PlayerName ?? string.Empty);
             writer.Write(CharacterId);
+            writer.Write(ConfigHash);
+            writer.Write(CodeHash);
         }
 
         public override void Deserialize(BinaryReader reader)
         {
             PlayerName = reader.ReadString();
             CharacterId = reader.ReadInt32();
+            ConfigHash = reader.ReadUInt64();
+            CodeHash = reader.ReadUInt64();
         }
     }
 
@@ -41,6 +56,23 @@ namespace EmojiWar.GameMain.Network
         public bool FireSecondary;
         public bool Reload;
 
+        /// <summary>
+        /// [W-12] 采样该输入时**客户端的本地模拟帧号**（仅用于日志/排查，**不参与新鲜度判定**）。
+        /// 它会在开战（重建战斗模拟）时归零 —— 拿它判新鲜度会造成"开战后永远判成过期 → 永久托管"。
+        /// </summary>
+        public int FrameIndex;
+
+        /// <summary>
+        /// [W-12] **单调递增的发送序号**（房主判"输入源是否还在更新"只用它）。
+        /// 之所以不用帧号：客户端在开战/回房间时会**重建模拟**、帧号归零，而房主记的"上次消费值"
+        /// 还是旧的大值 → 之后每条输入都被判成"过期" → 玩家被永久托管（实测：角色整场停在原点）。
+        /// 发送序号没有归零问题。
+        /// </summary>
+        public int SendSeq;
+
+        /// <summary>[W-12] 本采样窗口内的**边沿**位：bit0=FirePrimary 按下、bit1=松开、bit2=FireSecondary 按下、bit3=松开。</summary>
+        public byte EdgeFlags;
+
         public override MsgId Id { get { return MsgId.PlayerInput; } }
 
         public override void Serialize(BinaryWriter writer)
@@ -52,6 +84,9 @@ namespace EmojiWar.GameMain.Network
             writer.Write(FirePrimary);
             writer.Write(FireSecondary);
             writer.Write(Reload);
+            writer.Write(FrameIndex);
+            writer.Write(SendSeq);
+            writer.Write(EdgeFlags);
         }
 
         public override void Deserialize(BinaryReader reader)
@@ -63,6 +98,9 @@ namespace EmojiWar.GameMain.Network
             FirePrimary = reader.ReadBoolean();
             FireSecondary = reader.ReadBoolean();
             Reload = reader.ReadBoolean();
+            FrameIndex = reader.ReadInt32();
+            SendSeq = reader.ReadInt32();
+            EdgeFlags = reader.ReadByte();
         }
     }
 
@@ -80,12 +118,32 @@ namespace EmojiWar.GameMain.Network
         public bool[] FireSecondaries;
         public bool[] Reloads;
 
+        /// <summary>
+        /// [W-12] 每名玩家是否处于**托管**（房主判定"该玩家输入源已断 ≥0.5 秒"，用空输入代打）。
+        /// 必须随帧广播：托管改变的是**模拟推进**，两端不一致就会分叉（并且它进了状态哈希）。
+        /// </summary>
+        public bool[] Managed;
+
+        /// <summary>
+        /// [W-16] 本帧要执行的确定性事件（帧事件批）。定义与"怎么应用"都在
+        /// `EmojiWar.GameMain.Simulation.FrameEvent` / `SimFrameEvents` —— 网络层与回放器共用同一份。
+        /// </summary>
+        public List<Simulation.FrameEvent> Events;
+
         public override MsgId Id { get { return MsgId.InputFrame; } }
 
         public override void Serialize(BinaryWriter writer)
         {
             writer.Write(FrameIndex);
             writer.Write(Count);
+            int evCount = Events != null ? Events.Count : 0;
+            writer.Write(evCount);
+            for (int i = 0; i < evCount; i++)
+            {
+                writer.Write(Events[i].Kind);
+                writer.Write(Events[i].Arg0);
+                writer.Write(Events[i].Arg1);
+            }
             for (int i = 0; i < Count; i++)
             {
                 writer.Write(EntityIds[i]);
@@ -96,6 +154,7 @@ namespace EmojiWar.GameMain.Network
                 writer.Write(FirePrimaries[i]);
                 writer.Write(FireSecondaries[i]);
                 writer.Write(Reloads[i]);
+                writer.Write(Managed != null && i < Managed.Length && Managed[i]);
             }
         }
 
@@ -103,6 +162,21 @@ namespace EmojiWar.GameMain.Network
         {
             FrameIndex = reader.ReadInt32();
             Count = reader.ReadInt32();
+            int evCount = reader.ReadInt32();
+            if (evCount > 0)
+            {
+                if (Events == null) { Events = new List<Simulation.FrameEvent>(evCount); }
+                Events.Clear();
+                for (int i = 0; i < evCount; i++)
+                {
+                    Simulation.FrameEvent e;
+                    e.Kind = reader.ReadByte();
+                    e.Arg0 = reader.ReadInt32();
+                    e.Arg1 = reader.ReadInt32();
+                    Events.Add(e);
+                }
+            }
+            else if (Events != null) { Events.Clear(); }
             EntityIds = new int[Count];
             InputXs = new float[Count];
             InputYs = new float[Count];
@@ -111,6 +185,7 @@ namespace EmojiWar.GameMain.Network
             FirePrimaries = new bool[Count];
             FireSecondaries = new bool[Count];
             Reloads = new bool[Count];
+            Managed = new bool[Count];
             for (int i = 0; i < Count; i++)
             {
                 EntityIds[i] = reader.ReadInt32();
@@ -121,6 +196,7 @@ namespace EmojiWar.GameMain.Network
                 FirePrimaries[i] = reader.ReadBoolean();
                 FireSecondaries[i] = reader.ReadBoolean();
                 Reloads[i] = reader.ReadBoolean();
+                Managed[i] = reader.ReadBoolean();
             }
         }
     }
@@ -496,6 +572,50 @@ namespace EmojiWar.GameMain.Network
         public override void Deserialize(BinaryReader reader)
         {
             Reason = reader.ReadString();
+        }
+    }
+
+    /// <summary>
+    /// C2S: 上报本机装备 Id（W-06）。
+    /// 格式见 <c>Simulation/LoadoutWire.cs</c>：`"wandL:sp1,sp2:wandR:sp1,sp2"`（不含 entityId，Host 按 session 归属）。
+    /// **只传 Id，不传资产引用或字符串名**（工程约定 §二）。
+    /// </summary>
+    public sealed class C2SLoadoutSync : NetMessage
+    {
+        public string HandIds;
+
+        public override MsgId Id { get { return MsgId.LoadoutSync; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(HandIds ?? string.Empty);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            HandIds = reader.ReadString();
+        }
+    }
+
+    /// <summary>
+    /// S2C: 全员装备 Id 广播（W-06）。格式见 <c>Simulation/LoadoutWire.cs</c>：
+    /// `"entityId:wandL:sp1,sp2:wandR:sp1,sp2;entityId:..."`。
+    /// 所有端收到后都用同一份 Id 表编译 → 消除"各端按本机背包编译"的分叉源。
+    /// </summary>
+    public sealed class S2CLoadoutBroadcast : NetMessage
+    {
+        public string Loadouts;
+
+        public override MsgId Id { get { return MsgId.LoadoutBroadcast; } }
+
+        public override void Serialize(BinaryWriter writer)
+        {
+            writer.Write(Loadouts ?? string.Empty);
+        }
+
+        public override void Deserialize(BinaryReader reader)
+        {
+            Loadouts = reader.ReadString();
         }
     }
 

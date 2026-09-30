@@ -29,9 +29,16 @@ namespace EmojiWar.GameMain.Network
             Id = id;
             m_Client = client;
             m_Stream = client.GetStream();
+            // [W-19] 有界写超时：TCP 发送缓冲写满只可能是对端长时间不读（卡死/断网）。
+            //   没有超时时 `Write` 会**无限阻塞主线程** → 一个坏客户端能拖死整个房主的 tick 循环。
+            //   500ms 足够判定"它已经不读了"（40~100 B 的消息 × 30Hz 远小于任何 TCP 缓冲），
+            //   超时抛异常 → 该连接被断开，房主继续跑（对局内的"托管"由 W-12 的输入新鲜度处理）。
+            try { m_Stream.WriteTimeout = 500; } catch (Exception) { }
         }
 
         private byte[] m_ReadBuffer = new byte[4096];   // 复用读取缓冲（避免每帧分配）
+        /// <summary>[W-19] 单次 Poll 最多读几轮（防病态连接把主线程拖住）。</summary>
+        private const int MaxReadsPerPoll = 32;
         public bool IsAlive
         {
             get { return m_Client != null && m_Client.Connected; }
@@ -54,10 +61,35 @@ namespace EmojiWar.GameMain.Network
             {
                 byte[] frame = NetCodec.Encode(message, out int length);
                 m_Stream.Write(frame, 0, length);
+                NetStats.RecordSent(length);
             }
             catch (Exception e)
             {
                 Debug.LogError("[NetServerSession] Send failed: " + e.Message);
+            }
+        }
+
+        /// <summary>
+        /// [W-19] 发送**已经序列化好**的帧（广播用）。
+        /// 原来 `Broadcast` 对每个会话各调一次 `Send` → 同一份 payload 被**序列化 N 次**
+        /// （4 人局每帧 5 次，30Hz 下 150 次/秒的纯浪费）。
+        /// ⚠ 传入的数组是 `NetCodec` 的**共享静态缓冲**：必须在同一线程上紧接着写完所有会话，
+        /// 期间不得再调 `NetCodec.Encode`（否则缓冲被覆盖）。广播路径正是这样用的（主线程顺序发送）。
+        /// </summary>
+        public void SendPreEncoded(byte[] frame, int length)
+        {
+            if (!IsAlive || m_Stream == null || frame == null || length <= 0)
+            {
+                return;
+            }
+            try
+            {
+                m_Stream.Write(frame, 0, length);
+                NetStats.RecordSent(length);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[NetServerSession] SendPreEncoded failed: " + e.Message);
             }
         }
 
@@ -90,25 +122,36 @@ namespace EmojiWar.GameMain.Network
 
             try
             {
-                int read = m_Stream.Read(m_ReadBuffer, 0, m_ReadBuffer.Length);
-                if (read <= 0)
+                // [W-19] 循环读到**读空为止**。
+                // 原来每帧每会话只 `Read` 一次（最多 4096 B）：一旦某帧积压超过 4096 B（例如一次渲染
+                // 停顿期间客户端/房主卡了 100ms，30Hz 下就有 3~4 帧排队），剩余数据要等**下一个渲染帧**
+                // 才被派发 —— 表现上就是"输入帧成批到达"，正是 W-13 抖动缓冲要抹平的那种突发。
+                // 上限 32 次/帧防止病态连接把主线程拖住。
+                int reads = 0;
+                while (reads < MaxReadsPerPoll && m_Stream.DataAvailable)
                 {
-                    Disconnect();
-                    return;
-                }
+                    int read = m_Stream.Read(m_ReadBuffer, 0, m_ReadBuffer.Length);
+                    if (read <= 0)
+                    {
+                        Disconnect();
+                        return;
+                    }
+                    NetStats.RecordReceived(read);
+                    reads++;
 
-                // 批量追加（避免逐字节 Add 的 List 扩容开销）
-                int need = m_ReceiveBuffer.Count + read;
-                if (m_ReceiveBuffer.Capacity < need)
-                {
-                    m_ReceiveBuffer.Capacity = need;
-                }
-                for (int i = 0; i < read; i++)
-                {
-                    m_ReceiveBuffer.Add(m_ReadBuffer[i]);
-                }
+                    // 批量追加（避免逐字节 Add 的 List 扩容开销）
+                    int need = m_ReceiveBuffer.Count + read;
+                    if (m_ReceiveBuffer.Capacity < need)
+                    {
+                        m_ReceiveBuffer.Capacity = need;
+                    }
+                    for (int i = 0; i < read; i++)
+                    {
+                        m_ReceiveBuffer.Add(m_ReadBuffer[i]);
+                    }
 
-                ProcessBuffer();
+                    ProcessBuffer();
+                }
 
                 // 批量消费完成后统一压缩：仅当已消费字节较多时前移一次（避免每帧 O(n)）
                 if (m_Consumed > 0)
@@ -156,7 +199,11 @@ namespace EmojiWar.GameMain.Network
                     {
                         Debug.Log("[NetServerSession] Received msg " + message.Id + " from session " + Id);
                     }
-                    OnMessage?.Invoke(Id, message);
+                    // W-26.3：损伤注入（延迟/抖动/丢包）。被接管时不直接派发（由 NetSim.Pump 按 FIFO 投递）。
+                    if (!NetSim.Intercept(Id, message, Time.realtimeSinceStartup))
+                    {
+                        OnMessage?.Invoke(Id, message);
+                    }
                 }
             }
         }
@@ -336,9 +383,12 @@ namespace EmojiWar.GameMain.Network
             {
                 Debug.Log("[NetServer] Broadcast " + message.Id + " to " + m_BroadcastList.Count + " sessions");
             }
+            // [W-19] 序列化一次、多次发送（原实现对每个会话各序列化一次）
+            if (m_BroadcastList.Count == 0) { return; }
+            byte[] frame = NetCodec.Encode(message, out int length);
             foreach (var session in m_BroadcastList)
             {
-                session.Send(message);
+                session.SendPreEncoded(frame, length);   // [W-19] 只序列化一次，多个会话复用同一份字节
             }
         }
 

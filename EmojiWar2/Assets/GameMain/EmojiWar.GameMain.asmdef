@@ -1,8 +1,9 @@
-{
+﻿{
     "name": "EmojiWar.GameMain",
     "rootNamespace": "EmojiWar.GameMain",
     "references": [
         "UnityGameFramework.Runtime",
+        "EmojiWar.Sim",
         "DOTween.Runtime"
     ],
     "includePlatforms": [],

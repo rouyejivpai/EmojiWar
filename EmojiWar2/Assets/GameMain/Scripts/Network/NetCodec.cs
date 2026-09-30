@@ -20,6 +20,9 @@ namespace EmojiWar.GameMain.Network
 
         // 可复用编码缓冲（高频消息：输入上行/输入帧广播，避免每帧 MemoryStream/byte[] 分配）
         private static readonly MemoryStream s_EncodeStream = new MemoryStream(256);
+        // [W-18] 与流一起长期复用的写入器（原来每条消息 new 一个，等于白复用了流）
+        private static readonly BinaryWriter s_EncodeWriter =
+            new BinaryWriter(s_EncodeStream, System.Text.Encoding.UTF8, true);
         private static byte[] s_EncodeFrame = new byte[512];
 
         // 可复用解码缓冲（高频输入帧拆帧，避免 GetRange().ToArray() 每帧分配）
@@ -57,6 +60,8 @@ namespace EmojiWar.GameMain.Network
             Register<S2CPlayerList>();
             Register<S2CRoomClosed>();
             Register<S2CJoinRejected>();
+            Register<C2SLoadoutSync>();
+            Register<S2CLoadoutBroadcast>();
             Register<S2CShopContinue>();
             Register<NetHeartbeat>();
         }
@@ -74,12 +79,12 @@ namespace EmojiWar.GameMain.Network
         /// </summary>
         public static byte[] Encode(NetMessage message, out int length)
         {
-            // 复用编码流（重置后写入）
+            // [W-18] 复用编码流**与写入器**（重置后写入）。
+            // 原来这里每条消息都 `new BinaryWriter(...)`：输入帧 30/s × 广播给 N 个客户端
+            // = 每秒上百次分配（BinaryWriter + 其内部状态）。流本来就是复用的，写入器没有理由每次新建。
+            // `leaveOpen: true` + 从不 Dispose：我们在进程生命周期内一直复用它，且绝不能让流被关掉。
             s_EncodeStream.SetLength(0);
-            using (var writer = new BinaryWriter(s_EncodeStream, System.Text.Encoding.UTF8, true))
-            {
-                message.Serialize(writer);
-            }
+            message.Serialize(s_EncodeWriter);
 
             int payloadLength = (int)s_EncodeStream.Length;
             int total = HeaderLength + payloadLength;

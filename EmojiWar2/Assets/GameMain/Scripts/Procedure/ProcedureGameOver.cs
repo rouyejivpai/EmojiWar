@@ -82,6 +82,10 @@ namespace EmojiWar.GameMain.Procedure
             Log.Info("[ProcedureGameOver] 返回菜单");
             WriteProbe("[gameover] MenuRequested");
 
+            // [W-09] 离开对局 → 清空物品系统，否则下次进战斗时 GrantStartingLoadout
+            //   会往**上一局残留的背包**里再发一次初始装备（道具翻倍 / 槽位占用错乱）。
+            ItemSystem.Reset();
+
             // 离开房间：停止服务器 / 断开连接
             if (GameEntry.NetworkService != null)
             {

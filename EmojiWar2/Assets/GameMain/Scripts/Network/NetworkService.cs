@@ -30,6 +30,10 @@ namespace EmojiWar.GameMain.Network
         private NetConnection m_Connection = null;
         private NetMode m_Mode = NetMode.Offline;
 
+        // W-26.3：损伤注入的投递委托（缓存字段，避免每帧闭包分配）
+        private System.Action<int, NetMessage> m_NetSimDispatch = null;
+        private float m_NetSimProbeTimer = 2f;
+
         public NetMode Mode { get { return m_Mode; } }
         public bool IsConnected { get { return m_Connection != null && m_Connection.IsReady; } }
         public bool IsHosting { get { return m_Server != null && m_Server.IsRunning; } }
@@ -47,6 +51,22 @@ namespace EmojiWar.GameMain.Network
         /// <summary>连接状态变化事件。</summary>
         public event Action<NetMode> OnModeChanged;
 
+        private void Awake()
+        {
+            // W-26.3：解析损伤注入参数（-netdelay / -netjitter / -netloss / -netseed）
+            NetSim.EnsureParsed();
+
+            // 缓存投递委托（避免每帧闭包分配）。约定：sessionId < 0 = 客户端侧消息。
+            m_NetSimDispatch = NetSimDispatch;
+        }
+
+        /// <summary>损伤注入的到期投递（由 NetSim.Pump 调用）。</summary>
+        private void NetSimDispatch(int sessionId, NetMessage message)
+        {
+            if (sessionId < 0) { OnServerMessage?.Invoke(message); }
+            else { OnClientMessage?.Invoke(sessionId, message); }
+        }
+
         private void Update()
         {
             // 轮询网络（服务器与客户端）。TCP 需要及时读取，保持在主线程轮询；
@@ -59,7 +79,34 @@ namespace EmojiWar.GameMain.Network
             {
                 m_Connection.Poll();
             }
+
+            // W-26.3：投递已到期的延迟消息（保持 FIFO；队头未到期则整队等待 = 队头阻塞）
+            NetSim.Pump(Time.realtimeSinceStartup, m_NetSimDispatch);
+
+            // W-26.3：损伤注入统计（每 2 秒一条，便于构建版探针验证）
+            if (NetSim.Enabled)
+            {
+                m_NetSimProbeTimer -= Time.unscaledDeltaTime;
+                if (m_NetSimProbeTimer <= 0f)
+                {
+                    m_NetSimProbeTimer = 2f;
+                    WriteProbe("[netsim] " + NetSim.Describe());
+                }
+            }
+
+            // [W-19] 带宽统计（每 2 秒一条）：让"网络开销到底多大"变成可观测量。
+            //   它同时也是"要不要做输入量化"的判据 —— 量化能把 S2CInputFrame 从 ~104 B（4 人）
+            //   压到 ~40 B，但如果实测总带宽本来只有几 KB/s，那就该先不动（量化会改变输入精度、
+            //   作废既有录像与基线）。先量化问题，再决定是否优化。
+            m_NetStatsTimer -= Time.unscaledDeltaTime;
+            if (m_NetStatsTimer <= 0f)
+            {
+                m_NetStatsTimer = 2f;
+                WriteProbe("[netstat] " + NetStats.DescribeAndReset(2.0));
+            }
         }
+
+        private float m_NetStatsTimer = 2f;
         /// <summary>
         /// 启动为服务器（Host）。
         /// </summary>

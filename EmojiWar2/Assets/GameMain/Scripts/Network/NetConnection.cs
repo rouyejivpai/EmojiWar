@@ -20,6 +20,8 @@ namespace EmojiWar.GameMain.Network
         private NetworkStream m_Stream = null;
         private readonly List<byte> m_ReceiveBuffer = new List<byte>();
         private byte[] m_ReadBuffer = new byte[4096];   // 复用读取缓冲（避免每帧分配）
+        /// <summary>[W-19] 单次 Poll 最多读几轮（防对端猛灌数据把主线程拖住）。</summary>
+        private const int MaxReadsPerPoll = 32;
         private int m_Consumed = 0;                     // 已拆帧消费的字节数（游标，避免每次 RemoveRange O(n) 前移）
 
         public bool IsConnected
@@ -76,19 +78,46 @@ namespace EmojiWar.GameMain.Network
 
         private void OnConnectCallback(IAsyncResult ar)
         {
+            // ★ [W-19] 这个回调运行在**线程池线程**上，绝不能在这里碰 Unity API / 触发事件：
+            //   原来它直接 `Debug.Log` + 探针写文件 + `OnDisconnected?.Invoke()` ——
+            //   订阅方（NetworkService → 流程/UI）会在**非主线程**执行 Unity API，属于未定义行为。
+            //   现在只做"记录结果 + 置标志"，真正的收尾放到主线程 `Poll` 里做。
             try
             {
                 m_Client.EndConnect(ar);
                 m_Stream = m_Client.GetStream();
-                Debug.Log("[NetConnection] Connected to " + m_Client.Client.RemoteEndPoint);
-                WriteProbe("[net] TCP 连接建立成功: " + m_Client.Client.RemoteEndPoint);
+                try { m_Stream.WriteTimeout = 500; } catch (Exception) { }   // [W-19] 有界写超时
+                m_PendingConnected = true;      // volatile：主线程可见
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                Debug.LogError("[NetConnection] EndConnect failed: " + e.Message);
-                WriteProbe("[net] TCP 连接失败: " + e.Message);
+                m_PendingConnectFailed = true;  // 原因在主线程里统一记录（避免跨线程日志）
+            }
+        }
+
+        // ---- [W-19] 连接结果的主线程收尾（volatile：跨线程可见性）----
+        private volatile bool m_PendingConnected;
+        private volatile bool m_PendingConnectFailed;
+
+        /// <summary>[W-19] 主线程处理"连接已完成/失败"：日志、探针、事件都在主线程发。</summary>
+        private void FlushConnectResult()
+        {
+            if (m_PendingConnected)
+            {
+                m_PendingConnected = false;
+                string ep = "(unknown)";
+                try { ep = m_Client.Client.RemoteEndPoint != null ? m_Client.Client.RemoteEndPoint.ToString() : "(null)"; }
+                catch (Exception) { }
+                Debug.Log("[NetConnection] Connected to " + ep);
+                WriteProbe("[net] TCP 连接建立成功: " + ep);
+            }
+            else if (m_PendingConnectFailed)
+            {
+                m_PendingConnectFailed = false;
+                Debug.LogError("[NetConnection] EndConnect failed（连接被拒绝或超时）");
+                WriteProbe("[net] TCP 连接失败");
                 m_Client = null;
-                OnDisconnected?.Invoke();
+                OnDisconnected?.Invoke();   // ★ 现在在**主线程**上派发
             }
         }
 
@@ -121,6 +150,7 @@ namespace EmojiWar.GameMain.Network
             {
                 byte[] frame = NetCodec.Encode(message, out int length);
                 m_Stream.Write(frame, 0, length);
+                NetStats.RecordSent(length);   // [W-19] 带宽可观测
             }
             catch (Exception e)
             {
@@ -133,6 +163,9 @@ namespace EmojiWar.GameMain.Network
         /// </summary>
         public void Poll()
         {
+            // [W-19] 先收尾连接结果（主线程），再判是否已连接 —— 否则"刚连接成功"的那一帧会被这里挡掉
+            FlushConnectResult();
+
             if (!IsConnected || m_Stream == null)
             {
                 return;
@@ -160,12 +193,20 @@ namespace EmojiWar.GameMain.Network
 
             try
             {
-                int read = m_Stream.Read(m_ReadBuffer, 0, m_ReadBuffer.Length);
-                if (read <= 0)
+                // [W-19] 循环读到**读空为止**（原来每渲染帧只读一次 4096 B）：
+                //   一次 TCP Read 最多 4096 B，而 30Hz 输入帧 100 B/帧 → 只要有一帧积压超过 4096 B，
+                //   剩下的就要等下一个渲染帧才派发 → 帧成批到达（正是 W-13 要抹平的突发）。
+                int reads = 0;
+                while (reads < MaxReadsPerPoll && m_Stream.DataAvailable)
                 {
-                    HandleDisconnect("read<=0");
-                    return;
-                }
+                    int read = m_Stream.Read(m_ReadBuffer, 0, m_ReadBuffer.Length);
+                    if (read <= 0)
+                    {
+                        HandleDisconnect("read<=0");
+                        return;
+                    }
+                    NetStats.RecordReceived(read);   // [W-19]
+                    reads++;
 
                 // 批量追加（避免逐字节 Add 的 List 扩容开销）
                 int need = m_ReceiveBuffer.Count + read;
@@ -178,7 +219,8 @@ namespace EmojiWar.GameMain.Network
                     m_ReceiveBuffer.Add(m_ReadBuffer[i]);
                 }
 
-                ProcessBuffer();
+                    ProcessBuffer();
+                }   // [W-19] while (reads < MaxReadsPerPoll && m_Stream.DataAvailable)
 
                 // 批量消费完成后统一压缩：仅当已消费字节较多时前移一次（避免每帧 O(n)）
                 if (m_Consumed > 0)
@@ -224,7 +266,13 @@ namespace EmojiWar.GameMain.Network
 
                 if (message != null)
                 {
-                    OnMessage?.Invoke(message);
+                    // W-26.3：损伤注入（客户端侧 sessionId = -1）。
+                    // 被接管时不直接派发（由 NetSim.Pump 按 FIFO 投递）。保持 FIFO 是关键 ——
+                    // 顺序打乱会制造当前 TCP 架构下不可能发生的故障（假的不同步）。
+                    if (!NetSim.Intercept(-1, message, Time.realtimeSinceStartup))
+                    {
+                        OnMessage?.Invoke(message);
+                    }
                 }
             }
         }

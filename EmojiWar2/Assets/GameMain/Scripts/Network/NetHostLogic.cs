@@ -32,8 +32,65 @@ namespace EmojiWar.GameMain.Network
 
         private readonly Dictionary<int, PlayerState> m_Players = new Dictionary<int, PlayerState>();
 
+        // W-06：各客户端上报的装备 Id（sessionId → ids）。房主本机（session 0）不入表，
+        //       需要时直接读本机 ItemSystem（见 GetLoadoutIds）。
+        private readonly Dictionary<int, Simulation.PlayerLoadoutIds> m_Loadouts =
+            new Dictionary<int, Simulation.PlayerLoadoutIds>();
+
+        // W-06：广播用的有序列表（复用，避免开局时每帧分配）
+        private readonly List<Simulation.PlayerLoadoutIds> m_LoadoutBroadcastList =
+            new List<Simulation.PlayerLoadoutIds>();
+
         // 最近收到的输入意图（sessionId → input；掉线玩家缺省）
         private readonly Dictionary<int, C2SPlayerInput> m_LatestInputs = new Dictionary<int, C2SPlayerInput>();
+
+        // ---- [W-12] 输入新鲜度与托管（宿主侧） ----
+        // `m_LastInputFrame[session]` = 上一次**消费**到的客户端**发送序号**（`C2SPlayerInput.SendSeq`）；
+        // `m_InputStaleFrames[session]` = 连续多少帧没有收到"更新的"输入。
+        // 用发送序号而不是"客户端帧号"：客户端在开战/回房间时会重建模拟、帧号归零，
+        // 而这里的"上次消费值"还是旧的大值 → 之后每条输入都被判成过期 → 玩家被**永久托管**
+        // （实测症状：客户端角色整场停在原点，而两端哈希一致所以不报不同步）。
+        private readonly Dictionary<int, int> m_LastInputFrame = new Dictionary<int, int>();
+        private readonly Dictionary<int, int> m_InputStaleFrames = new Dictionary<int, int>();
+        private readonly Dictionary<int, bool> m_ManagedPlayers = new Dictionary<int, bool>();
+
+        private const float ManagedTimeoutSeconds = 0.5f;
+
+        /// <summary>
+        /// [W-12] 连续多少帧没有新输入就判定为"托管"。用**秒**表达（0.5s）再按当前帧率量化 ——
+        /// 与 W-10a 同口径：这样切帧率不会改变"断线多久算掉线"。
+        /// ⚠ 必须用**完全限定名**：本类的实例属性 `Simulation` 会**遮蔽**同名命名空间
+        /// `EmojiWar.GameMain.Simulation`，写成 `Simulation.CastResolver` 会被解析成属性访问
+        /// （静态字段初始化器里直接编译不过：CS0236）。
+        /// </summary>
+        private static readonly int ManagedTimeoutFrames =
+            EmojiWar.GameMain.Simulation.CastResolver.FramesOf(ManagedTimeoutSeconds);
+
+        /// <summary>[W-12] 读/写某会话的托管标志；返回是否发生了**状态翻转**（用于只在翻转时打日志）。</summary>
+        private bool SetManaged(int sessionId, bool value)
+        {
+            bool old;
+            if (!m_ManagedPlayers.TryGetValue(sessionId, out old)) { old = false; }
+            m_ManagedPlayers[sessionId] = value;
+            return old != value;
+        }
+
+        private bool IsManaged(int sessionId)
+        {
+            bool v;
+            return m_ManagedPlayers.TryGetValue(sessionId, out v) && v;
+        }
+
+        /// <summary>当前处于托管的玩家数（HUD/探针用）。</summary>
+        public int ManagedPlayerCount
+        {
+            get
+            {
+                int n = 0;
+                foreach (var kv in m_ManagedPlayers) { if (kv.Value) { n++; } }
+                return n;
+            }
+        }
 
         private NetworkService m_Service = null;
         private int m_NextEntityId = 1000;
@@ -125,6 +182,9 @@ namespace EmojiWar.GameMain.Network
             {
                 m_Players.Clear();
                 m_LatestInputs.Clear();
+                m_LastInputFrame.Clear();      // [W-12]
+                m_InputStaleFrames.Clear();
+                m_ManagedPlayers.Clear();
                 Simulation = null;
                 BattleRunning = false;
                 m_BattleStartBroadcasted = false;
@@ -302,8 +362,18 @@ namespace EmojiWar.GameMain.Network
                 }
             }
 
-            // 推进循环结束后不再设置插值系数：SimView.LateUpdate 检测模拟帧号推进自算插值时间
-            // （文档 §2 渲染插值），避免跨组件执行顺序导致的基准错位/位置回退抖动。
+            // [W-17] 插值系数改由**本地时间轴**提供（与客户端同一机制）：
+            // t = 距下一次 tick 的剩余时间 / tick 步长 ∈ [0,1)。
+            // 宿主原先也走 SimView 的"墙钟自算"，那条路在"一帧内跑多个 tick"时会反复把 t 归零
+            // （本文件上面的注释就是在解释这个现象）→ 两端现在共用同一条基准，语义一致。
+            if (GameEntry.SimView != null)
+            {
+                GameEntry.SimView.ExternalInterpolation = true;
+                GameEntry.SimView.InterpolationFactor = Mathf.Clamp01(m_TickAccumulator / LockstepSim.TickInterval);
+            }
+
+            // [W-15] 本机即时反馈：把输入快照推给表现层（房主同样有 D 帧延迟，也需要即时反馈）
+            PushLocalFeedback();
 
             // 帧同步一致性探针（每 2 秒记录一次模拟状态 + fps，供双实例对比）
             m_ProbeTimer -= Time.deltaTime;
@@ -321,14 +391,22 @@ namespace EmojiWar.GameMain.Network
                       .Append(" players=").Append(Simulation.Players.Count)
                       .Append(" enemies=").Append(Simulation.Enemies.Count)
                       .Append(" bullets=").Append(Simulation.Bullets.Count)
-                      .Append(" fps=").Append(fps.ToString("F0"));
+                      .Append(" fps=").Append(fps.ToString("F0"))
+                      .Append(" managed=").Append(ManagedPlayerCount)   // [W-12] 托管人数
+                      .Append(" D=").Append(m_HostInputDelayFrames)     // [W-14] 房主输入延迟（帧）
+                      .Append(" clientLag=").Append(m_ClientLagMax);
                     foreach (var p in Simulation.Players)
                     {
                         sb.Append(" E").Append(p.EntityId).Append(":(")
                           .Append(p.Position.x.ToString("F2")).Append(",")
                           .Append(p.Position.y.ToString("F2")).Append(")");
+                        // [W-12] 每个玩家的托管状态（与模拟状态同源，可与客户端逐项对照）
+                        if (p.Managed) { sb.Append("[托管]"); }
                     }
                     WriteProbe(sb.ToString());
+                    // W-01：逻辑帧耗时与消费节奏（H1/E1 的验收数字，构建版 exe 也能读）
+                    // 注意：本类有属性 `Simulation`，表达式位置会遮蔽同名命名空间，故必须全限定。
+                    WriteProbe("[perf] HOST " + EmojiWar.GameMain.Simulation.SimPerf.Describe());
                 }
             }
             else
@@ -366,6 +444,7 @@ namespace EmojiWar.GameMain.Network
                     FirePrimaries = new bool[m_Players.Count],
                     FireSecondaries = new bool[m_Players.Count],
                     Reloads = new bool[m_Players.Count],
+                    Managed = new bool[m_Players.Count],
                 };
             }
             var frame = m_InputFrame;
@@ -375,6 +454,21 @@ namespace EmojiWar.GameMain.Network
             }
             frame.FrameIndex = Simulation.FrameIndex + 1;
             frame.Count = m_Players.Count;
+
+            // [W-16] 把本帧要执行的确定性事件**随这一帧**携带，并立刻应用到自己的模拟 ——
+            // 于是两端都在**同一个帧号**的帧首应用它（客户端在消费该帧时应用，见 StepOneLogicalFrame）。
+            // ⚠ 输入帧对象是**复用**的，所以每帧都必须显式清空/重填，否则上一帧的事件会一直带着。
+            if (frame.Events == null) { frame.Events = new List<Simulation.FrameEvent>(4); }
+            frame.Events.Clear();
+            for (int i = 0; i < m_PendingFrameEvents.Count; i++)
+            {
+                Simulation.FrameEvent e = m_PendingFrameEvents[i];
+                frame.Events.Add(e);
+                FrameEventApplier.Apply(Simulation, e, "host");
+                WriteProbe("[net-host] 帧 " + frame.FrameIndex + " 携带事件 kind=" + e.Kind
+                    + " a0=" + e.Arg0 + " a1=" + e.Arg1);
+            }
+            m_PendingFrameEvents.Clear();
 
             m_InputsCache.Clear();
 
@@ -398,26 +492,107 @@ namespace EmojiWar.GameMain.Network
 
                 if (sessionId == 0)
                 {
-                    intent = ReadLocalInput();
+                    // ---- [W-14] 房主自己的输入也要延迟 D 帧 ----
+                    // 问题：房主打包输入帧时同一 tick 就生效（延迟 ≈ 0 帧），而客户端从按下到生效
+                    // 要经过 RTT/2 + 1 帧 → 两端**手感不一样**（报告 D1/D2）。
+                    // 做法：把"本帧采样到的本地意图"存进按帧号索引的历史，实际用的是 **D 帧之前** 那一条。
+                    // D 由**观测到的客户端滞后**决定（见 UpdateInputDelayFromLag）：客户端输入里带着
+                    // "它采样时的本地帧号"，`装配帧号 - 采样帧号` 就是"客户端的输入要等几帧才被我应用"，
+                    // 这正是房主该等的帧数 —— 不需要心跳测量，这个数字本身就是端到端的。
+                    SimIntent sampled = ReadLocalInput();
+                    m_LocalIntentHistory[frame.FrameIndex] = sampled;
+
+                    int useFrame = frame.FrameIndex - m_HostInputDelayFrames;
+                    SimIntent delayed;
+                    if (m_LocalIntentHistory.TryGetValue(useFrame, out delayed)) { intent = delayed; }
+                    else { intent = SimIntent.Empty; }   // 历史不足（刚开局）：空输入，避免"提前"生效
+
+                    // 历史裁剪（只保留最近 D+4 帧）
+                    PruneLocalIntentHistory(frame.FrameIndex - m_HostInputDelayFrames - 4);
                 }
                 else if (m_LatestInputs.TryGetValue(sessionId, out var clientInput))
                 {
-                    intent = new SimIntent
+                    // ---- [W-12] 输入新鲜度判定 ----
+                    // 原实现是"最近一次到达的输入无限沿用"，且注释写着"掉线托管：空输入" ——
+                    // 实际只有"**从未**收到过输入"才会走 else 分支，真掉线时反而会**永远沿用最后一个输入**，
+                    // 表现为"玩家卡在按住开火/一直在走"。现在按"这条输入是否比我上次消费的更新"来判。
+                    int lastConsumed;
+                    if (!m_LastInputFrame.TryGetValue(sessionId, out lastConsumed)) { lastConsumed = -1; }
+
+                    bool fresh = clientInput.SendSeq > lastConsumed;
+                    if (fresh)
                     {
-                        MoveX = clientInput.InputX,
-                        MoveY = clientInput.InputY,
-                        AimX = clientInput.AimX,
-                        AimY = clientInput.AimY,
-                        FirePrimary = clientInput.FirePrimary,
-                        FireSecondary = clientInput.FireSecondary,
-                        Reload = clientInput.Reload,
-                    };
+                        m_LastInputFrame[sessionId] = clientInput.SendSeq;
+                        m_InputStaleFrames[sessionId] = 0;
+                        // [W-14] 用这条新鲜输入的滞后驱动"房主自身输入延迟 D"
+                        UpdateInputDelayFromLag(frame.FrameIndex, clientInput.FrameIndex);
+                        if (SetManaged(sessionId, false))
+                        {
+                            WriteProbe("[net-host] 玩家 " + sessionId + " 输入恢复，退出托管（entity=" + state.EntityId + "）");
+                        }
+                    }
+                    else
+                    {
+                        int stale;
+                        m_InputStaleFrames.TryGetValue(sessionId, out stale);
+                        stale++;
+                        m_InputStaleFrames[sessionId] = stale;
+                    }
+
+                    int staleNow;
+                    m_InputStaleFrames.TryGetValue(sessionId, out staleNow);
+                    bool managed = staleNow > ManagedTimeoutFrames;
+
+                    if (managed)
+                    {
+                        // 断线超时 → 空输入代打（**不再沿用**玩家的按键，否则会"幽灵开火/幽灵走位"）
+                        intent = SimIntent.Empty;
+                        if (SetManaged(sessionId, true))
+                        {
+                            WriteProbe("[net-host] 玩家 " + sessionId + " 进入托管（连续 " + staleNow
+                                + " 帧无新输入 ≥ " + ManagedTimeoutSeconds.ToString("F2") + "s / "
+                                + ManagedTimeoutFrames + " 帧）；entity=" + state.EntityId);
+                            Debug.LogWarning("[NetHostLogic] 玩家 " + sessionId + " 进入托管（输入源已断）");
+                        }
+                    }
+                    else if (staleNow > 0)
+                    {
+                        // 短暂缺失（抖动/丢包重传）：**沿用上一帧的"按住"状态，但边沿位清零**。
+                        // 保持"按住"是有意的（不然连发会被抖没），清边沿是为了不让"上一次的按下"
+                        // 被重复计入未来若干帧（那会让单次点击变成连点）。
+                        intent = new SimIntent
+                        {
+                            MoveX = clientInput.InputX,
+                            MoveY = clientInput.InputY,
+                            AimX = clientInput.AimX,
+                            AimY = clientInput.AimY,
+                            FirePrimary = clientInput.FirePrimary,
+                            FireSecondary = clientInput.FireSecondary,
+                            Reload = false,
+                        };
+                    }
+                    else
+                    {
+                        intent = new SimIntent
+                        {
+                            MoveX = clientInput.InputX,
+                            MoveY = clientInput.InputY,
+                            AimX = clientInput.AimX,
+                            AimY = clientInput.AimY,
+                            FirePrimary = clientInput.FirePrimary,
+                            FireSecondary = clientInput.FireSecondary,
+                            Reload = clientInput.Reload,
+                        };
+                    }
                 }
                 else
                 {
-                    // 掉线托管：空输入（与客户端缺失输入时的规则一致）
+                    // 从未收到过输入（刚加入/输入源从未建立）：空输入
                     intent = SimIntent.Empty;
                 }
+
+                // [W-12] 托管标志随帧广播 → 两端同值 → 可以安全进状态哈希
+                intent.Managed = IsManaged(sessionId);
 
                 // 填充广播帧（以实体 ID 标识，客户端据此匹配本地模拟玩家）
                 frame.EntityIds[index] = state.EntityId;
@@ -428,6 +603,7 @@ namespace EmojiWar.GameMain.Network
                 frame.FirePrimaries[index] = intent.FirePrimary;
                 frame.FireSecondaries[index] = intent.FireSecondary;
                 frame.Reloads[index] = intent.Reload;
+                frame.Managed[index] = intent.Managed;   // [W-12]
                 index++;
 
                 m_InputsCache[state.EntityId] = intent;
@@ -449,7 +625,12 @@ namespace EmojiWar.GameMain.Network
                     entityList.Add(frame.EntityIds[i]);
                     intentList.Add(m_InputsCache[frame.EntityIds[i]]);
                 }
-                EmojiWar.GameMain.Simulation.ReplayRecorder.RecordFrame(frame.FrameIndex, entityList, intentList);
+                // W-03 / W-16：连同**进入该帧时的状态哈希**与**本帧的帧事件**一起写。
+                // 此处仍在 Simulation.Tick 之前 —— 与 ReplayPlayer 里 beforeHash/应用事件 的口径一致，
+                // 两处必须保持"Tick 前算哈希、Tick 前应用事件"这个约定。
+                EmojiWar.GameMain.Simulation.ReplayRecorder.RecordFrame(
+                    frame.FrameIndex, Simulation.ComputeStateHash(),
+                    frame.Events, entityList, intentList);
             }
 
             // 本地推进模拟（复用输入字典）
@@ -488,9 +669,11 @@ namespace EmojiWar.GameMain.Network
             if (m_LocalAutoMove && inputX == 0f && inputY == 0f)
             {
                 // 确定性自动转圈（用模拟帧号而非 Time.time，保证各端输入序列一致 —— 帧同步要求）
+                // 相位步长取**当前 tick 时长**：这样"转一圈的真实时间"与帧率无关（W-10a 切 30Hz 后仍然一致）
                 float frame = Simulation != null ? Simulation.FrameIndex : Time.frameCount;
-                inputX = Mathf.Cos(frame * 0.05f);
-                inputY = Mathf.Sin(frame * 0.05f);
+                float phase = EmojiWar.GameMain.Simulation.LockstepSimulation.TickInterval;
+                inputX = Mathf.Cos(frame * phase);
+                inputY = Mathf.Sin(frame * phase);
             }
 
             // 自动开火（-autofire 验证用）：无人操作时按住左键，验证无限释放；
@@ -512,6 +695,14 @@ namespace EmojiWar.GameMain.Network
             }
             Vector2 aim = new Vector2(mouseWorld.x, mouseWorld.y);
 
+            // [W-15] 记录按下沿（供表现层即时反馈比边沿）与本机鼠标世界坐标
+            if (fire && !m_LocalPrevFire) { m_LocalFirePressCount++; }
+            if (fireSecondary && !m_LocalPrevFire2) { m_LocalFire2PressCount++; }
+            m_LocalPrevFire = fire;
+            m_LocalPrevFire2 = fireSecondary;
+            m_LocalAimWorldX = aim.x;
+            m_LocalAimWorldY = aim.y;
+
             return new Simulation.PlayerIntent
             {
                 MoveX = inputX,
@@ -522,6 +713,32 @@ namespace EmojiWar.GameMain.Network
                 FireSecondary = fireSecondary,
                 Reload = false,
             };
+        }
+
+        // ---- [W-15] 本机即时反馈：按下沿计数 + 鼠标世界坐标（表现层只读）----
+        private int m_LocalFirePressCount = 0;
+        private int m_LocalFire2PressCount = 0;
+        private bool m_LocalPrevFire = false;
+        private bool m_LocalPrevFire2 = false;
+        private float m_LocalAimWorldX = 0f;
+        private float m_LocalAimWorldY = 0f;
+
+        /// <summary>
+        /// [W-15] 把本机输入快照推给表现层。**房主也有"点击到生效"的延迟**（W-14 让房主自己也等 D 帧），
+        /// 所以即时反馈对房主同样必要 —— 而且它让"本地按下"和"权威效果"的帧差可被观测：
+        /// 按下瞬间出声，权威子弹在 D 帧（+ 客户端还要加上网络与缓冲）之后才出现。
+        /// </summary>
+        private void PushLocalFeedback()
+        {
+            var v = GameEntry.SimView;
+            if (v == null) { return; }
+            var f = new Simulation.SimView.LocalInputFeedback();
+            f.Valid = true;
+            f.AimWorldX = m_LocalAimWorldX;
+            f.AimWorldY = m_LocalAimWorldY;
+            f.FirePressCount = m_LocalFirePressCount;
+            f.FireSecondaryPressCount = m_LocalFire2PressCount;
+            v.LocalInput = f;
         }
 
         // ==================== 消息处理 ====================
@@ -538,6 +755,10 @@ namespace EmojiWar.GameMain.Network
                     var input = message as C2SPlayerInput;
                     if (input != null)
                     {
+                        // [W-12] 只**收下**这条输入。
+                        // ⚠ 绝不能在这里更新"已消费序号"账本：账本记录的是"装配输入帧时**消费**到哪一条"，
+                        //   如果在到达时就更新，装配循环里的 `SendSeq > lastConsumed` 会**恒为 false**
+                        //   → 每一帧都被判成"无新输入" → 玩家被永久托管（实测：客户端角色冻结在原点）。
                         m_LatestInputs[sessionId] = input;
                     }
                     break;
@@ -561,6 +782,10 @@ namespace EmojiWar.GameMain.Network
                 case MsgId.ShopContinueReq:
                     RequestShopContinue();          // 客户端点"继续"→ Host 权威推进并广播
                     break;
+
+                case MsgId.LoadoutSync:             // W-06：客户端上报自己的装备 Id
+                    HandleLoadoutSync(sessionId, message as C2SLoadoutSync);
+                    break;
             }
         }
 
@@ -571,9 +796,84 @@ namespace EmojiWar.GameMain.Network
         public void RequestShopContinue()
         {
             if (Simulation == null || !Simulation.ShopOpen) { return; }
-            Simulation.RequestNextWave();
+
+            // W-03 / 报告 A9：**入队**而不是直接改模拟。
+            // 直接调 RequestNextWave() 会让指令绕过帧管线 —— 后果：录像只记输入流，回放复现不了
+            // （实测回放分歧恰好在第 501 帧 = 录像里第一个敌人生成的帧，因为回放一直停在商店）。
+            // 现在指令在**下一帧首**按入队顺序消费，录像把它一起记下 → "输入流 + 指令流"才完整。
+            //
+            // ★ [W-13/W-16] 但"入队"还不够：这条命令必须**随输入帧携带**才会落在两端同一个帧号上。
+            //   以前它靠"TCP 流内顺序"隐式对齐（S2CShopContinue 夹在帧 H 与 H+1 之间，客户端
+            //   收到即 tick 完第 H 帧 → 命令正好在第 H+1 帧生效）。客户端消费被抖动缓冲接管后，
+            //   消息处理与 tick 不再同步 → 命令会落在**缓冲区深度那么多个帧之后**（实测第 721 帧起
+            //   持续不同步，缓冲区 2 帧 → 差 2 帧）。
+            //   所以改成：房主只**登记事件**，装配输入帧时把它写进**这一帧**并同时应用到自己的模拟。
+            QueueFrameEvent(EmojiWar.GameMain.Simulation.FrameEventKinds.ShopContinue, 0, 0);
+
             if (m_Service != null) { m_Service.BroadcastToClients(new S2CShopContinue()); }
-            WriteProbe("[net-host] 商店继续 → 开始下一波 wave=" + Simulation.WaveIndex);
+            WriteProbe("[net-host] 商店继续事件已登记（将随下一帧输入帧携带，两端同帧生效）wave=" + Simulation.WaveIndex);
+        }
+
+        // ---- [W-14] 房主自身输入延迟 D（帧）与客户端滞后观测 ----
+        /// <summary>按帧号保存"房主本帧采样到的意图"，实际生效的是 D 帧之前那一条。</summary>
+        private readonly Dictionary<int, SimIntent> m_LocalIntentHistory = new Dictionary<int, SimIntent>();
+        /// <summary>当前生效的房主输入延迟（帧）。由观测到的客户端滞后驱动，夹在 [2,6]。</summary>
+        private int m_HostInputDelayFrames = 2;
+        /// <summary>观测到的客户端滞后上界（帧，带每帧 1 帧的衰减，避免一次抖动把 D 永久抬高）。</summary>
+        private int m_ClientLagMax = 0;
+        private int m_ClientLagSamples = 0;
+        private const int InputDelayMin = 2;
+        private const int InputDelayMax = 6;
+
+        /// <summary>[W-14] 用"客户端输入滞后"驱动 D：客户端采样帧 f 的输入会在装配帧 F 被应用，
+        /// `F - f` 就是"客户端要等几帧"；房主等同样多，两端手感才一致。</summary>
+        private void UpdateInputDelayFromLag(int assemblyFrame, int clientSampledFrame)
+        {
+            int lag = assemblyFrame - clientSampledFrame;
+            if (lag < 0) { lag = 0; }
+            if (lag > InputDelayMax + 4) { lag = InputDelayMax + 4; }   // 异常值不参与
+            m_ClientLagSamples++;
+            if (lag > m_ClientLagMax)
+            {
+                m_ClientLagMax = lag;
+            }
+            else if (m_ClientLagMax > 0)
+            {
+                m_ClientLagMax--;   // 每帧衰减 1 → 网络恢复后 D 会自动降回来
+            }
+
+            int want = m_ClientLagMax;
+            if (want < InputDelayMin) { want = InputDelayMin; }
+            if (want > InputDelayMax) { want = InputDelayMax; }
+            if (want != m_HostInputDelayFrames)
+            {
+                m_HostInputDelayFrames = want;
+                WriteProbe("[w14] 房主输入延迟 D=" + want + " 帧（观测客户端滞后上界 "
+                    + m_ClientLagMax + " 帧，样本 " + m_ClientLagSamples + "）");
+            }
+        }
+
+        private void PruneLocalIntentHistory(int olderThanFrame)
+        {
+            if (m_LocalIntentHistory.Count <= 8) { return; }
+            m_ScratchFrames.Clear();
+            foreach (var kv in m_LocalIntentHistory) { if (kv.Key < olderThanFrame) { m_ScratchFrames.Add(kv.Key); } }
+            for (int i = 0; i < m_ScratchFrames.Count; i++) { m_LocalIntentHistory.Remove(m_ScratchFrames[i]); }
+        }
+
+        private readonly List<int> m_ScratchFrames = new List<int>();
+
+        /// <summary>[W-14] 当前房主输入延迟（帧）——探针/验收用。</summary>
+        public int HostInputDelayFrames { get { return m_HostInputDelayFrames; } }
+
+        // [W-16] 待随帧携带的确定性事件（帧事件批）。**所有改变模拟的带外指令都走这里**，
+        // 不允许在消息处理里直接改模拟 —— 那会让生效帧号取决于"消息什么时候到"。
+        private readonly List<Simulation.FrameEvent> m_PendingFrameEvents = new List<Simulation.FrameEvent>();
+
+        /// <summary>[W-16] 登记一条随帧携带的确定性事件。</summary>
+        private void QueueFrameEvent(byte kind, int arg0, int arg1)
+        {
+            m_PendingFrameEvents.Add(new Simulation.FrameEvent { Kind = kind, Arg0 = arg0, Arg1 = arg1 });
         }
 
         /// <summary>
@@ -598,11 +898,10 @@ namespace EmojiWar.GameMain.Network
 
             state.CharacterId = change.CharacterId;
 
-            // 本地模拟同步（房间阶段 seed=0 模拟中更新该玩家角色）
-            if (Simulation != null)
-            {
-                Simulation.ApplyCharacter(state.EntityId, state.CharacterId);
-            }
+            // [W-16] 改为**随帧携带**：直接 `Simulation.ApplyCharacter` 会让"何时生效"取决于
+            // 消息处理时刻 —— 房主立刻生效、客户端等网络+缓冲后才生效，中间那几帧两端角色不同
+            // （MoveSpeed/WeaponId 等都会跟着变 → 分叉）。现在统一在帧首应用，两端同帧。
+            QueueFrameEvent(EmojiWar.GameMain.Simulation.FrameEventKinds.SetCharacter, state.EntityId, state.CharacterId);
 
             // 广播：所有端（含客户端）同步更新
             m_Service.BroadcastToClients(new S2CChangeCharacter
@@ -648,10 +947,45 @@ namespace EmojiWar.GameMain.Network
             // ★ 以前是 `m_Players.Count >= 1 && AllReady()` —— 房间里只有房主一人时该条件即为真，
             //   房主一准备就立刻开战，后加入的客户端永远收不到 S2CBattleStart（2026-09-28 实测 P0：
             //   两端两个世界：Host wave=1/enemies=3，Client wave=0/enemies=0，且零告警）。
+            // W-06：开战前提还包括"所有玩家的装备 Id 已上报"，而它可能晚于"准备齐"到齐，
+            //       所以判断收敛到可重入的 TryStartBattle（HandleLoadoutSync 到达时也会调一次）。
             if (m_Players.Count >= ExpectedPlayers && AllReady())
+            {
+                TryStartBattle();
+            }
+        }
+
+        /// <summary>
+        /// W-06：真正开战（幂等）。由 HandleReadyChange 与 HandleLoadoutSync 共同触发。
+        ///
+        /// **必须先广播装备 Id、再广播 BattleStart**：客户端收到 BattleStart 时就会用它建战斗模拟，
+        /// TCP 保序保证客户端此时已拿到全部 Id。
+        /// </summary>
+        private void TryStartBattle()
+        {
+            if (m_BattleStartBroadcasted) { return; }
+            if (m_Players.Count < ExpectedPlayers || !AllReady()) { return; }
+
+            if (!AllLoadoutsReported())
+            {
+                WriteProbe("[net-host] 等待客户端上报装备 Id（尚未齐备），暂不开战");
+                return;
+            }
+
+            // --- 原开战逻辑（下列裸块只是保持原有缩进层次，无其他含义）---
             {
                 m_BattleStartBroadcasted = true;
                 int seed = UnityEngine.Random.Range(0, 100000);
+
+                // [W-12] 开战前清空输入新鲜度账本：房间阶段的"上次消费序号/缺帧计数/托管标志"
+                //   对战斗模拟没有意义，带过去只会制造"开局就被判过期"的假象（防御性清空）。
+                m_LastInputFrame.Clear();
+                m_InputStaleFrames.Clear();
+                m_ManagedPlayers.Clear();
+                m_LocalIntentHistory.Clear();   // [W-14]
+                m_ClientLagMax = 0;
+
+                BroadcastLoadouts();   // ★ 必须在 BattleStart 之前（客户端建模拟时就要用）
                 m_Service.BroadcastToClients(new S2CBattleStart { Seed = seed });
                 Debug.Log("[NetHostLogic] 全部玩家已准备，广播战斗开始 seed=" + seed);
                 WriteProbe("[net-host] 全部准备，广播 BattleStart seed=" + seed);
@@ -669,9 +1003,25 @@ namespace EmojiWar.GameMain.Network
                     {
                         configs.Add(BuildPlayerConfig(kv.Value));
                     }
-                    EmojiWar.GameMain.Simulation.ReplayRecorder.Begin(seed, "0.3.0-20260827", configs,
+                    // W-03：录像头改为**自包含** —— 数值配置 + 战斗参数 + 装备 Id 表 + 逐帧哈希，
+                    // 否则录像根本无法复现（旧格式不写 loadout，而 loadout 决定弹道/mana）。
+                    var loadoutList = new List<Simulation.PlayerLoadoutIds>();
+                    foreach (var kv in m_Players)
+                    {
+                        var idsForRecord = GetLoadoutIds(kv.Key, kv.Value.EntityId);
+                        idsForRecord.EntityId = kv.Value.EntityId;
+                        loadoutList.Add(idsForRecord);
+                    }
+                    loadoutList.Sort((a, b) => a.EntityId.CompareTo(b.EntityId));
+
+                    EmojiWar.GameMain.Simulation.ReplayRecorder.Begin(
+                        seed, EmojiWar.GameMain.Simulation.SimBuildInfo.Describe,
+                        EmojiWar.GameMain.Data.ConfigService.VersionHash,
+                        Simulation, configs,
+                        EmojiWar.GameMain.Simulation.LoadoutWire.Encode(loadoutList),
                         System.IO.Path.Combine(UnityEngine.Application.dataPath, "../Logs/replays"));
-                    WriteProbe("[net-host] 输入流录像开始 seed=" + seed);
+                    WriteProbe("[net-host] 输入流录像开始 seed=" + seed
+                        + " loadouts=" + EmojiWar.GameMain.Simulation.LoadoutWire.Encode(loadoutList));
 
                     // 确定性打点开始（文档 §4：不同步 diff 用）
                     EmojiWar.GameMain.Simulation.DeterminismTracer.Begin(
@@ -711,10 +1061,105 @@ namespace EmojiWar.GameMain.Network
             Debug.Log("[NetHostLogic] 确定性模拟已初始化，玩家数 " + configs.Count);
         }
 
-        /// <summary>从角色/武器数据表构建确定性玩家配置（单一逻辑源：统一走 SimConfigFactory）。</summary>
+        /// <summary>
+        /// W-06：从**玩家上报的装备 Id** 构建确定性玩家配置（联机路径唯一入口）。
+        /// 不再读本机背包 —— 那正是报告 A10 的分叉源（Host 用自己的杖为**所有**玩家编译）。
+        /// </summary>
         private Simulation.SimPlayerConfig BuildPlayerConfig(PlayerState p)
         {
-            return EmojiWar.GameMain.Simulation.SimConfigFactory.Build(p.SessionId, p.EntityId, p.CharacterId);
+            return EmojiWar.GameMain.Simulation.SimConfigFactory.BuildFromIds(
+                p.SessionId, p.EntityId, p.CharacterId, GetLoadoutIds(p.SessionId, p.EntityId));
+        }
+
+        /// <summary>取某玩家的装备 Id。房主本机（session 0）直接读本机；其余取上报值（缺失 = 空手）。</summary>
+        private Simulation.PlayerLoadoutIds GetLoadoutIds(int sessionId, int entityId)
+        {
+            if (sessionId == 0)
+            {
+                return EmojiWar.GameMain.Simulation.SimConfigFactory.ReadLocalLoadoutIds(entityId);
+            }
+            Simulation.PlayerLoadoutIds ids;
+            return m_Loadouts.TryGetValue(sessionId, out ids) ? ids : default(Simulation.PlayerLoadoutIds);
+        }
+
+        /// <summary>
+        /// 是否所有客户端都已上报装备 Id。
+        /// 未齐不开战：否则该玩家会用"空手 loadout"参战，而它自己用真实 loadout → 静默分叉。
+        /// </summary>
+        private bool AllLoadoutsReported()
+        {
+            foreach (var kv in m_Players)
+            {
+                if (kv.Key == 0) { continue; }                  // 房主本机随时可读，不需要上报
+                if (!m_Loadouts.ContainsKey(kv.Key)) { return false; }
+            }
+            return true;
+        }
+
+        /// <summary>W-06：收客户端上报的装备 Id 并缓存，随后立即转发给所有端。</summary>
+        private void HandleLoadoutSync(int sessionId, C2SLoadoutSync msg)
+        {
+            if (msg == null || string.IsNullOrEmpty(msg.HandIds)) { return; }
+
+            // 客户端发的是"含自己 entityId 的单条"（复用同一套线格式）
+            var one = new List<Simulation.PlayerLoadoutIds>(1);
+            if (!EmojiWar.GameMain.Simulation.LoadoutWire.TryDecode(msg.HandIds, one) || one.Count != 1)
+            {
+                WriteProbe("[net-host] ⚠ 装备 Id 解析失败，忽略 session=" + sessionId + " raw=" + msg.HandIds);
+                return;
+            }
+
+            PlayerState state;
+            if (!m_Players.TryGetValue(sessionId, out state))
+            {
+                WriteProbe("[net-host] ⚠ 收到未加入玩家的装备 Id，忽略 session=" + sessionId);
+                return;
+            }
+
+            Simulation.PlayerLoadoutIds ids = one[0];
+            if (ids.EntityId != state.EntityId)
+            {
+                WriteProbe("[net-host] 装备 Id 的 entity 不匹配（msg=" + ids.EntityId
+                    + " expect=" + state.EntityId + "）→ 以 Host 分配为准");
+            }
+            ids.EntityId = state.EntityId;      // 以 Host 的分配为准
+            m_Loadouts[sessionId] = ids;
+
+            WriteProbe(string.Format(
+                "[net-host] 收到装备 Id session={0} entity={1} 左杖#{2}({3}槽) 右杖#{4}({5}槽)",
+                sessionId, ids.EntityId, ids.WandLeftItemId,
+                ids.LeftSpellItemIds != null ? ids.LeftSpellItemIds.Length : 0,
+                ids.WandRightItemId, ids.RightSpellItemIds != null ? ids.RightSpellItemIds.Length : 0));
+
+            BroadcastLoadouts();   // 立即转发，让其它端与后来加入者都拿到
+
+            // 装备 Id 可能晚于"准备齐"到齐 → 这里再触发一次开战判断（TryStartBattle 幂等）
+            TryStartBattle();
+        }
+
+        /// <summary>
+        /// W-06：把全员的装备 Id 广播给所有客户端。
+        /// 按 EntityId 升序（跨端顺序一致），房主本机读实时值（背包可能还在改）。
+        /// </summary>
+        private void BroadcastLoadouts()
+        {
+            if (m_Service == null) { return; }
+
+            m_LoadoutBroadcastList.Clear();
+            foreach (var kv in m_Players)
+            {
+                var ids = GetLoadoutIds(kv.Key, kv.Value.EntityId);
+                ids.EntityId = kv.Value.EntityId;    // 房主本机读取时 EntityId 已正确；此处兜底
+                m_LoadoutBroadcastList.Add(ids);
+            }
+            m_LoadoutBroadcastList.Sort((a, b) => a.EntityId.CompareTo(b.EntityId));
+
+            var msgOut = new S2CLoadoutBroadcast
+            {
+                Loadouts = EmojiWar.GameMain.Simulation.LoadoutWire.Encode(m_LoadoutBroadcastList),
+            };
+            m_Service.BroadcastToClients(msgOut);
+            WriteProbe("[net-host] 广播装备 Id: " + msgOut.Loadouts);
         }
 
         /// <summary>回到房间（一局结束后）：重置准备状态与模拟，等待下一局。</summary>
@@ -724,10 +1169,19 @@ namespace EmojiWar.GameMain.Network
             EmojiWar.GameMain.Simulation.ReplayRecorder.End();
             EmojiWar.GameMain.Simulation.DeterminismTracer.End();
 
+            // [W-09] 一局结束 → 清空物品系统（背包/手部容器跨局残留 = 第二局 loadout 污染）。
+            //   客户端在 HandleRunRestart 里对称执行；下一局进入战斗时重新 GrantStartingLoadout。
+            ItemSystem.Reset();
+
             m_BattleStartBroadcasted = false;
             BattleRunning = false;
             Simulation = null;
             m_LatestInputs.Clear();
+            m_LastInputFrame.Clear();      // [W-12]
+            m_InputStaleFrames.Clear();
+            m_ManagedPlayers.Clear();
+            m_LocalIntentHistory.Clear();  // [W-14]
+            m_ClientLagMax = 0;
             m_TickAccumulator = 0f;
             foreach (var p in m_Players.Values)
             {
@@ -835,15 +1289,10 @@ namespace EmojiWar.GameMain.Network
                     return;
                 }
 
-                var cfg = new Simulation.SimPlayerConfig
-                {
-                    WeaponId = weapon.Id,
-                    WeaponName = weapon.WeaponName,
-                    WeaponDamage = weapon.Damage,
-                    FireRate = weapon.FireRate,
-                    BulletSpeed = weapon.BulletSpeed,
-                };
-                Simulation.ApplyWeapon(state.EntityId, cfg);
+                // [W-16] 改为**随帧携带**：购买那一刻直接改模拟会让两端生效帧号不同
+                // （这三个字段都进了状态哈希 → 会被对账抓到）。事件只带 Id，两端各自查表
+                // 构造完全相同的配置（口径同 W-06：协议传 Id，不传解算后的数值）。
+                QueueFrameEvent(EmojiWar.GameMain.Simulation.FrameEventKinds.WeaponUpdate, state.EntityId, weapon.Id);
 
                 m_Service.BroadcastToClients(new S2CWeaponUpdate
                 {
@@ -869,6 +1318,37 @@ namespace EmojiWar.GameMain.Network
         {
             if (join == null)
             {
+                return;
+            }
+
+            // ★ [W-07] 配置/代码握手：不一致就**明确拒绝**，而不是放进对局里"不同步"。
+            //   配置哈希只覆盖配置资产；代码指纹覆盖"这份逻辑代码是哪一次编译产生的" + 逻辑帧率。
+            //   两者任一不一致，对局 100% 会漂移，且现象是"玩家看到不同步但两端日志都正常"——
+            //   正是本次审计反复踩的坑，所以在最早的入口一刀切掉。
+            ulong myConfig = EmojiWar.GameMain.Data.ConfigService.VersionHash;
+            ulong myCode = EmojiWar.GameMain.Simulation.SimBuildInfo.CodeHash;
+
+            if (join.ConfigHash != myConfig)
+            {
+                string cfgReason = "配置版本不一致：房主 0x" + myConfig.ToString("X16")
+                    + " / 你 0x" + join.ConfigHash.ToString("X16")
+                    + "（两端游戏版本或配置资产不同，无法开始对局）";
+                m_Service.SendToClient(sessionId, new S2CJoinRejected { Reason = cfgReason });
+                WriteProbe("[net-host] 拒绝 " + sessionId + " 加入：配置哈希不一致 host=0x" + myConfig.ToString("X16")
+                    + " client=0x" + join.ConfigHash.ToString("X16"));
+                Debug.LogWarning("[NetHostLogic] 拒绝加入（配置不一致）: " + cfgReason);
+                return;
+            }
+
+            if (join.CodeHash != myCode)
+            {
+                string codeReason = "游戏版本不一致：房主 0x" + myCode.ToString("X16")
+                    + " / 你 0x" + join.CodeHash.ToString("X16")
+                    + "（两端不是同一次构建，逻辑代码不同，无法开始对局）";
+                m_Service.SendToClient(sessionId, new S2CJoinRejected { Reason = codeReason });
+                WriteProbe("[net-host] 拒绝 " + sessionId + " 加入：代码指纹不一致 host=0x" + myCode.ToString("X16")
+                    + " client=0x" + join.CodeHash.ToString("X16"));
+                Debug.LogWarning("[NetHostLogic] 拒绝加入（代码不一致）: " + codeReason);
                 return;
             }
 
@@ -951,6 +1431,9 @@ namespace EmojiWar.GameMain.Network
 
             BroadcastPlayerList();
 
+            // W-06：新加入者需要立刻拿到"现有玩家的装备 Id"（它自己也还没上报，稍后会补一次广播）
+            BroadcastLoadouts();
+
             Debug.Log(string.Format("[NetHostLogic] 玩家 {0}({1}) 加入，生成实体 {2}",
                 join.PlayerName, sessionId, state.EntityId));
         }
@@ -960,6 +1443,9 @@ namespace EmojiWar.GameMain.Network
             if (m_Players.Remove(sessionId, out var state))
             {
                 m_LatestInputs.Remove(sessionId);
+                m_LastInputFrame.Remove(sessionId);       // [W-12]
+                m_InputStaleFrames.Remove(sessionId);
+                m_ManagedPlayers.Remove(sessionId);
                 if (Simulation != null)
                 {
                     Simulation.RemovePlayer(state.EntityId);
@@ -971,7 +1457,8 @@ namespace EmojiWar.GameMain.Network
             }
         }
 
-        /// <summary>当前模拟中最近玩家的位置（敌人生成锚点用，保留接口）。</summary>
+        /// <summary>当前模拟中最近玩家的位置（敌人生成锚点用，保留接口）。
+        /// [W-04] 模拟层坐标是 `SimVec2`（不引用 UnityEngine）→ 出模拟层时显式转换。</summary>
         public Vector2 GetSimulationAnchorPosition()
         {
             if (Simulation == null || Simulation.Players.Count == 0)
@@ -982,10 +1469,10 @@ namespace EmojiWar.GameMain.Network
             {
                 if (p.Alive)
                 {
-                    return p.Position;
+                    return new Vector2(p.Position.x, p.Position.y);
                 }
             }
-            return Simulation.Players[0].Position;
+            return new Vector2(Simulation.Players[0].Position.x, Simulation.Players[0].Position.y);
         }
 
         private void OnDestroy()

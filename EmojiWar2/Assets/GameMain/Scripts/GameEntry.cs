@@ -71,6 +71,11 @@ namespace EmojiWar.GameMain
         {
             InitFrameworkComponents();
 
+            // [W-04] 把引擎侧实现注入模拟层（日志出口 / 分配字节读取器 / 构建标识）。
+            // ★ 必须在任何模拟 Tick 之前调用：否则 SimPerf 的 alloc 探针恒为 0、
+            //   SimBuildInfo 的构建标识退化成"未注入"（模拟层不许引用 UnityEngine，只能靠注入）。
+            Simulation.SimBridge.Install();
+
             // 帧率配置：覆盖 GameFramework BaseComponent 默认 30fps → 60fps
             // （BaseComponent 在 Awake 时设置了 Application.targetFrameRate=30，
             //   这是"卡顿"的根因；这里在框架初始化后显式覆盖）

@@ -28,6 +28,7 @@ namespace EmojiWar.GameMain.Network
         // payload 长度不符 → BinaryReader 越界 → session Poll 崩溃 → 客户端被踢回大厅。
         // （历史 bug：Client 点角色卡片即断线回大厅；Host 本地切换不走网络故正常。）
         ChangeCharacter = 1104, // S2C: 角色变更广播 { entityId, characterId }
+        LoadoutSync = 1106,     // C2S: 上报本机装备 Id（法杖+各槽法术；W-06，只传 Id 不传资产）
 
         // ---- S2C ----
         RoomState = 2001,       // 房间状态 { roomId, players[] }
@@ -46,6 +47,7 @@ namespace EmojiWar.GameMain.Network
         WeaponUpdate = 2108,    // S2C: 武器更新（购买武器后同步模拟参数）{ entityId, weaponId, ... }
         StateCheck = 2109,      // S2C: 定期状态对账（Host 每 N 帧下发帧号+确定性状态哈希；客户端同帧对比）
         JoinRejected = 2110,    // S2C: 加入被拒绝（例如对局已开始，无法中途加入）
+        LoadoutBroadcast = 2111, // S2C: 全员装备 Id 广播（W-06；所有端据此编译 loadout）
         PlayerList = 2203,      // S2C: 房间玩家列表（名字+准备状态）{ players }
         RoomClosed = 2204,      // S2C: 房间解散（房主退出）
         ShopContinue = 2205,    // S2C: 商店继续（开始下一波；无负载，各端 RequestNextWave）

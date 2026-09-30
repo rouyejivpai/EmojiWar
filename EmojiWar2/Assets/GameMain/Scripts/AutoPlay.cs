@@ -30,6 +30,8 @@ namespace EmojiWar.GameMain
         private static bool s_AutoItems = false;       // -autoitems：启动即跑物品事务自检（P2）并写探针
         private static bool s_ItemsTestOnly = false;   // -autoitems 单独使用：只跑自检，不跑完整自动流程
         private static bool s_AutoSpell = false;       // -autospell：施法自检（S2/D23）+ 序列/预算打印并写探针
+        private static bool s_ConfigSelfTest = false;  // -configselftest：配置版本哈希自检（Q3）+ 打印版本/代码指纹
+        private static bool s_HashGuard = false;        // -hashguard：状态哈希守门测试（W-08：覆盖性 + 变更验证）
         private static bool s_AutoBuff = false;        // -autobuff：临时 Buff 自检（S3/D24）并写探针
         private static bool s_AutoPassive = false;     // -autopassive：被动触发自检（S4/D25）并写探针
         private static bool s_IsMenuFlowTest = false;  // -automenu：主界面四按钮 → 多人游戏 → 创建（验证新流程）
@@ -56,6 +58,20 @@ namespace EmojiWar.GameMain
         /// <summary>-autoreadywait 设定的最长等待秒数（0 = 不等待）。</summary>
         public static float AutoReadyWaitSeconds { get { return s_AutoReadyWaitSeconds; } }
 
+        // ---- -autostress <敌人> <子弹> <秒>：压力场景（W-02，报告 H1 基线）----
+        private static bool s_AutoStress = false;
+        private static int s_StressEnemies = 200;
+        private static int s_StressBullets = 200;
+        private static int s_StressSeconds = 60;
+
+        // ---- -replay <path> [-replaytwice]：无头回放（W-03，报告 B4）----
+        private static bool s_AutoReplay = false;
+        private static string s_ReplayPath = string.Empty;
+        private static bool s_ReplayTwice = false;
+        // [W-11] 跨后端诊断：-replayparts <N> 打印前 N 帧的分段哈希；-mathprobe 打印数学原语位模式
+        private static int s_ReplayParts = 0;
+        private static bool s_MathProbe = false;
+
         public static void TryStart()
         {
             if (s_Started)
@@ -67,19 +83,60 @@ namespace EmojiWar.GameMain
 
             // 带值参数：-autoreadywait <秒> / -autoreadyplayers <N>
             // （其余开关都是 arg == "x" 精确匹配，带值参数需按下标取下一个）
-            for (int i = 0; i < args.Length - 1; i++)
+            // 注意循环上界是 args.Length（**不是** args.Length-1）：否则最后一个参数永远不会被检查，
+            // 而 `-replaytwice` 这类无值开关经常正好在末尾（实测踩过：run2 根本没跑）。
+            // 取值型参数各自做 i+N < args.Length 边界检查。
+            for (int i = 0; i < args.Length; i++)
             {
                 float w;
-                if (args[i] == "-autoreadywait" && float.TryParse(args[i + 1], out w))
+                if (args[i] == "-autoreadywait" && i + 1 < args.Length && float.TryParse(args[i + 1], out w))
                 {
                     s_AutoReadyWaitSeconds = Mathf.Max(0f, w);
                     Debug.Log("[AutoPlay] -autoreadywait " + s_AutoReadyWaitSeconds + " 秒");
                 }
                 int p;
-                if (args[i] == "-autoreadyplayers" && int.TryParse(args[i + 1], out p))
+                if (args[i] == "-autoreadyplayers" && i + 1 < args.Length && int.TryParse(args[i + 1], out p))
                 {
                     s_AutoReadyPlayers = Mathf.Max(0, p);
                     Debug.Log("[AutoPlay] -autoreadyplayers " + s_AutoReadyPlayers);
+                }
+                // -autostress <敌人> <子弹> <秒>：压力场景（W-02，产出报告 H1 需要的 P50/P99 基线）
+                if (args[i] == "-autostress" && i + 3 < args.Length)
+                {
+                    int se, sb, ss;
+                    if (int.TryParse(args[i + 1], out se) && int.TryParse(args[i + 2], out sb)
+                        && int.TryParse(args[i + 3], out ss))
+                    {
+                        s_StressEnemies = Mathf.Max(0, se);
+                        s_StressBullets = Mathf.Max(0, sb);
+                        s_StressSeconds = Mathf.Max(1, ss);
+                        s_AutoStress = true;
+                        Debug.Log(string.Format("[AutoPlay] -autostress 敌人={0} 子弹={1} 秒={2}",
+                            s_StressEnemies, s_StressBullets, s_StressSeconds));
+                    }
+                }
+
+                // -replay <path>：无头回放（W-03）。可加 -replaytwice 做"同一录像跑两次序列一致"。
+                if (args[i] == "-replay" && i + 1 < args.Length)
+                {
+                    s_ReplayPath = args[i + 1];
+                    s_AutoReplay = true;
+                    Debug.Log("[AutoPlay] -replay " + s_ReplayPath);
+                }
+                if (args[i] == "-replaytwice")
+                {
+                    s_ReplayTwice = true;
+                }
+                // [W-11] 跨后端对拍诊断：-replayparts <N> → 把前 N 帧的**分段哈希**写进日志，
+                //   用来把"整体哈希不同"缩到"哪一段状态先分叉"；-mathprobe → 打印数学原语的位模式。
+                if (args[i] == "-replayparts" && i + 1 < args.Length)
+                {
+                    int nparts;
+                    if (int.TryParse(args[i + 1], out nparts)) { s_ReplayParts = Mathf.Clamp(nparts, 0, 500); }
+                }
+                if (args[i] == "-mathprobe")
+                {
+                    s_MathProbe = true;
                 }
             }
 
@@ -117,6 +174,16 @@ namespace EmojiWar.GameMain
                 {
                     s_AutoItems = true;
                     Debug.Log("[AutoPlay] -autoitems 参数检测到，启动后将跑物品事务自检");
+                }
+                if (arg == "-hashguard")
+                {
+                    s_HashGuard = true;
+                    Debug.Log("[AutoPlay] -hashguard 参数检测到，启动后将跑状态哈希守门测试（W-08）");
+                }
+                if (arg == "-configselftest")
+                {
+                    s_ConfigSelfTest = true;
+                    Debug.Log("[AutoPlay] -configselftest 参数检测到，启动后将跑配置哈希自检（Q3）");
                 }
                 if (arg == "-autospell")
                 {
@@ -237,6 +304,24 @@ namespace EmojiWar.GameMain
                 Debug.Log("[AutoPlay] -autopassive 单独使用：仅跑被动触发自检（S4/D25）");
             }
 
+            // -configselftest 单独使用：只跑配置版本哈希自检（Q3 验收通道）
+            if (s_ConfigSelfTest && !s_Started)
+            {
+                s_ItemsTestOnly = true;
+                var go = new GameObject("AutoPlay");
+                go.AddComponent<AutoPlay>();
+                Debug.Log("[AutoPlay] -configselftest 单独使用：仅跑配置哈希自检（Q3）");
+            }
+
+            // -hashguard 单独使用：只跑状态哈希守门测试（W-08 验收通道）
+            if (s_HashGuard && !s_Started)
+            {
+                s_ItemsTestOnly = true;
+                var go = new GameObject("AutoPlay");
+                go.AddComponent<AutoPlay>();
+                Debug.Log("[AutoPlay] -hashguard 单独使用：仅跑状态哈希守门测试（W-08）");
+            }
+
             // -autodrag 单独使用：按 Host 全自动流程跑到战斗，再执行拖拽集成探针
             if (s_AutoDrag && !s_Started)
             {
@@ -263,6 +348,138 @@ namespace EmojiWar.GameMain
         /// **商店期间不得自动开下一波**（旧实现 ShopDuration 计时到就 StartWave）；
         /// 然后触发"继续" → 下一波必须开始。
         /// </summary>
+        /// <summary>
+        /// 压力场景（W-02）：把敌人/子弹灌到目标数量并跑 N 秒，输出逻辑帧耗时 P50/P99。
+        /// 用法：-autocreate -autostress &lt;敌人&gt; &lt;子弹&gt; &lt;秒&gt;
+        /// 产出：探针里的 [stress] 行（报告 H1 需要的"200 实体单帧耗时"基线）。
+        /// </summary>
+        private IEnumerator AutoStressFlow()
+        {
+            var sim = GameEntry.SimView != null ? GameEntry.SimView.Simulation : null;
+            float waitStart = Time.unscaledTime;
+            while (sim == null && Time.unscaledTime - waitStart < 30f)
+            {
+                yield return null;
+                sim = GameEntry.SimView != null ? GameEntry.SimView.Simulation : null;
+            }
+            if (sim == null)
+            {
+                WriteProbe("[stress] FAIL 找不到确定性模拟实例（需要 -autocreate 建房间）");
+                yield break;
+            }
+
+            Simulation.SimPerf.Reset();
+            WriteProbe(string.Format("[stress] start enemies={0} bullets={1} seconds={2}",
+                s_StressEnemies, s_StressBullets, s_StressSeconds));
+
+            float t0 = Time.unscaledTime;
+            float nextReport = 10f;
+            while (Time.unscaledTime - t0 < s_StressSeconds)
+            {
+                sim.DebugStressTick(s_StressEnemies, s_StressBullets);
+                if (Time.unscaledTime - t0 >= nextReport)
+                {
+                    nextReport += 10f;
+                    WriteProbe(string.Format("[stress] t={0:F0}s entities=e{1}/b{2} | {3}",
+                        Time.unscaledTime - t0, sim.Enemies.Count, sim.Bullets.Count,
+                        Simulation.SimPerf.Describe()));
+                }
+                yield return null;
+            }
+
+            WriteProbe(string.Format("[stress] done entities=e{0}/b{1}", sim.Enemies.Count, sim.Bullets.Count));
+            WriteProbe("[stress] FINAL " + Simulation.SimPerf.Describe());
+        }
+
+        /// <summary>
+        /// 无头回放（W-03 / 报告 B4）：用录制的输入把一局重跑一遍，逐帧比对状态哈希。
+        /// 用法：`-autocreate -replay &lt;path&gt; [-replaytwice]`
+        /// 产出：探针里的 `[replay]` 行（PASS/FAIL + 首个分歧帧号），供 `tools/verify_replay.ps1` 判定。
+        ///
+        /// 为什么必须在**构建版**里跑：装备 Id → CastProgram 的重建需要物品数据表
+        /// （`ConfigItemTable` 依赖 `ConfigService`/`GameEntry.Data`，不是自包含的）。
+        /// </summary>
+        private IEnumerator AutoReplayFlow()
+        {
+            // 等数据/配置就绪（回放需要物品表把装备 Id 编译成 CastProgram）
+            float waitStart = Time.unscaledTime;
+            while ((GameEntry.Data == null || !GameEntry.Data.IsReady) && Time.unscaledTime - waitStart < 30f)
+            {
+                yield return null;
+            }
+            yield return null;   // 再等一帧，确保资源初始化收尾
+
+            if (GameEntry.Data == null || !GameEntry.Data.IsReady)
+            {
+                WriteProbe("[replay] FAIL 数据未就绪（GameEntry.Data）→ 无法重建 loadout，回放中止");
+                yield break;
+            }
+
+            string path = s_ReplayPath;
+            if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path))
+            {
+                string dir = System.IO.Path.Combine(Application.dataPath, "../Logs/replays");
+                path = Simulation.ReplayPlayer.FindNewest(dir);
+                WriteProbe("[replay] 未指定有效路径，自动取最新录像: " + (path ?? "(无)"));
+            }
+            if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path))
+            {
+                WriteProbe("[replay] FAIL 找不到录像文件");
+                yield break;
+            }
+
+            WriteProbe("[replay] start path=" + path);
+            WriteProbe("[replay] configHash(now)=0x"
+                + EmojiWar.GameMain.Data.ConfigService.VersionHash.ToString("X16"));
+
+            // 第一次回放（收集逐帧哈希序列；-replayparts N 时同时打印前 N 帧的分段哈希）
+            Simulation.ReplayPlayer.Result r1 = Simulation.ReplayPlayer.Run(path, true, 0, s_ReplayParts);
+            WriteProbe(string.Format("[replay] run1 {0} frames={1} firstMismatch={2} finalHash=0x{3:X16}",
+                r1.Ok ? "PASS" : "FAIL", r1.FramesReplayed, r1.FirstMismatchFrame, r1.FinalHash));
+            WriteProbe("[replay] run1 msg: " + r1.Message);
+            // W-08：把"录像是不是当前构建录的"单独打出来 —— 门禁据此把"旧录像"和"真不同步"分开报。
+            WriteProbe(string.Format("[replay] fingerprint(rec)={0} fingerprint(now)={1} match={2}",
+                r1.RecordedFingerprint ?? "(无)", r1.CurrentFingerprint ?? "(无)",
+                r1.FingerprintMismatch ? "False" : "True"));
+
+            if (r1.FingerprintMismatch)
+            {
+                WriteProbe("[replay] ⚠ 录像指纹 != 当前构建指纹 → 这是**旧录像**，不是不同步。"
+                    + "请用当前构建重跑一次双实例对局（tools/verify_determinism.ps1）生成新录像后再回放。");
+            }
+
+            if (!r1.Ok)
+            {
+                WriteProbe("[replay] FINAL FAIL " + r1.Message);
+                yield break;
+            }
+
+            // 第二次回放：逐帧哈希序列必须与第一次完全相同（= 同一录像多次回放哈希一致）
+            if (s_ReplayTwice)
+            {
+                Simulation.ReplayPlayer.Result r2 = Simulation.ReplayPlayer.Run(path, true);
+                bool sameSeq = r1.HashSequence != null && r2.HashSequence != null
+                    && r1.HashSequence.Count == r2.HashSequence.Count;
+                if (sameSeq)
+                {
+                    for (int i = 0; i < r1.HashSequence.Count; i++)
+                    {
+                        if (r1.HashSequence[i] != r2.HashSequence[i]) { sameSeq = false; break; }
+                    }
+                }
+                WriteProbe(string.Format("[replay] run2 {0} frames={1} finalHash=0x{2:X16} 序列一致={3}",
+                    r2.Ok ? "PASS" : "FAIL", r2.FramesReplayed, r2.FinalHash, sameSeq));
+
+                if (!r2.Ok || !sameSeq)
+                {
+                    WriteProbe("[replay] FINAL FAIL 两次回放的逐帧哈希序列不一致（模拟不是确定性的）");
+                    yield break;
+                }
+            }
+
+            WriteProbe("[replay] FINAL PASS " + r1.Message);
+        }
+
         private IEnumerator AutoShopProbe()
         {
             var hostLogic = GameEntry.Instance != null
@@ -485,7 +702,9 @@ namespace EmojiWar.GameMain
         {
             if (s_ItemsTestOnly)
             {
-                if (s_AutoSpell) { StartCoroutine(AutoSpellSelfTestFlow()); }
+                if (s_HashGuard) { StartCoroutine(AutoHashGuardFlow()); }
+                else if (s_ConfigSelfTest) { StartCoroutine(AutoConfigSelfTestFlow()); }
+                else if (s_AutoSpell) { StartCoroutine(AutoSpellSelfTestFlow()); }
                 else if (s_AutoBuff) { StartCoroutine(AutoBuffSelfTestFlow()); }
                 else if (s_AutoPassive) { StartCoroutine(AutoPassiveSelfTestFlow()); }
                 else { StartCoroutine(AutoItemSelfTestFlow()); }
@@ -523,6 +742,67 @@ namespace EmojiWar.GameMain
             {
                 StartCoroutine(AutoSpellSelfTestFlow());  // S2/D23：施法自检 + 预算打印
             }
+        }
+
+        /// <summary>
+        /// 状态哈希守门测试（W-08）：跑 `StateHashGuard.Run()`，逐行写入探针（`[HashGuard]` 前缀）。
+        /// 判据：`failed=0`（覆盖性无未登记字段 + 已入哈希字段改值后哈希确实变化）。
+        /// </summary>
+        private IEnumerator AutoHashGuardFlow()
+        {
+            yield return new WaitForSeconds(2.5f);   // 等 ConfigService 建索引完成
+
+            string report;
+            try
+            {
+                report = Simulation.StateHashGuard.Run();
+            }
+            catch (System.Exception e)
+            {
+                WriteProbe("[HashGuard] EXCEPTION " + e.Message);
+                Debug.LogError("[HashGuard] exception: " + e);
+                yield break;
+            }
+
+            var lines = report.Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(lines[i])) { WriteProbe(lines[i]); }
+            }
+            WriteProbe("[HashGuard] done");
+        }
+
+        /// <summary>
+        /// 配置版本哈希自检（Q3）：等配置建完索引后跑 `ConfigService.SelfCheck()`，
+        /// 并把**版本哈希 + 代码指纹**写进探针（W-07 握手的两个判据都是它）。
+        /// </summary>
+        private IEnumerator AutoConfigSelfTestFlow()
+        {
+            yield return new WaitForSeconds(2.5f);   // 等 ConfigService 建索引完成
+
+            string report;
+            try
+            {
+                report = Data.ConfigService.SelfCheck();
+            }
+            catch (System.Exception e)
+            {
+                WriteProbe("[ConfigTest] EXCEPTION " + e.Message);
+                Debug.LogError("[ConfigTest] exception: " + e);
+                yield break;
+            }
+
+            var lines = report.Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(lines[i])) { WriteProbe(lines[i]); }
+            }
+
+            WriteProbe("[ConfigTest] codeFingerprint=" + Simulation.SimBuildInfo.CodeFingerprint);
+            // [W-11b] 构建标识单独打一行：它**不参与比较**，只回答"这份代码是哪一次编译/哪个后端"。
+            WriteProbe("[ConfigTest] codeBuildId=" + Simulation.SimBuildInfo.BuildId);
+            WriteProbe("[ConfigTest] codeHash=0x" + Simulation.SimBuildInfo.CodeHash.ToString("X16"));
+            WriteProbe("[ConfigTest] done");
         }
 
         /// <summary>
@@ -1323,6 +1603,46 @@ namespace EmojiWar.GameMain
                 WriteProbe(string.Format("[auto] autoready 等待结束 players={0} 期望={1} 用时={2:F1}s",
                     waitHostLogic != null ? waitHostLogic.PlayerCount : -1,
                     s_AutoReadyPlayers, Time.unscaledTime - t0));
+            }
+
+            // -autostress：压力场景（W-02）。直接在当前（房间）模拟上灌实体并跑 N 秒，
+            // 不走准备/开战流程（压测只需要一个能持续 tick 的模拟），产出 [stress] 基线。
+            if (s_AutoStress)
+            {
+                yield return AutoStressFlow();
+                yield break;
+            }
+
+            // [W-11] 数学原语探针：跨后端对拍 `Mathf` / 浮点原语。
+            // ★ 必须输出**位模式**：用文本输出（"0.7071068"）会把 1 ulp 的差异掩盖掉，
+            //   而跨编译器分歧恰恰就藏在这 1 ulp 里。
+            if (s_MathProbe)
+            {
+                float[] xs = { 0.1f, 0.5f, 1f, 1.5707963f, 2f, 3f, 4.763f, 0.7853982f, 123.456f, -2.5f };
+                for (int i = 0; i < xs.Length; i++)
+                {
+                    float x = xs[i];
+                    WriteProbe(string.Format(
+                        "[math] i={0} x=0x{1:X8} cos=0x{2:X8} sin=0x{3:X8} sqrt(abs)=0x{4:X8} pow2=0x{5:X8} atan2(x,1)=0x{6:X8}",
+                        i, System.BitConverter.SingleToInt32Bits(x),
+                        System.BitConverter.SingleToInt32Bits(UnityEngine.Mathf.Cos(x)),
+                        System.BitConverter.SingleToInt32Bits(UnityEngine.Mathf.Sin(x)),
+                        System.BitConverter.SingleToInt32Bits(UnityEngine.Mathf.Sqrt(UnityEngine.Mathf.Abs(x))),
+                        System.BitConverter.SingleToInt32Bits(UnityEngine.Mathf.Pow(x, 2f)),
+                        System.BitConverter.SingleToInt32Bits(UnityEngine.Mathf.Atan2(x, 1f))));
+                }
+                WriteProbe("[math] 0.1+0.2=0x" + System.BitConverter.SingleToInt32Bits(0.1f + 0.2f).ToString("X8"));
+                WriteProbe("[math] 1/3=0x" + System.BitConverter.SingleToInt32Bits(1f / 3f).ToString("X8"));
+                WriteProbe("[math] Mathf.Sqrt(2)=0x" + System.BitConverter.SingleToInt32Bits(UnityEngine.Mathf.Sqrt(2f)).ToString("X8"));
+                WriteProbe("[math] (float)Math.Sqrt(2)=0x" + System.BitConverter.SingleToInt32Bits((float)System.Math.Sqrt(2.0)).ToString("X8"));
+                WriteProbe("[math] (float)Math.Cos(0.1)=0x" + System.BitConverter.SingleToInt32Bits((float)System.Math.Cos(0.1)).ToString("X8"));
+            }
+
+            // -replay：无头回放（W-03）。不需要房间/开战，跑完即出结论。
+            if (s_AutoReplay)
+            {
+                yield return AutoReplayFlow();
+                yield break;
             }
 
             // 自动准备为显式开关（-autoready）：默认不自动准备，等待手动点"准备"。
